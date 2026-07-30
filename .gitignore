@@ -30,3 +30,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Separate nested git repo (its own GitHub project, synced independently)
+Bayt-Opsys/
