@@ -5,7 +5,7 @@ import tsConfigPaths from "vite-tsconfig-paths";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 
 export default defineConfig({
-  base: "/Bayt-Opsys/",
+  base: "/",
   plugins: [
     tsConfigPaths(),
     tanstackRouter({ target: "react", autoCodeSplitting: true }),
