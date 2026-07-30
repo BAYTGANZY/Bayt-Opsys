@@ -126,9 +126,11 @@ CREATE INDEX IF NOT EXISTS contacts_email_lower_idx
 --      4. Skapa en ny, men bara för entreprenörer (p_create). En styrelse- eller
 --         adminanvändare ska inte hamna i Ansvarig-dropdownen.
 --
---    Kopplingen återaktiverar alltid kontakten (active = true). Poängen med
---    hela filen är att personen ska kunna ta vid där de slutade, och en
---    inaktiv kontakt går inte att tilldela nya ärenden.
+--    Kopplingen återaktiverar kontakten (active = true) BARA om den nya rollen
+--    är entreprenör — poängen med hela filen är att en återvändande
+--    entreprenör ska kunna ta vid där de slutade, inte att en person som
+--    kommer tillbaka som styrelse/admin dyker upp som pickbar entreprenör.
+--    En inaktiv kontakt går inte att tilldela nya ärenden.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.link_or_create_contact(
   p_profile_id           UUID,
@@ -202,11 +204,16 @@ BEGIN
     RETURN v_id;
   END IF;
 
-  -- Befintlig post: peka om till det nya kontot och väck den igen. E-posten
-  -- fylls i om den saknades, så nästa radering har en nyckel att matcha på.
+  -- Befintlig post: peka om till det nya kontot. Aktiveras (active = true) BARA
+  -- om den nya rollen är entreprenör — annars förblir den pensionerad. Utan det
+  -- här villkoret dyker en person som raderas som entreprenör och sedan bjuds
+  -- in igen som styrelse/admin upp som en pickbar (men obefintlig) entreprenör
+  -- i Ansvarig-dropdownen, trots att inloggningen inte längre är entreprenör.
+  -- profile_id sätts oavsett roll — posten hör till personen och gamla ärenden
+  -- ska fortfarande kunna slå upp namnet.
   UPDATE contacts
      SET profile_id = p_profile_id,
-         active     = TRUE,
+         active     = (coalesce(v_profile.role::text, '') = 'entreprenor'),
          email      = coalesce(nullif(btrim(email), ''), v_email)
    WHERE id = v_id;
 
@@ -215,7 +222,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.link_or_create_contact(UUID, UUID, BOOLEAN) IS
-  'Kopplar en inloggning till sin kontaktpost (profil → contacts.profile_id): befintlig koppling, ihågkommen post, samma e-post, annars ny post för entreprenörer. Returnerar contacts.id eller NULL.';
+  'Kopplar en inloggning till sin kontaktpost (profil → contacts.profile_id): befintlig koppling, ihågkommen post, samma e-post, annars ny post för entreprenörer. Reaktiverar (active=true) bara om profilens roll är entreprenor. Returnerar contacts.id eller NULL.';
 
 
 -- ---------------------------------------------------------------------------
