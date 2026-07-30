@@ -13,13 +13,22 @@ type Property = { id: string; name: string; address: string | null; image_url: s
 
 const PROPERTY_COLUMNS = "id, name, address, image_url";
 
-/** `filterContactId` (useMyArendeScope): an entreprenör's badge counts their own
- *  öppna felanmälningar, not the building's. */
+/**
+ * `filterContactId` (useMyArendeScope): an entreprenör's badge counts their own
+ * felanmälningar, not the building's.
+ *
+ * The status filter is "everything not avslutat", NOT the lifecycle-oppet set
+ * (pagande/oppet/vantar), and must stay that way: a brand-new felanmälan has
+ * status `ny` (lifecycle vilande, see LIFECYCLE_OF). Counting only the opened
+ * ones made a freshly assigned ärende show a card reading 0 over a list
+ * containing it — which reads as "there is nothing here". Same rule as
+ * loadStats() in SectionOverviewPage, so every building card counts alike.
+ */
 async function loadOpenIssueBadges(filterContactId: string | null): Promise<Record<string, PropertyCardBadge>> {
   let q = supabase
     .from("issues")
     .select("property_id, priority")
-    .in("status", ["pagande", "oppet", "vantar"]);
+    .not("status", "in", "(klar,fakturerad,stangd,avslutat)");
   if (filterContactId) q = q.eq("assigned_contact_id", filterContactId);
   const { data, error } = await q;
   if (error) throw error;

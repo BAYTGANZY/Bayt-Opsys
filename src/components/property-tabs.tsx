@@ -743,12 +743,14 @@ export function ProjectsTab({ propertyId }: { propertyId: string }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <SectionHeaderRow
         title="Projekt"
-        controls={<ProjektStatusTabs value={filter} onChange={setFilter} />}
         actionLabel="Nytt projekt"
         actionShortLabel="Nytt"
         actionTo="/properties/$id/projects/new"
         actionToParams={{ id: propertyId }}
       />
+      <div style={{ overflowX: "auto" }}>
+        <ProjektStatusTabs value={filter} onChange={setFilter} />
+      </div>
       {isLoading ? <div style={{ color: COLORS.secondary }}>Laddar…</div> : sorted.length === 0 ? (
         data.length === 0 ? (
           <Empty label="projekt" />

@@ -17,6 +17,7 @@ import {
   deriveProjectStatus,
   type DerivedStatus,
 } from "@/lib/issue-tokens";
+import { inspectionTypeLabel } from "@/lib/inspection-tokens";
 import { DerivedStatusBadge } from "@/components/DerivedStatusBadge";
 import { arendeKindColor, arendeKindLabel, type MyArendeKind } from "@/hooks/useMyArenden";
 import { DeleteButton } from "@/components/DeleteButton";
@@ -508,7 +509,7 @@ function ArendenSomAnsvarig({ contactId }: { contactId: string }) {
       ...data.inspections.map((r) => ({
         kind: "inspection" as const,
         id: r.id,
-        title: r.inspection_type?.trim() || "Besiktning",
+        title: inspectionTypeLabel(r.inspection_type),
         status: deriveInspectionStatus(r),
         createdAt: r.created_at,
         propertyId: r.property_id,

@@ -34,6 +34,7 @@ import {
 import { DerivedStatusBadge } from "@/components/DerivedStatusBadge";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
 import { sanitizeStorageName } from "@/lib/storage";
+import { INSPECTION_TYPES, inspectionTypeLabel } from "@/lib/inspection-tokens";
 
 export const Route = createFileRoute("/_authenticated/apartments/$id")({
   head: () => ({ meta: [{ title: "Lägenhet — BAYT" }] }),
@@ -74,7 +75,6 @@ const td: React.CSSProperties = {
   padding: "14px 8px", color: C.text, borderBottom: `1px solid ${C.border}`, fontSize: 14,
 };
 
-const INSPECTION_TYPES = ["brandskydd", "hiss", "ventilation", "el", "vvs", "tak", "fasad", "ovrig"];
 const DOC_CATEGORIES = ["avtal", "protokoll", "ritningar", "forsakringar", "garantier", "offerter", "driftinstruktioner", "besiktningsprotokoll", "ovrigt"];
 
 function Badge({ value, map }: { value: string | null; map: Record<string, { bg: string; color: string; border?: string }> }) {
@@ -777,7 +777,7 @@ function InspectionsTab({ apartmentId, propertyId }: { apartmentId: string; prop
   // Entreprenör: only besiktningar assigned to them, whatever the status.
   const { filterContactId, ready } = useMyArendeScope();
   const [showForm, setShowForm] = useState(false);
-  const [type, setType] = useState("brandskydd");
+  const [type, setType] = useState("sba");
   const [inspector, setInspector] = useState("");
   const [lastCompleted, setLastCompleted] = useState("");
   const [interval, setInterval] = useState("12");
@@ -831,7 +831,7 @@ function InspectionsTab({ apartmentId, propertyId }: { apartmentId: string; prop
       if (insErr) throw insErr;
       toast.success("Sparat!", { style: { background: "#3D8A30", color: "#fff" } });
       setShowForm(false);
-      setType("brandskydd"); setInspector(""); setLastCompleted(""); setInterval("12"); setNotes("");
+      setType("sba"); setInspector(""); setLastCompleted(""); setInterval("12"); setNotes("");
       qc.invalidateQueries({ queryKey: ["inspections", "apartment", apartmentId] });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kunde inte spara");
@@ -850,7 +850,7 @@ function InspectionsTab({ apartmentId, propertyId }: { apartmentId: string; prop
           <div>
             <label style={labelStyle}>Typ</label>
             <select style={inputStyle} value={type} onChange={(e) => setType(e.target.value)}>
-              {INSPECTION_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              {INSPECTION_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
           <div><label style={labelStyle}>Besiktningsman</label><input style={inputStyle} value={inspector} onChange={(e) => setInspector(e.target.value)} /></div>
@@ -877,7 +877,7 @@ function InspectionsTab({ apartmentId, propertyId }: { apartmentId: string; prop
             <tbody>
               {data.map((r: any) => (
                 <tr key={r.id} style={{ cursor: "pointer" }} onClick={() => navigate({ to: "/inspections/$id", params: { id: r.id } })}>
-                  <td style={{ ...td, fontWeight: 600 }}>{r.inspection_type}</td>
+                  <td style={{ ...td, fontWeight: 600 }}>{inspectionTypeLabel(r.inspection_type)}</td>
                   <td style={td}>{r.inspector ?? "—"}</td>
                   <td style={td}>{formatSwedishDate(r.last_completed_date)}</td>
                   <td style={td}>{formatSwedishDate(r.next_due_date)}</td>

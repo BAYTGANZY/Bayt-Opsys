@@ -7,6 +7,7 @@ import {
   LogSelectCheckbox, LogSelectionBar, useLogSelection,
   type LogTable, type LogTarget,
 } from "@/components/LogSelection";
+import { inspectionTypeLabel } from "@/lib/inspection-tokens";
 
 const C = {
   card: "#ffffff", border: "#E5E7EB", secondary: "#6B7280", text: "#1a1a1a",
@@ -104,7 +105,7 @@ async function loadAll(): Promise<Row[]> {
     if (!r.last_completed_date) continue;
     rows.push({
       key: `i-${r.id}`, kind: "inspection", id: r.id, date: r.last_completed_date,
-      title: `${r.inspection_type ?? "Besiktning"} besiktigad`,
+      title: `${inspectionTypeLabel(r.inspection_type)} besiktigad`,
       propertyId: r.property_id, propertyName: name(r.property_id),
     });
   }

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { COLORS } from "@/components/property-tabs";
+import { inspectionTypeLabel } from "@/lib/inspection-tokens";
 
 export type TimelineEvent = { id: string; kind: "inspection" | "project" | "log"; date: string; title: string };
 
@@ -23,7 +24,7 @@ export function useMergedPropertyTimeline(propertyId: string) {
       const merged: TimelineEvent[] = [];
       for (const r of insp.data ?? []) {
         if (!r.last_completed_date) continue;
-        merged.push({ id: `i-${r.id}`, kind: "inspection", date: r.last_completed_date, title: `${r.inspection_type ?? "Besiktning"} besiktigad` });
+        merged.push({ id: `i-${r.id}`, kind: "inspection", date: r.last_completed_date, title: `${inspectionTypeLabel(r.inspection_type)} besiktigad` });
       }
       for (const r of projs.data ?? []) {
         const d = r.end_date ?? r.start_date;

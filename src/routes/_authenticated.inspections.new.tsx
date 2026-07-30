@@ -11,6 +11,7 @@ import { AnsvarigDropdown } from "@/components/AnsvarigDropdown";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
 import { derivePriority } from "@/lib/issue-tokens";
 import { sanitizeStorageName } from "@/lib/storage";
+import { INSPECTION_TYPES } from "@/lib/inspection-tokens";
 
 export const Route = createFileRoute("/_authenticated/inspections/new")({
   head: () => ({ meta: [{ title: "Ny besiktning — BAYT" }] }),
@@ -22,8 +23,6 @@ const C = {
   primary: "#3D8A30", secondary: "#6B7280", text: "#1a1a1a",
   error: "#DC2626", focus: "#5CB84A",
 };
-
-const TYPES = ["brandskydd", "hiss", "ventilation", "el", "vvs", "tak", "fasad", "ovrig"];
 
 const labelStyle: React.CSSProperties = {
   display: "block", fontSize: 12, fontWeight: 500, color: C.secondary,
@@ -51,7 +50,7 @@ export function NewInspectionPage({ initialPropertyId }: { initialPropertyId?: s
   const [propertyId, setPropertyId] = useState(initialPropertyId ?? "");
   const [apartmentId, setApartmentId] = useState("");
   const [trappa, setTrappa] = useState("");
-  const [type, setType] = useState("brandskydd");
+  const [type, setType] = useState("sba");
   const [inspector, setInspector] = useState("");
   const [lastDate, setLastDate] = useState("");
   const [interval, setInterval] = useState(12);
@@ -240,7 +239,7 @@ export function NewInspectionPage({ initialPropertyId }: { initialPropertyId?: s
         <div>
           <label style={labelStyle}>Typ *</label>
           <select style={inputStyle} value={type} onChange={(e) => setType(e.target.value)} required>
-            {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            {INSPECTION_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
         </div>
 

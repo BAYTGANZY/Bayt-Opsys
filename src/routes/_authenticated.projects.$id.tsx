@@ -17,6 +17,7 @@ import { DerivedStatusField } from "@/components/DerivedStatusBadge";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
 import { deriveProjectStatus, derivePriorityFromStatus } from "@/lib/issue-tokens";
 import { useRecordScopeGuard } from "@/hooks/useRecordScopeGuard";
+import { isStyrelse } from "@/lib/permissions";
 import { sanitizeStorageName, useSignedFileUrls } from "@/lib/storage";
 
 export const Route = createFileRoute("/_authenticated/projects/$id")({
@@ -94,7 +95,7 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   const projectQ = useQuery({
     queryKey: ["project", id],
@@ -451,6 +452,10 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
       >
         <h2 style={{ fontSize: 18, fontWeight: 700, color: C.text, margin: "0 0 16px" }}>Projektbilder</h2>
 
+        {/* Uppladdning: admin + entreprenör. Styrelse är läs-only by spec och
+            project_images har bara en SELECT-policy för dem — knappen skulle
+            bara ge ett RLS-fel, så den renderas inte alls. */}
+        {!isStyrelse(profile?.role) && (
         <div style={{ marginBottom: 16 }}>
           <label style={{ ...labelStyle, marginBottom: 8 }}>Ladda upp bild</label>
           <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
@@ -484,6 +489,7 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
             )}
           </div>
         </div>
+        )}
 
         {imagesQ.isLoading ? (
           <div style={{ color: C.secondary }}>Laddar bilder…</div>

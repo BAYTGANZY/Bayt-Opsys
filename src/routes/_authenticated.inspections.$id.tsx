@@ -17,6 +17,7 @@ import { deriveInspectionStatus, derivePriorityFromStatus } from "@/lib/issue-to
 import { useRecordScopeGuard } from "@/hooks/useRecordScopeGuard";
 import { isEntreprenor } from "@/lib/permissions";
 import { sanitizeStorageName } from "@/lib/storage";
+import { INSPECTION_TYPES, inspectionTypeLabel } from "@/lib/inspection-tokens";
 
 export const Route = createFileRoute("/_authenticated/inspections/$id")({
   head: () => ({ meta: [{ title: "Besiktning — BAYT" }] }),
@@ -230,14 +231,14 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
       }}>
         <ArrowLeft size={18} /> Tillbaka
       </Link>
-      <h1 style={{ fontSize: 24, fontWeight: 700, color: C.text, margin: "0 0 4px" }}>{insp.inspection_type}</h1>
+      <h1 style={{ fontSize: 24, fontWeight: 700, color: C.text, margin: "0 0 4px" }}>{inspectionTypeLabel(insp.inspection_type)}</h1>
       <div style={{ fontSize: 13, color: C.secondary, marginBottom: 16 }}>{insp.properties?.name ?? "—"}</div>
       <div style={{ marginBottom: 24, display: "flex", gap: 12, flexWrap: "wrap" }}>
         <OppnaArendeButton
           kind="inspection"
           id={id}
           currentStatus={(insp as { arende_status?: string | null }).arende_status ?? null}
-          title={insp.inspection_type ?? "Besiktning"}
+          title={inspectionTypeLabel(insp.inspection_type)}
           propertyId={insp.property_id ?? null}
           apartmentId={insp.apartment_id ?? null}
           invalidateKeys={[["inspection", id]]}
@@ -246,7 +247,7 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
           kind="inspection"
           id={id}
           currentStatus={(insp as { arende_status?: string | null }).arende_status ?? null}
-          title={insp.inspection_type ?? "Besiktning"}
+          title={inspectionTypeLabel(insp.inspection_type)}
           propertyId={insp.property_id ?? null}
           apartmentId={insp.apartment_id ?? null}
           invalidateKeys={[["inspection", id]]}
@@ -260,7 +261,16 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
       }}>
         <div>
           <label style={labelStyle}>Typ</label>
-          <input style={inputStyle} value={inspectionType} onChange={(e) => setInspectionType(e.target.value)} />
+          <select style={inputStyle} value={inspectionType} onChange={(e) => setInspectionType(e.target.value)}>
+            {!inspectionType && <option value="">Välj typ</option>}
+            {/* A row saved before this enum existed, or by hand in SQL, can carry
+                a value outside INSPECTION_TYPES — keep it selectable so opening
+                the page doesn't silently change it on save. */}
+            {inspectionType && !INSPECTION_TYPES.some((t) => t.value === inspectionType) && (
+              <option value={inspectionType}>{inspectionType}</option>
+            )}
+            {INSPECTION_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
         </div>
 
         <div>

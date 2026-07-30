@@ -14,6 +14,7 @@ import {
   derivePriorityFromStatus,
   type DerivedStatus,
 } from "@/lib/issue-tokens";
+import { inspectionTypeLabel } from "@/lib/inspection-tokens";
 
 /**
  * Every ärende assigned to the signed-in entreprenör — felanmälan, besiktning
@@ -358,7 +359,7 @@ function mapInspection(r: InspectionRow, places: PlaceMap, names: NameMap): MyAr
   return {
     kind: "inspection",
     id: r.id,
-    title: r.inspection_type?.trim() || "Besiktning",
+    title: inspectionTypeLabel(r.inspection_type),
     // Legacy rows predate arende_status. They are left as-is: the lifecycle
     // buttons only act on 'vilande'/'oppet', so such a row shows no action and
     // the sheet says so rather than guessing a transition on the user's behalf.
