@@ -1,0 +1,23 @@
+import "node:module";
+import { defineConfig } from "file:///C:/Users/2hej0/Downloads/customer/Bayt/the%20project%20Bayt/node_modules/vite/dist/node/index.js";
+import react from "file:///C:/Users/2hej0/Downloads/customer/Bayt/the%20project%20Bayt/node_modules/@vitejs/plugin-react/dist/index.js";
+import tailwindcss from "file:///C:/Users/2hej0/Downloads/customer/Bayt/the%20project%20Bayt/node_modules/@tailwindcss/vite/dist/index.mjs";
+import tsConfigPaths from "file:///C:/Users/2hej0/Downloads/customer/Bayt/the%20project%20Bayt/node_modules/vite-tsconfig-paths/dist/index.js";
+import { tanstackRouter } from "file:///C:/Users/2hej0/Downloads/customer/Bayt/the%20project%20Bayt/node_modules/@tanstack/router-plugin/dist/esm/vite.js";
+var vite_config_default = defineConfig({
+	base: "/Bayt-Opsys/",
+	plugins: [
+		tsConfigPaths(),
+		tanstackRouter({
+			target: "react",
+			autoCodeSplitting: true
+		}),
+		react(),
+		tailwindcss()
+	],
+	server: { port: 5173 }
+});
+//#endregion
+export { vite_config_default as default };
+
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoidml0ZS5jb25maWcuanMiLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiQzovVXNlcnMvMmhlajAvRG93bmxvYWRzL2N1c3RvbWVyL0JheXQvdGhlIHByb2plY3QgQmF5dC92aXRlLmNvbmZpZy50cyJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgeyBkZWZpbmVDb25maWcgfSBmcm9tIFwidml0ZVwiO1xuaW1wb3J0IHJlYWN0IGZyb20gXCJAdml0ZWpzL3BsdWdpbi1yZWFjdFwiO1xuaW1wb3J0IHRhaWx3aW5kY3NzIGZyb20gXCJAdGFpbHdpbmRjc3Mvdml0ZVwiO1xuaW1wb3J0IHRzQ29uZmlnUGF0aHMgZnJvbSBcInZpdGUtdHNjb25maWctcGF0aHNcIjtcbmltcG9ydCB7IHRhbnN0YWNrUm91dGVyIH0gZnJvbSBcIkB0YW5zdGFjay9yb3V0ZXItcGx1Z2luL3ZpdGVcIjtcblxuZXhwb3J0IGRlZmF1bHQgZGVmaW5lQ29uZmlnKHtcbiAgYmFzZTogXCIvQmF5dC1PcHN5cy9cIixcbiAgcGx1Z2luczogW1xuICAgIHRzQ29uZmlnUGF0aHMoKSxcbiAgICB0YW5zdGFja1JvdXRlcih7IHRhcmdldDogXCJyZWFjdFwiLCBhdXRvQ29kZVNwbGl0dGluZzogdHJ1ZSB9KSxcbiAgICByZWFjdCgpLFxuICAgIHRhaWx3aW5kY3NzKCksXG4gIF0sXG4gIHNlcnZlcjoge1xuICAgIHBvcnQ6IDUxNzMsXG4gIH0sXG59KTtcbiJdLCJtYXBwaW5ncyI6Ijs7Ozs7O0FBTUEsSUFBQSxzQkFBZSxhQUFhO0NBQzFCLE1BQU07Q0FDTixTQUFTO0VBQ1AsY0FBYztFQUNkLGVBQWU7R0FBRSxRQUFRO0dBQVMsbUJBQW1CO0VBQUssQ0FBQztFQUMzRCxNQUFNO0VBQ04sWUFBWTtDQUNkO0NBQ0EsUUFBUSxFQUNOLE1BQU0sS0FDUjtBQUNGLENBQUMifQ==

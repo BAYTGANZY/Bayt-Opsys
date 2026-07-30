@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(jobs -l)",
+      "Bash(curl -s \"https://tixxacthedwaoqtjokdr.supabase.co/rest/v1/?apikey=sb_publishable_NJhrAoS54zwCGQlHycHlZQ_ueYyPJO_\" -H \"apikey: sb_publishable_NJhrAoS54zwCGQlHycHlZQ_ueYyPJO_\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d['definitions']['logbook_comments'], indent=2\\)\\)\")",
+      "Bash(curl -s \"https://tixxacthedwaoqtjokdr.supabase.co/rest/v1/?apikey=sb_publishable_NJhrAoS54zwCGQlHycHlZQ_ueYyPJO_\" -H \"apikey: sb_publishable_NJhrAoS54zwCGQlHycHlZQ_ueYyPJO_\" -o /tmp/schema.json -w \"%{http_code}\\\\n\")",
+      "Read(//tmp/**)",
+      "Bash(curl -s \"https://tixxacthedwaoqtjokdr.supabase.co/rest/v1/logbook_comments?select=id,event_key,logbook_entry_id&limit=1\" -H \"apikey: sb_publishable_NJhrAoS54zwCGQlHycHlZQ_ueYyPJO_\" -H \"Authorization: Bearer sb_publishable_NJhrAoS54zwCGQlHycHlZQ_ueYyPJO_\" -w \"\\\\nHTTP:%{http_code}\\\\n\")",
+      "PowerShell(npx tsc --noEmit)",
+      "PowerShell(npm run build)",
+      "Bash(grep -n \"paddingLeft\\\\|paddingRight\" \"src/components/property-tabs.tsx\" \"src/routes/_authenticated.apartments.new.tsx\" \"src/routes/_authenticated.apartments.\\\\$id.tsx\" 2>&1)",
+      "Read(//c/Users/ammar/Downloads/Customers/BAYT/Bayt Admin Portal/src/routes/**)",
+      "PowerShell($a=\"c:\\\\Users\\\\ammar\\\\Downloads\\\\Customers\\\\BAYT\\\\Bayt Admin Portal\\\\src\\\\routes\\\\_authenticated.chatt.tsx\"; $b=\"c:\\\\Users\\\\ammar\\\\Downloads\\\\Customers\\\\BAYT\\\\Bayt Admin Portal\\\\Bayt-Opsys\\\\src\\\\routes\\\\_authenticated.chatt.tsx\"; Test-Path $b; if \\(Test-Path $b\\) { \\(Get-Item $a\\).LastWriteTime; \\(Get-Item $b\\).LastWriteTime; \\(Get-FileHash $a\\).Hash; \\(Get-FileHash $b\\).Hash })",
+      "Bash(echo \"exit=$?\")",
+      "PowerShell(npx eslint src/lib/notifications.tsx src/components/NotificationCenter.tsx src/components/AkutWatcher.tsx src/components/AppShell.tsx src/routes/_authenticated.tsx)",
+      "PowerShell(npx eslint src/lib/notifications.tsx src/components/NotificationCenter.tsx src/routes/_authenticated.tsx)",
+      "PowerShell(if \\($?\\) { \"CLEAN\" })",
+      "PowerShell(npx eslint --fix src/lib/notifications.tsx src/components/NotificationCenter.tsx)",
+      "PowerShell(npx eslint src/lib/notifications.tsx src/components/NotificationCenter.tsx)",
+      "PowerShell(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -in 3000,4173,5173,5174,8080,8081 } | Select-Object LocalAddress,LocalPort,OwningProcess | Format-Table -AutoSize)",
+      "PowerShell(npm run dev)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{url_effective}\\\\n\" http://localhost:5173/Bayt-Opsys/)",
+      "Read(//c/Users/2hej0/.claude/projects/c--Users-2hej0-Downloads-customer-Bayt-the-project-Bayt/ef02a699-5553-438d-b1a6-3d122fd10410/subagents/workflows/wf_f511c961-314/**)",
+      "Bash(node -e ' *)",
+      "Read(//c/Users/2hej0/AppData/Local/Temp/claude/c--Users-2hej0-Downloads-customer-Bayt-the-project-Bayt-ef02a699/tasks/**)",
+      "Bash(cd \"c:/Users/2hej0/Downloads/customer/Bayt/the project Bayt\" && grep -n \"from\\(\\\\\"issues\\\\\"\\)\\\\|from\\(\\\\\"inspections\\\\\"\\)\\\\|assigned_contact_id\\\\|isEntreprenor\" src/routes/_authenticated.apartments.\\\\$id.tsx | head -40)",
+      "Read(//c/Users/2hej0/Downloads/customer/Bayt/the project Bayt/src/routes/**)",
+      "Bash(cd \"c:/Users/2hej0/Downloads/customer/Bayt/the project Bayt\" && grep -n \"^function \\\\|^export function \" src/routes/_authenticated.apartments.\\\\$id.tsx)",
+      "Bash(cd \"c:/Users/2hej0/Downloads/customer/Bayt/the project Bayt\" && sed -n '740,770p' src/routes/_authenticated.apartments.\\\\$id.tsx && echo \"=== logbook lib ===\" && grep -n \"issue_id\\\\|inspection_id\\\\|project_id\\\\|related\" src/lib/logbook.ts | head -20)",
+      "PowerShell(npx tsc --noEmit; echo \"exit=$LASTEXITCODE\")"
+    ]
+  }
+}

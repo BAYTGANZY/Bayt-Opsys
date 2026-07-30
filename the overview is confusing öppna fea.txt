@@ -1,0 +1,58 @@
+the overview is confusing öppna feanmälan with felanmälan and it shows öppna felanmölan 1 when the felanmälan istn open and there is just 1 felanmälan that s unopened and when the errend actitually gets opened the overview says 0 
+
+felanmälan doesn't get rid of the errand felanmälan ,project ,besiktningar when its opened and then closed or just closed directly in a seperat page in that buildings, I will give you an example explination about the felanmölan being opened and avslutad or just directly  
+
+the / felanmalan images that are being sent in with the / felanmalan does not appear to any role
+
+when trying to delete a apartments loggs event as an admin I get this error  "de går inte atta ångra och lämna inget spår" and then it works but I would like it to not give the admin a pausing notifaction that the browser provides and just pup up a little window that says something in the lines of this act is permanent are you sure you want to delete this ? 
+
+this is embarrassing but I would like to know what our understanding of "Object" is and what is the functions of it.
+
+project a project should not be able be opened and paused at the same time when the project is paused and someone wants to open it they get a pup up window that says something in the lines this project is paused would you like to unpause and open the errend? when the user presses open project as its paused 
+
+project currently when pressing the avbryt project the page then presents a avsluta project I would like you to ot sho that when a project is avbyten since its shut down and will no tbe finished when it has been shut down and i would like to place tabs in the Fastigheter › Building Name › Projekt there tabs have to be a animational button that will replace and redesign filter button instead of it switching between Nyast först, äldst först and Senaste to instead say and display Avbrutna project, Avslutade Project Öppna Project, and then Alla Project and obviously every filter setting will actitually show those details 
+
+project when pressing a project and uploading an image the program gives this error "Uppladdning misslyckades: Invalid key: 505f3cac-e34a-45de-9b02-e90a2db8a57f/1785356686606-Skärmbild 2026-06-22 170754.png" and then the image doesn't get uploaded to any other role, I would like to fix this.
+
+I would like to fix the "bjud in andvändare" supabase email to work for the link app.bayt.se instead of local host. so when publicated it will work publicaly and npt just localy I beilve that its as simple as ging int to the edge function intive and changine localhost in the code to be the desired link that the user is being invited too.
+
+is kontakter connected to buildings and if so I would like to add every person that did a felanmölan through the non loggin page and creat for them a kontakt page and this contact profile will show the felanmälan they have applied a prifile will be based on the email. and make a profile for the apprtment owners or livers that the admin will b eattaching with the apartments and so to sum it up there will be two contacts in the faastighet->building name->kontakter the profile that will be created  by admin when they create a new apartment and attach and email phone number and name to an apartment and in the contacts profile page it will show what apprtment they are connected to and this profile will be kind of a ground map for all the / felanmalan surveys that get sent in to be connected as close as possible and that felanmölan will be connected with that profile and you might ask yourself how will this be connected well we will determine (this wont be shown to the user or the admin) does the felanmälan have the same either apartment phone number or email as ay of the contacts and if so that is agoodenoucg corrilation to put that felanmölan in that contacts profile when pressed and scriolled down so the felanmölan that re conntcted to that contact will just be there under their profile where you can see the felanmälan they sent in as a whole when it was opened and when it was closed and then yellow circkeling in the detail or details that match and corrilate that felanmälan to the profile and you might ask yourself what will happened when the / felanmalan surey doesn't corrilate well then it will creat a profile and this profile will be attached to the apprtment id that they connected the felanmälan too in the survey if any wquestions appear because im missing some important things I might not be thinking about then I would like you to let me know.
+
+when the user is in any page of a building the sidebar extends a MASSIVE list of subpages that are connected to thatbuilding in this list of subpages I would like you to not extend this page when the user is in a sidebasr efter they have opened any page of a building just unextent it and rearrange the order of the subpages once the user etends the building pages in the sidebar to be in this order. 
+Lägeneter
+Felanmälan
+Besiktningar
+Project
+Dokument
+Loggbok
+Åtgärdeslist 
+
+
+delete history that supage throughout all buildings is not in need anymore.
+and delete info since its just a page for navigation and the possibility of changing the details that can be changed in the info page can and areeasly accessible to be changed when pressing the image on the fastighets page.
+
+
+åtgärdeslista need to be upgraded if you look at how important it is I would like you to add the possibility to upload files attach entrepenör, deadline and it can be paused opened and closed with the same functions and role layout and function as a felanlälan but the same pause unpase avsluta functions as a project. an it can be a errend and will have the possibility to be on dagsrapport and can get a status dot on the sidebar to show importance.
+
+
+besiktning when I was making a besiktning i had to pick the apartment from the dropdown and I noticed that all apartments have to have a trappa value to them and that is great but that is not shown and categorized in the dropdown names of them the just say Lgh 001 they ashcould be named with the trappa value and when picking a lägenhet that already has a trappa assigned to that lägenhet the trappa textbox automatically gets filled out by the lägenhets trappa that its assigned with, you schouldnt be able to type in a trappa when a apartment with a trappa value assigned is picked that creates gap for mistake and confusion but I still want the prappa textbox to be visable for entrepenörer that need better clearness and when they get assigned to a besiktning and they will have in the textbox of the lägenhet dropdown that they cant extend and change a little green arrow that is on the lägeenhet textbox that allows the entrepenör to be redesignated to that appartments page still without editing right so they can access common apartment knowledge. without inteveinging and the backbttn from that role and that perspective after pressing the little greee arrow that is on the lgenhet textbox that is already picked and shown will then lead them to the apprtment with no editing right and the backbutton form that extact page situation and perspective will elead them to the besiktning they got there from. 
+
+
+there is a problem with the entrepenör dropdown entrepenörer profiles that are deleted and not in the system anyomer from the bjud in andvöndare are still pickable options in the dropdown not allowed and unacceptable fix this.
+
+besiktningar make the chese files no file chosen is verry unclear I want you to redesig it to be the same as the one that is in the / felanmalan survey page.
+
+when tyring to upload an image to the besiktning i get a "Could not find the 'trappa' column of 'inspections' in the schema cache" erreo and the upload diesnt work I would like that fixed so the feature works
+
+flanmalan when pressed the ladda upp bild i woul dlike you to redegin that to look like the upload image that is in the / felanmalan surevy page 
+
+felanmälan when pressed the upload imge feature doesn't work and when pressing skapa ändringar nothing happens and the ladda upp bild button is npw greyed out after I picked and attachment amd the attachment isn't seen by anyone else
+
+add the felanmälan upload file design to everywhere a user can upload a design its easier to understand 
+
+
+
+
+
+
+ 

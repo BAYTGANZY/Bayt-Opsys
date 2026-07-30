@@ -1,0 +1,63 @@
+Here is a clear, structured handover report specifically formatted for Claude Code so it can pick up exactly where we left off without losing context or wasting tokens.
+
+Context & Handover Report for Claude Code
+Project Context:
+Implementing stairwell (trappa) as a mandatory component of apartment identity across the database, edge functions, and frontend to fix duplicate unit creation on public /felanmalan submissions.
+
+Completed Progress
+Phase A — Database Migration (Complete)
+
+Created missing column: ALTER TABLE apartments ADD COLUMN IF NOT EXISTS trappa text DEFAULT '';
+
+Executed apartment-trappa-identity.sql:
+
+Backfilled NULL values to ''.
+
+Dropped legacy apartments_property_number_uidx.
+
+Created apartments_property_number_trappa_uidx on (property_id, apartment_number, trappa).
+
+Executed apartment-trappa-required.sql (Steps 1–3):
+
+Step 1 Audit: Identified 1 remaining legacy row needing trappa assignment via Admin UI:
+id: 575ef38a-6d67-4695-8427-130caecbc7fe | Fastighet A | Lgh 201
+
+Step 2 Normalization: Standardized existing values.
+
+Step 3 Constraints: Applied SET DEFAULT '' and SET NOT NULL to trappa.
+
+Step 4 (Final Lock): Intentionally deferred until Phase D.
+
+Current Blockers & Immediate Next Steps
+Phase B — Edge Function (submit-felanmalan) Deployment
+
+Status: User checked the Supabase Dashboard, but the function submit-felanmalan does not exist yet in Supabase Edge Functions.
+
+Needed Action: Guide user on deploying submit-felanmalan for the first time via Supabase CLI (supabase functions deploy submit-felanmalan), verifying local secrets (SERVICE_ROLE_KEY), and testing submission against an existing apartment.
+
+Phase C — Frontend Synchronization (Divergence Resolution)
+
+Status: Local Bayt-Opsys/ git repository has diverged from root working copy:
+
+Conflicting files: property-tabs.tsx, apartments.$id.tsx (uncommitted July 24 work in clone vs. recent fixes in root).
+
+Clone-only files: projects.new.tsx, projects.$id.tsx, installningar.tsx, issues.new.tsx, inspections.new.tsx.
+
+Root-only files: 5 new trappa-related files.
+
+Needed Action: Safely merge conflicting files, copy root-only files to Bayt-Opsys/, commit, and push to main to trigger GitHub Actions build.
+
+Phase D — Database Final Lock
+
+Status: Pending Phase B & C completion.
+
+Needed Action:
+
+Update trappa for Fastighet A / Lgh 201 in the Admin UI.
+
+Verify Audit query returns 0 rows.
+
+Uncomment and execute Step 4 in apartment-trappa-required.sql (CHECK (btrim(trappa) <> '')).
+
+Instructions for Claude Code
+Please take over from here and execute Phase B (deploying the new Edge Function via CLI or Dashboard instructions), resolve the file divergence in Phase C, and apply the final lock in Phase D.
