@@ -4,7 +4,7 @@
 
 @font-face {
   font-family: "Dekers";
-  src: url("/Bayt-Opsys/assets/Dekers.ttf") format("truetype");
+  src: url("/assets/Dekers.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
