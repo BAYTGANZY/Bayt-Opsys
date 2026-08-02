@@ -28,7 +28,12 @@
       "Read(//c/Users/2hej0/Downloads/customer/Bayt/the project Bayt/src/routes/**)",
       "Bash(cd \"c:/Users/2hej0/Downloads/customer/Bayt/the project Bayt\" && grep -n \"^function \\\\|^export function \" src/routes/_authenticated.apartments.\\\\$id.tsx)",
       "Bash(cd \"c:/Users/2hej0/Downloads/customer/Bayt/the project Bayt\" && sed -n '740,770p' src/routes/_authenticated.apartments.\\\\$id.tsx && echo \"=== logbook lib ===\" && grep -n \"issue_id\\\\|inspection_id\\\\|project_id\\\\|related\" src/lib/logbook.ts | head -20)",
-      "PowerShell(npx tsc --noEmit; echo \"exit=$LASTEXITCODE\")"
+      "PowerShell(npx tsc --noEmit; echo \"exit=$LASTEXITCODE\")",
+      "mcp__supabase__execute_sql",
+      "Bash(gh run *)",
+      "mcp__claude_ai_Adobe_for_creativity__create_visual_design_express_skill",
+      "mcp__claude_ai_Adobe_for_creativity__find_fonts",
+      "Bash(git --no-pager diff HEAD -- src/components/property-tabs.tsx)"
     ]
   }
 }
