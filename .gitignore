@@ -30,3 +30,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Google Drive desktop sync staging folders (churn constantly, not project content)
+.tmp.driveupload/
+.tmp.drivedownload/
