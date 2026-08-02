@@ -27,7 +27,6 @@ import { Route as AuthenticatedDokumentRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated.dashboard'
 import { Route as AuthenticatedDagRapportRouteImport } from './routes/_authenticated.dag-rapport'
 import { Route as AuthenticatedChattRouteImport } from './routes/_authenticated.chatt'
-import { Route as AuthenticatedBesiktningarRouteImport } from './routes/_authenticated.besiktningar'
 import { Route as AuthenticatedProjectsIndexRouteImport } from './routes/_authenticated.projects.index'
 import { Route as AuthenticatedIssuesIndexRouteImport } from './routes/_authenticated.issues.index'
 import { Route as AuthenticatedInspectionsIndexRouteImport } from './routes/_authenticated.inspections.index'
@@ -161,12 +160,6 @@ const AuthenticatedChattRoute = AuthenticatedChattRouteImport.update({
   path: '/chatt',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedBesiktningarRoute =
-  AuthenticatedBesiktningarRouteImport.update({
-    id: '/besiktningar',
-    path: '/besiktningar',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const AuthenticatedProjectsIndexRoute =
   AuthenticatedProjectsIndexRouteImport.update({
     id: '/projects/',
@@ -413,7 +406,6 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/start': typeof StartRoute
   '/styrelse': typeof StyrelseRoute
-  '/besiktningar': typeof AuthenticatedBesiktningarRoute
   '/chatt': typeof AuthenticatedChattRoute
   '/dag-rapport': typeof AuthenticatedDagRapportRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -473,7 +465,6 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/start': typeof StartRoute
   '/styrelse': typeof StyrelseRoute
-  '/besiktningar': typeof AuthenticatedBesiktningarRoute
   '/chatt': typeof AuthenticatedChattRoute
   '/dag-rapport': typeof AuthenticatedDagRapportRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -534,7 +525,6 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/start': typeof StartRoute
   '/styrelse': typeof StyrelseRoute
-  '/_authenticated/besiktningar': typeof AuthenticatedBesiktningarRoute
   '/_authenticated/chatt': typeof AuthenticatedChattRoute
   '/_authenticated/dag-rapport': typeof AuthenticatedDagRapportRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -596,7 +586,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/start'
     | '/styrelse'
-    | '/besiktningar'
     | '/chatt'
     | '/dag-rapport'
     | '/dashboard'
@@ -656,7 +645,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/start'
     | '/styrelse'
-    | '/besiktningar'
     | '/chatt'
     | '/dag-rapport'
     | '/dashboard'
@@ -716,7 +704,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/start'
     | '/styrelse'
-    | '/_authenticated/besiktningar'
     | '/_authenticated/chatt'
     | '/_authenticated/dag-rapport'
     | '/_authenticated/dashboard'
@@ -906,13 +893,6 @@ declare module '@tanstack/react-router' {
       path: '/chatt'
       fullPath: '/chatt'
       preLoaderRoute: typeof AuthenticatedChattRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/besiktningar': {
-      id: '/_authenticated/besiktningar'
-      path: '/besiktningar'
-      fullPath: '/besiktningar'
-      preLoaderRoute: typeof AuthenticatedBesiktningarRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/projects/': {
@@ -1273,7 +1253,6 @@ const AuthenticatedPropertiesIdRouteWithChildren =
   )
 
 interface AuthenticatedRouteChildren {
-  AuthenticatedBesiktningarRoute: typeof AuthenticatedBesiktningarRoute
   AuthenticatedChattRoute: typeof AuthenticatedChattRoute
   AuthenticatedDagRapportRoute: typeof AuthenticatedDagRapportRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
@@ -1305,7 +1284,6 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
-  AuthenticatedBesiktningarRoute: AuthenticatedBesiktningarRoute,
   AuthenticatedChattRoute: AuthenticatedChattRoute,
   AuthenticatedDagRapportRoute: AuthenticatedDagRapportRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,

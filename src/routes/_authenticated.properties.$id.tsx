@@ -8,7 +8,12 @@ import { useVisibleProperties } from "@/hooks/useVisibleProperties";
 import { PropertyProvider, COLORS } from "@/components/property-tabs";
 import { DocumentUploadControls } from "@/components/DocumentUploadControls";
 
+type Search = { from?: string };
+
 export const Route = createFileRoute("/_authenticated/properties/$id")({
+  validateSearch: (s: Record<string, unknown>): Search => ({
+    from: typeof s.from === "string" ? s.from : undefined,
+  }),
   head: () => ({ meta: [{ title: "Fastighet — BAYT" }] }),
   component: PropertyShell,
 });
@@ -28,6 +33,7 @@ const TABS = [
 
 function PropertyShell() {
   const { id } = Route.useParams();
+  const { from } = Route.useSearch();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -52,11 +58,19 @@ function PropertyShell() {
   const breadcrumbTab = activeTab?.label ?? "Lägenheter";
 
   // On a detail sub-page (e.g. an individual felanmälan), "back" returns to that
-  // section's list; otherwise it goes all the way out to Fastigheter.
+  // section's list. Otherwise it goes back to wherever the building was opened
+  // from: the "Öppna ärenden" building overview if that's where the user came
+  // from (carried via the `from` search param), Fastigheter otherwise.
   const sectionPath = activeTab ? `/properties/${id}/${activeTab.key}` : null;
   const onDetail = !!sectionPath && pathname !== sectionPath && pathname.startsWith(sectionPath + "/");
-  const backTo = onDetail ? sectionPath! : "/fastigheter";
-  const backLabel = onDetail ? `Tillbaka till ${activeTab!.label.toLowerCase()}` : "Tillbaka till fastigheter";
+  const fromOppnaArenden = from === "oppna-arenden";
+  const backTo = onDetail ? sectionPath! : fromOppnaArenden ? "/oppna-arenden" : "/fastigheter";
+  const backLabel = onDetail
+    ? `Tillbaka till ${activeTab!.label.toLowerCase()}`
+    : fromOppnaArenden
+      ? "Tillbaka"
+      : "Tillbaka till fastigheter";
+  const backSearch = onDetail && fromOppnaArenden ? { from: "oppna-arenden" } : undefined;
 
   // Kontakter uses a restructured header: building info sits compactly to the
   // right of the breadcrumb, and the section name ("Kontakter") becomes the
@@ -81,6 +95,7 @@ function PropertyShell() {
       <div style={{ display: "flex", flexDirection: "column", gap: 16, fontFamily: "Inter, system-ui, sans-serif", padding: isMobile ? 16 : 32 }}>
         <Link
           to={backTo as never}
+          search={backSearch as never}
           style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: COLORS.secondary, textDecoration: "none", width: "fit-content" }}
         >
           <ArrowLeft size={16} /> {backLabel}

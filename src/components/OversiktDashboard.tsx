@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/lib/supabase";
 import { LIFECYCLE_OF } from "@/lib/issue-tokens";
-import { OppnaArendenList } from "./OppnaArendenList";
 
 // ---------- design tokens ----------
 const T = {
@@ -274,9 +273,6 @@ export function OversiktDashboard() {
         />
       </div>
 
-      {/* Öppna ärenden — live list across issues, inspections, projects */}
-      <OppnaArendenList />
-
       {/* Row 2 — three small cards */}
       <div style={{
         display: "grid",
@@ -284,17 +280,48 @@ export function OversiktDashboard() {
         gap: 16,
       }}>
         {/* Besiktningar */}
-        <div style={cardStyle}>
+        <Link
+          to="/inspections"
+          style={{
+            ...cardStyle,
+            display: "block",
+            textDecoration: "none",
+            color: "inherit",
+            cursor: "pointer",
+            transition: "box-shadow 0.15s, border-color 0.15s",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.borderColor = T.accent;
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.borderColor = T.border;
+          }}
+        >
           <div style={labelStyle()}>BESIKTNINGAR</div>
           <div style={smallNumberStyle()}>{stats.upcomingInspections}</div>
           <div style={{ color: T.secondary, fontSize: 13, marginTop: 6 }}>
             {stats.nextInspectionDate ? `Nästa: ${stats.nextInspectionDate}` : "Inga inbokade"}
           </div>
-          <Link to="/besiktningar" style={accentLink()}>Boka →</Link>
-        </div>
+        </Link>
 
         {/* Aktiva projekt */}
-        <div style={cardStyle}>
+        <Link
+          to="/projects"
+          style={{
+            ...cardStyle,
+            display: "block",
+            textDecoration: "none",
+            color: "inherit",
+            cursor: "pointer",
+            transition: "box-shadow 0.15s, border-color 0.15s",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.borderColor = T.accent;
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.borderColor = T.border;
+          }}
+        >
           <div style={labelStyle()}>AKTIVA PROJEKT</div>
           <div style={smallNumberStyle()}>{stats.activeProjects}</div>
           <div style={{ height: 4, background: T.divider, borderRadius: 3, marginTop: 12, overflow: "hidden" }}>
@@ -303,10 +330,27 @@ export function OversiktDashboard() {
           <div style={{ color: T.secondary, fontSize: 13, marginTop: 8 }}>
             {stats.activeProjects} av {stats.activeProjectsTarget} mål
           </div>
-        </div>
+        </Link>
 
         {/* Aktiva felanmälningar */}
-        <div style={{ ...cardStyle, gridColumn: isMobile ? "1 / -1" : "auto" }}>
+        <Link
+          to="/issues"
+          style={{
+            ...cardStyle,
+            gridColumn: isMobile ? "1 / -1" : "auto",
+            display: "block",
+            textDecoration: "none",
+            color: "inherit",
+            cursor: "pointer",
+            transition: "box-shadow 0.15s, border-color 0.15s",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.borderColor = T.accent;
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.borderColor = T.border;
+          }}
+        >
           <div style={labelStyle()}>AKTIVA FELANMÄLNINGAR</div>
           <div style={smallNumberStyle()}>{stats.vilandeReports + stats.openReports + stats.resolvedReports}</div>
           <div style={{ display: "flex", height: 5, borderRadius: 3, overflow: "hidden", marginTop: 12, background: T.divider }}>
@@ -317,7 +361,7 @@ export function OversiktDashboard() {
           <div style={{ color: T.secondary, fontSize: 13, marginTop: 8 }}>
             {stats.vilandeReports} nya · {stats.openReports} öppna · {stats.resolvedReports} avslutade
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* Row 3 — Bestånd strip */}

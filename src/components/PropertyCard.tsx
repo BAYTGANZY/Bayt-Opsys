@@ -28,12 +28,15 @@ export type PropertyCardBadge = {
 export function PropertyCard({
   property,
   linkTo,
+  linkSearch,
   rightSlot,
   badge,
   cornerBadge,
 }: {
   property: PropertyCardProperty;
   linkTo: string;
+  /** Search params to carry onto the link target, e.g. so the destination knows where to go back to. */
+  linkSearch?: Record<string, string>;
   rightSlot?: ReactNode;
   badge?: PropertyCardBadge;
   /** Overrides the default priority pill with arbitrary content (e.g. a combined StatusDot chip). */
@@ -55,6 +58,7 @@ export function PropertyCard({
       <Link
         to={linkTo as never}
         params={{ id: property.id } as never}
+        search={linkSearch as never}
         style={{
           position: "relative",
           flex: "1 1 55%",

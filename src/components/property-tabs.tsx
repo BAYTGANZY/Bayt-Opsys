@@ -22,6 +22,7 @@ import {
   deriveInspectionStatus,
   deriveProjectStatus,
   deriveActionStatus,
+  LIFECYCLE_OF,
   type ArendeForStatus,
 } from "@/lib/issue-tokens";
 import { DerivedStatusBadge } from "@/components/DerivedStatusBadge";
@@ -371,20 +372,130 @@ export function usePropertyProjects(propertyId: string) {
 export const isClosedIssue = (r: any) => deriveIssueStatus(r as ArendeForStatus).key === "avslutat";
 export const isClosedInspection = (r: any) => deriveInspectionStatus(r).key === "avslutat";
 // Ett avbrutet projekt är lika färdigt som ett avslutat — båda räknas som stängda.
-// Defined off projektBucket (ProjectsTab's filter rule) so the tab's Öppna view
-// and the Avslutade page split projekt on the same line.
-export const isClosedProject = (r: any) => projektBucket(r) !== "oppna";
+// Defined off projectBucket (the shared ärende-status switch's filter rule) so
+// the tab's Avslutade läge and the /avslutat-sidan split projekt on the same line.
+export const isClosedProject = (r: any) => projectBucket(r) === "avslutade";
+
+// ============== ÄRENDE STATUS SWITCH (shared: issues / inspections / projects) ==============
+// Alla / Öppna / Avslutade / Vilande — samma fyra lägen på alla tre ärendetyper,
+// härledda ur den delade vilande→oppet→avslutat-livscykeln (LIFECYCLE_OF).
+export type ArendeStatusFilter = "alla" | "oppna" | "avslutade" | "vilande";
+
+function arendeFilters(topic: string): Array<{ key: ArendeStatusFilter; label: string; shortLabel: string }> {
+  return [
+    { key: "alla", label: "Alla", shortLabel: "Alla" },
+    { key: "oppna", label: `Öppna ${topic}`, shortLabel: "Öppna" },
+    { key: "avslutade", label: `Avslutade ${topic}`, shortLabel: "Avslutade" },
+    { key: "vilande", label: `Vilande ${topic}`, shortLabel: "Vilande" },
+  ];
+}
+
+function lifecycleBucket(lifecycle: "vilande" | "oppet" | "avslutat"): Exclude<ArendeStatusFilter, "alla"> {
+  return lifecycle === "avslutat" ? "avslutade" : lifecycle === "oppet" ? "oppna" : "vilande";
+}
+
+function issueBucket(r: any): Exclude<ArendeStatusFilter, "alla"> {
+  return lifecycleBucket(LIFECYCLE_OF[r.status ?? ""] ?? "vilande");
+}
+
+function inspectionBucket(r: any): Exclude<ArendeStatusFilter, "alla"> {
+  // Legacy rows predate arende_status — mirrors deriveInspectionStatus's fallback.
+  const lifecycle = r.arende_status ? (LIFECYCLE_OF[r.arende_status] ?? "vilande") : r.status === "klar" ? "avslutat" : "oppet";
+  return lifecycleBucket(lifecycle);
+}
+
+/** Which tab a projekt sorts under. Avbrutet folds into Avslutade — an avbrutet
+ *  projekt is just as done as an avslutat one (see isClosedProject). Pausat
+ *  stays Öppna: pausad is a human pause on active work, not a return to vilande. */
+function projectBucket(r: any): Exclude<ArendeStatusFilter, "alla"> {
+  if (r.status === "avbruten") return "avslutade";
+  const lifecycle = r.arende_status ? (LIFECYCLE_OF[r.arende_status] ?? "vilande") : r.status === "klar" ? "avslutat" : "oppet";
+  if (lifecycle === "avslutat") return "avslutade";
+  if (r.status === "pausad") return "oppna";
+  return lifecycleBucket(lifecycle);
+}
+
+function ArendeStatusSwitch({ value, onChange, topic }: { value: ArendeStatusFilter; onChange: (v: ArendeStatusFilter) => void; topic: string }) {
+  const isMobile = useIsMobile();
+  const filters = arendeFilters(topic);
+  const idx = filters.findIndex((f) => f.key === value);
+  const pad = 3;
+  return (
+    <div
+      role="tablist"
+      aria-label={`Filtrera ${topic} på status`}
+      style={{
+        position: "relative",
+        display: "inline-grid",
+        gridTemplateColumns: `repeat(${filters.length}, 1fr)`,
+        padding: pad,
+        background: "#F0F7EE",
+        border: `1px solid ${COLORS.border}`,
+        borderRadius: 12,
+        flexShrink: 0,
+      }}
+    >
+      {/* One pill sliding under the labels — equal 1fr columns, so each step is
+       *  exactly one pill-width and translateX(index·100%) lands on the tab. */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: pad,
+          bottom: pad,
+          left: pad,
+          width: `calc((100% - ${pad * 2}px) / ${filters.length})`,
+          borderRadius: 9,
+          background: "#0D2B1E",
+          boxShadow: "0 1px 3px rgba(13, 43, 30, 0.35)",
+          transform: `translateX(${idx * 100}%)`,
+          transition: "transform 220ms cubic-bezier(0.33, 1, 0.68, 1)",
+        }}
+      />
+      {filters.map((f) => {
+        const active = f.key === value;
+        return (
+          <button
+            key={f.key}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(f.key)}
+            style={{
+              position: "relative",
+              zIndex: 1,
+              height: isMobile ? 28 : 32,
+              padding: isMobile ? "0 10px" : "0 14px",
+              border: "none",
+              background: "transparent",
+              borderRadius: 9,
+              cursor: "pointer",
+              fontSize: isMobile ? 12 : 13,
+              fontWeight: 600,
+              fontFamily: "Outfit, Inter, system-ui, sans-serif",
+              color: active ? "#fff" : "#3D8A30",
+              transition: "color 180ms ease",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {isMobile ? f.shortLabel : f.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 // ============== TAB: ISSUES ==============
 export function IssuesTab({ propertyId }: { propertyId: string }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [mode, setMode] = useState<SortMode>("newest");
+  const [filter, setFilter] = useState<ArendeStatusFilter>("alla");
   const { data = [], isLoading } = usePropertyIssues(propertyId);
 
-  // Avslutade lämnar grundlistan — de bor på /properties/:id/avslutat.
-  const active = useMemo(() => (data as any[]).filter((r) => !isClosedIssue(r)), [data]);
-  const sorted = useMemo(() => sortByMode(active, mode, user?.id), [active, mode, user?.id]);
+  const filtered = useMemo(() => (filter === "alla" ? (data as any[]) : (data as any[]).filter((r) => issueBucket(r) === filter)), [data, filter]);
+  const sorted = useMemo(() => sortByMode(filtered, mode, user?.id), [filtered, mode, user?.id]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -396,6 +507,9 @@ export function IssuesTab({ propertyId }: { propertyId: string }) {
         actionTo="/properties/$id/issues/new"
         actionToParams={{ id: propertyId }}
       />
+      <div style={{ overflowX: "auto", display: "flex", justifyContent: "center" }}>
+        <ArendeStatusSwitch value={filter} onChange={setFilter} topic="felanmälningar" />
+      </div>
       {isLoading ? <div style={{ color: COLORS.secondary }}>Laddar…</div> : sorted.length === 0 ? <Empty label="felanmälningar" /> : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -546,11 +660,11 @@ export function InspectionsTab({ propertyId }: { propertyId: string }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [mode, setMode] = useState<SortMode>("newest");
+  const [filter, setFilter] = useState<ArendeStatusFilter>("alla");
   const { data = [], isLoading } = usePropertyInspections(propertyId);
 
-  // Avslutade lämnar grundlistan — de bor på /properties/:id/avslutat.
-  const active = useMemo(() => (data as any[]).filter((r) => !isClosedInspection(r)), [data]);
-  const sorted = useMemo(() => sortByMode(active, mode, user?.id), [active, mode, user?.id]);
+  const filtered = useMemo(() => (filter === "alla" ? (data as any[]) : (data as any[]).filter((r) => inspectionBucket(r) === filter)), [data, filter]);
+  const sorted = useMemo(() => sortByMode(filtered, mode, user?.id), [filtered, mode, user?.id]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -562,6 +676,9 @@ export function InspectionsTab({ propertyId }: { propertyId: string }) {
         actionTo="/properties/$id/inspections/new"
         actionToParams={{ id: propertyId }}
       />
+      <div style={{ overflowX: "auto", display: "flex", justifyContent: "center" }}>
+        <ArendeStatusSwitch value={filter} onChange={setFilter} topic="besiktningar" />
+      </div>
       {isLoading ? <div style={{ color: COLORS.secondary }}>Laddar…</div> : sorted.length === 0 ? <Empty label="besiktningar" /> : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -640,102 +757,14 @@ export function ContactsTab({ propertyId }: { propertyId: string }) {
 
 // ============== TAB: LOGBOOK ==============
 // ============== TAB: PROJECTS ==============
-type ProjektStatusFilter = "oppna" | "avslutade" | "avbrutna" | "alla";
-
-const PROJEKT_FILTERS: Array<{ key: ProjektStatusFilter; label: string; shortLabel: string }> = [
-  { key: "oppna", label: "Öppna projekt", shortLabel: "Öppna" },
-  { key: "avslutade", label: "Avslutade projekt", shortLabel: "Avslutade" },
-  { key: "avbrutna", label: "Avbrutna projekt", shortLabel: "Avbrutna" },
-  { key: "alla", label: "Alla projekt", shortLabel: "Alla" },
-];
-
-/** Which tab a projekt sorts under. deriveProjectStatus short-circuits on
- *  avbruten before reading arende_status, so an avbrutet projekt lands under
- *  Avbrutna even when it is also avslutat — avbruten is the stronger fact. */
-function projektBucket(r: any): Exclude<ProjektStatusFilter, "alla"> {
-  const key = deriveProjectStatus(r).key;
-  if (key === "avbruten") return "avbrutna";
-  if (key === "avslutat") return "avslutade";
-  return "oppna"; // ny/pågående/brådskande/försenad/pausad — still someone's job
-}
-
-function ProjektStatusTabs({ value, onChange }: { value: ProjektStatusFilter; onChange: (v: ProjektStatusFilter) => void }) {
-  const isMobile = useIsMobile();
-  const idx = PROJEKT_FILTERS.findIndex((f) => f.key === value);
-  const pad = 3;
-  return (
-    <div
-      role="tablist"
-      aria-label="Filtrera projekt på status"
-      style={{
-        position: "relative",
-        display: "inline-grid",
-        gridTemplateColumns: `repeat(${PROJEKT_FILTERS.length}, 1fr)`,
-        padding: pad,
-        background: "#F0F7EE",
-        border: `1px solid ${COLORS.border}`,
-        borderRadius: 12,
-        flexShrink: 0,
-      }}
-    >
-      {/* One pill sliding under the labels — equal 1fr columns, so each step is
-       *  exactly one pill-width and translateX(index·100%) lands on the tab. */}
-      <div
-        aria-hidden
-        style={{
-          position: "absolute",
-          top: pad,
-          bottom: pad,
-          left: pad,
-          width: `calc((100% - ${pad * 2}px) / ${PROJEKT_FILTERS.length})`,
-          borderRadius: 9,
-          background: "#0D2B1E",
-          boxShadow: "0 1px 3px rgba(13, 43, 30, 0.35)",
-          transform: `translateX(${idx * 100}%)`,
-          transition: "transform 220ms cubic-bezier(0.33, 1, 0.68, 1)",
-        }}
-      />
-      {PROJEKT_FILTERS.map((f) => {
-        const active = f.key === value;
-        return (
-          <button
-            key={f.key}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => onChange(f.key)}
-            style={{
-              position: "relative",
-              zIndex: 1,
-              height: isMobile ? 28 : 32,
-              padding: isMobile ? "0 10px" : "0 14px",
-              border: "none",
-              background: "transparent",
-              borderRadius: 9,
-              cursor: "pointer",
-              fontSize: isMobile ? 12 : 13,
-              fontWeight: 600,
-              fontFamily: "Outfit, Inter, system-ui, sans-serif",
-              color: active ? "#fff" : "#3D8A30",
-              transition: "color 180ms ease",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {isMobile ? f.shortLabel : f.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 export function ProjectsTab({ propertyId }: { propertyId: string }) {
   const navigate = useNavigate();
-  const [filter, setFilter] = useState<ProjektStatusFilter>("oppna");
+  const [filter, setFilter] = useState<ArendeStatusFilter>("alla");
   const { data = [], isLoading } = usePropertyProjects(propertyId);
 
   const sorted = useMemo(() => {
-    const filtered = filter === "alla" ? [...data] : (data as any[]).filter((r) => projektBucket(r) === filter);
+    const filtered = filter === "alla" ? [...data] : (data as any[]).filter((r) => projectBucket(r) === filter);
     return filtered.sort((a: any, b: any) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
   }, [data, filter]);
 
@@ -748,15 +777,15 @@ export function ProjectsTab({ propertyId }: { propertyId: string }) {
         actionTo="/properties/$id/projects/new"
         actionToParams={{ id: propertyId }}
       />
-      <div style={{ overflowX: "auto" }}>
-        <ProjektStatusTabs value={filter} onChange={setFilter} />
+      <div style={{ overflowX: "auto", display: "flex", justifyContent: "center" }}>
+        <ArendeStatusSwitch value={filter} onChange={setFilter} topic="projekt" />
       </div>
       {isLoading ? <div style={{ color: COLORS.secondary }}>Laddar…</div> : sorted.length === 0 ? (
         data.length === 0 ? (
           <Empty label="projekt" />
         ) : (
           <div style={{ padding: "48px 16px", textAlign: "center", color: COLORS.secondary, fontSize: 14 }}>
-            Inga {PROJEKT_FILTERS.find((f) => f.key === filter)!.label.toLowerCase()}
+            Inga {arendeFilters("projekt").find((f) => f.key === filter)!.label.toLowerCase()}
           </div>
         )
       ) : (

@@ -120,6 +120,7 @@ export function OppnaArendenOverview() {
                 key={p.id}
                 property={p}
                 linkTo="/properties/$id/issues"
+                linkSearch={{ from: "oppna-arenden" }}
                 rightSlot={<PropertySectionButtons propertyId={p.id} sections={["issues", "inspections", "projects"]} onlyOppet />}
                 cornerBadge={
                   stat && stat.count > 0 ? (
