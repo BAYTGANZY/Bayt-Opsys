@@ -148,7 +148,7 @@ export function PropertySectionButtons({
           <Link
             key={s.key}
             to={`/properties/${propertyId}/${s.key}` as never}
-            search={onlyOppet ? ({ from: "oppna-arenden" } as never) : undefined}
+            search={onlyOppet ? ({ from: "oppna-arenden", filter: "oppna" } as never) : undefined}
             style={{
               position: "relative",
               flex: 1,

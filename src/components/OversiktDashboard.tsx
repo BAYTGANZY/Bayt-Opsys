@@ -243,7 +243,7 @@ export function OversiktDashboard() {
               <span style={{ color: T.gray, fontWeight: 600 }}>{stats.lowPriority} låg</span>
             </div>
           }
-          link={{ to: "/oppna-arenden", label: "Visa alla ärenden →" }}
+          cardLinkTo="/oppna-arenden"
         />
 
         {/* HERO 2 — Felanmälan */}
@@ -269,7 +269,7 @@ export function OversiktDashboard() {
               <span style={{ color: T.gray, fontWeight: 600 }}>{stats.resolvedReports} avslutade</span>
             </div>
           }
-          link={{ to: "/felanmalningar", label: "Visa alla →" }}
+          cardLinkTo="/felanmalningar"
         />
       </div>
 
@@ -394,7 +394,10 @@ function HeroCard(props: {
   rightPanelChart: React.ReactNode;
   mobileShowChart: boolean;
   breakdown: React.ReactNode;
-  link: { to: string; label: string };
+  /** Footer text link ("Visa alla →"). Omit when `cardLinkTo` makes the whole card the link. */
+  link?: { to: string; label: string };
+  /** When set, the entire card becomes a Link to this route instead of just the footer. */
+  cardLinkTo?: string;
 }) {
   const card: React.CSSProperties = {
     flex: 1,
@@ -407,8 +410,17 @@ function HeroCard(props: {
     gap: 20,
     minWidth: 0,
   };
+  const Wrapper: any = props.cardLinkTo ? Link : "div";
+  const wrapperProps: Record<string, unknown> = props.cardLinkTo
+    ? {
+        to: props.cardLinkTo,
+        style: { ...card, textDecoration: "none", color: "inherit", cursor: "pointer", transition: "border-color 0.15s" },
+        onMouseEnter: (e: React.MouseEvent<HTMLElement>) => { (e.currentTarget as HTMLElement).style.borderColor = T.accent; },
+        onMouseLeave: (e: React.MouseEvent<HTMLElement>) => { (e.currentTarget as HTMLElement).style.borderColor = T.border; },
+      }
+    : { style: card };
   return (
-    <div style={card}>
+    <Wrapper {...wrapperProps}>
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
           <div style={{ fontFamily: T.outfit, fontWeight: 600, fontSize: 16, color: T.text }}>{props.title}</div>
@@ -436,9 +448,11 @@ function HeroCard(props: {
           props.breakdown
         )}
 
-        <div style={{ marginTop: "auto", paddingTop: 16 }}>
-          <Link to={props.link.to} style={accentLink()}>{props.link.label}</Link>
-        </div>
+        {props.link && (
+          <div style={{ marginTop: "auto", paddingTop: 16 }}>
+            <Link to={props.link.to} style={accentLink()}>{props.link.label}</Link>
+          </div>
+        )}
       </div>
 
       {/* Right panel — desktop only */}
@@ -448,7 +462,7 @@ function HeroCard(props: {
           {props.rightPanelChart}
         </div>
       )}
-    </div>
+    </Wrapper>
   );
 }
 

@@ -487,11 +487,11 @@ function ArendeStatusSwitch({ value, onChange, topic }: { value: ArendeStatusFil
 }
 
 // ============== TAB: ISSUES ==============
-export function IssuesTab({ propertyId }: { propertyId: string }) {
+export function IssuesTab({ propertyId, initialFilter }: { propertyId: string; initialFilter?: ArendeStatusFilter }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [mode, setMode] = useState<SortMode>("newest");
-  const [filter, setFilter] = useState<ArendeStatusFilter>("alla");
+  const [filter, setFilter] = useState<ArendeStatusFilter>(initialFilter ?? "alla");
   const { data = [], isLoading } = usePropertyIssues(propertyId);
 
   const filtered = useMemo(() => (filter === "alla" ? (data as any[]) : (data as any[]).filter((r) => issueBucket(r) === filter)), [data, filter]);
@@ -656,11 +656,11 @@ export function DocumentsTab({ propertyId }: { propertyId: string }) {
 }
 
 // ============== TAB: INSPECTIONS ==============
-export function InspectionsTab({ propertyId }: { propertyId: string }) {
+export function InspectionsTab({ propertyId, initialFilter }: { propertyId: string; initialFilter?: ArendeStatusFilter }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [mode, setMode] = useState<SortMode>("newest");
-  const [filter, setFilter] = useState<ArendeStatusFilter>("alla");
+  const [filter, setFilter] = useState<ArendeStatusFilter>(initialFilter ?? "alla");
   const { data = [], isLoading } = usePropertyInspections(propertyId);
 
   const filtered = useMemo(() => (filter === "alla" ? (data as any[]) : (data as any[]).filter((r) => inspectionBucket(r) === filter)), [data, filter]);
@@ -758,9 +758,9 @@ export function ContactsTab({ propertyId }: { propertyId: string }) {
 // ============== TAB: LOGBOOK ==============
 // ============== TAB: PROJECTS ==============
 
-export function ProjectsTab({ propertyId }: { propertyId: string }) {
+export function ProjectsTab({ propertyId, initialFilter }: { propertyId: string; initialFilter?: ArendeStatusFilter }) {
   const navigate = useNavigate();
-  const [filter, setFilter] = useState<ArendeStatusFilter>("alla");
+  const [filter, setFilter] = useState<ArendeStatusFilter>(initialFilter ?? "alla");
   const { data = [], isLoading } = usePropertyProjects(propertyId);
 
   const sorted = useMemo(() => {

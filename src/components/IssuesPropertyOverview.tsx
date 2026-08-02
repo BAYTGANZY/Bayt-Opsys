@@ -100,7 +100,7 @@ export function IssuesPropertyOverview() {
       ) : (
         <div style={{ display: "grid", gap: 16, gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(320px, 1fr))" }}>
           {filtered.map((p) => (
-            <PropertyCard key={p.id} property={p} linkTo="/properties/$id/issues" badge={badges[p.id]} />
+            <PropertyCard key={p.id} property={p} linkTo="/properties/$id/issues" linkSearch={{ filter: "oppna" }} badge={badges[p.id]} />
           ))}
         </div>
       )}
