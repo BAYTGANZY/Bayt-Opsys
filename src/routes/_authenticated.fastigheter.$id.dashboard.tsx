@@ -30,7 +30,10 @@ function BuildingDashboardPage() {
   });
 
   return (
-    <div style={{ display: "flex", flexDirection: "column" }}>
+    // #EAECEF matches OversiktDashboard's own background (T.bg) — this header sits
+    // directly above it, so it must carry the same color or the seam between them
+    // (and the gap below if content is shorter than the page) shows as a mismatch.
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100%", background: "#EAECEF" }}>
       <div
         style={{
           padding: isMobile ? "16px 16px 0" : "24px 32px 0",
