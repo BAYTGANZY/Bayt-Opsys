@@ -46,11 +46,13 @@ import { Route as AuthenticatedContactsIdRouteImport } from './routes/_authentic
 import { Route as AuthenticatedApartmentsNewRouteImport } from './routes/_authenticated.apartments.new'
 import { Route as AuthenticatedApartmentsIdRouteImport } from './routes/_authenticated.apartments.$id'
 import { Route as AuthenticatedPropertiesIdIndexRouteImport } from './routes/_authenticated.properties.$id.index'
+import { Route as AuthenticatedFastigheterIdIndexRouteImport } from './routes/_authenticated.fastigheter.$id.index'
 import { Route as AuthenticatedPropertiesIdLogbookRouteImport } from './routes/_authenticated.properties.$id.logbook'
 import { Route as AuthenticatedPropertiesIdDocumentsRouteImport } from './routes/_authenticated.properties.$id.documents'
 import { Route as AuthenticatedPropertiesIdContactsRouteImport } from './routes/_authenticated.properties.$id.contacts'
 import { Route as AuthenticatedPropertiesIdAvslutatRouteImport } from './routes/_authenticated.properties.$id.avslutat'
 import { Route as AuthenticatedFastigheterIdInstallningarRouteImport } from './routes/_authenticated.fastigheter.$id.installningar'
+import { Route as AuthenticatedFastigheterIdDashboardRouteImport } from './routes/_authenticated.fastigheter.$id.dashboard'
 import { Route as AuthenticatedPropertiesIdProjectsIndexRouteImport } from './routes/_authenticated.properties.$id.projects.index'
 import { Route as AuthenticatedPropertiesIdObjectsIndexRouteImport } from './routes/_authenticated.properties.$id.objects.index'
 import { Route as AuthenticatedPropertiesIdIssuesIndexRouteImport } from './routes/_authenticated.properties.$id.issues.index'
@@ -270,6 +272,12 @@ const AuthenticatedPropertiesIdIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedPropertiesIdRoute,
   } as any)
+const AuthenticatedFastigheterIdIndexRoute =
+  AuthenticatedFastigheterIdIndexRouteImport.update({
+    id: '/fastigheter/$id/',
+    path: '/fastigheter/$id/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedPropertiesIdLogbookRoute =
   AuthenticatedPropertiesIdLogbookRouteImport.update({
     id: '/logbook',
@@ -298,6 +306,12 @@ const AuthenticatedFastigheterIdInstallningarRoute =
   AuthenticatedFastigheterIdInstallningarRouteImport.update({
     id: '/fastigheter/$id/installningar',
     path: '/fastigheter/$id/installningar',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedFastigheterIdDashboardRoute =
+  AuthenticatedFastigheterIdDashboardRouteImport.update({
+    id: '/fastigheter/$id/dashboard',
+    path: '/fastigheter/$id/dashboard',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedPropertiesIdProjectsIndexRoute =
@@ -433,11 +447,13 @@ export interface FileRoutesByFullPath {
   '/inspections/': typeof AuthenticatedInspectionsIndexRoute
   '/issues/': typeof AuthenticatedIssuesIndexRoute
   '/projects/': typeof AuthenticatedProjectsIndexRoute
+  '/fastigheter/$id/dashboard': typeof AuthenticatedFastigheterIdDashboardRoute
   '/fastigheter/$id/installningar': typeof AuthenticatedFastigheterIdInstallningarRoute
   '/properties/$id/avslutat': typeof AuthenticatedPropertiesIdAvslutatRoute
   '/properties/$id/contacts': typeof AuthenticatedPropertiesIdContactsRoute
   '/properties/$id/documents': typeof AuthenticatedPropertiesIdDocumentsRoute
   '/properties/$id/logbook': typeof AuthenticatedPropertiesIdLogbookRoute
+  '/fastigheter/$id/': typeof AuthenticatedFastigheterIdIndexRoute
   '/properties/$id/': typeof AuthenticatedPropertiesIdIndexRoute
   '/properties/$id/actions/$actionId': typeof AuthenticatedPropertiesIdActionsActionIdRoute
   '/properties/$id/apartments/$apartmentId': typeof AuthenticatedPropertiesIdApartmentsApartmentIdRoute
@@ -491,11 +507,13 @@ export interface FileRoutesByTo {
   '/inspections': typeof AuthenticatedInspectionsIndexRoute
   '/issues': typeof AuthenticatedIssuesIndexRoute
   '/projects': typeof AuthenticatedProjectsIndexRoute
+  '/fastigheter/$id/dashboard': typeof AuthenticatedFastigheterIdDashboardRoute
   '/fastigheter/$id/installningar': typeof AuthenticatedFastigheterIdInstallningarRoute
   '/properties/$id/avslutat': typeof AuthenticatedPropertiesIdAvslutatRoute
   '/properties/$id/contacts': typeof AuthenticatedPropertiesIdContactsRoute
   '/properties/$id/documents': typeof AuthenticatedPropertiesIdDocumentsRoute
   '/properties/$id/logbook': typeof AuthenticatedPropertiesIdLogbookRoute
+  '/fastigheter/$id': typeof AuthenticatedFastigheterIdIndexRoute
   '/properties/$id': typeof AuthenticatedPropertiesIdIndexRoute
   '/properties/$id/actions/$actionId': typeof AuthenticatedPropertiesIdActionsActionIdRoute
   '/properties/$id/apartments/$apartmentId': typeof AuthenticatedPropertiesIdApartmentsApartmentIdRoute
@@ -552,11 +570,13 @@ export interface FileRoutesById {
   '/_authenticated/inspections/': typeof AuthenticatedInspectionsIndexRoute
   '/_authenticated/issues/': typeof AuthenticatedIssuesIndexRoute
   '/_authenticated/projects/': typeof AuthenticatedProjectsIndexRoute
+  '/_authenticated/fastigheter/$id/dashboard': typeof AuthenticatedFastigheterIdDashboardRoute
   '/_authenticated/fastigheter/$id/installningar': typeof AuthenticatedFastigheterIdInstallningarRoute
   '/_authenticated/properties/$id/avslutat': typeof AuthenticatedPropertiesIdAvslutatRoute
   '/_authenticated/properties/$id/contacts': typeof AuthenticatedPropertiesIdContactsRoute
   '/_authenticated/properties/$id/documents': typeof AuthenticatedPropertiesIdDocumentsRoute
   '/_authenticated/properties/$id/logbook': typeof AuthenticatedPropertiesIdLogbookRoute
+  '/_authenticated/fastigheter/$id/': typeof AuthenticatedFastigheterIdIndexRoute
   '/_authenticated/properties/$id/': typeof AuthenticatedPropertiesIdIndexRoute
   '/_authenticated/properties/$id/actions/$actionId': typeof AuthenticatedPropertiesIdActionsActionIdRoute
   '/_authenticated/properties/$id/apartments/$apartmentId': typeof AuthenticatedPropertiesIdApartmentsApartmentIdRoute
@@ -613,11 +633,13 @@ export interface FileRouteTypes {
     | '/inspections/'
     | '/issues/'
     | '/projects/'
+    | '/fastigheter/$id/dashboard'
     | '/fastigheter/$id/installningar'
     | '/properties/$id/avslutat'
     | '/properties/$id/contacts'
     | '/properties/$id/documents'
     | '/properties/$id/logbook'
+    | '/fastigheter/$id/'
     | '/properties/$id/'
     | '/properties/$id/actions/$actionId'
     | '/properties/$id/apartments/$apartmentId'
@@ -671,11 +693,13 @@ export interface FileRouteTypes {
     | '/inspections'
     | '/issues'
     | '/projects'
+    | '/fastigheter/$id/dashboard'
     | '/fastigheter/$id/installningar'
     | '/properties/$id/avslutat'
     | '/properties/$id/contacts'
     | '/properties/$id/documents'
     | '/properties/$id/logbook'
+    | '/fastigheter/$id'
     | '/properties/$id'
     | '/properties/$id/actions/$actionId'
     | '/properties/$id/apartments/$apartmentId'
@@ -731,11 +755,13 @@ export interface FileRouteTypes {
     | '/_authenticated/inspections/'
     | '/_authenticated/issues/'
     | '/_authenticated/projects/'
+    | '/_authenticated/fastigheter/$id/dashboard'
     | '/_authenticated/fastigheter/$id/installningar'
     | '/_authenticated/properties/$id/avslutat'
     | '/_authenticated/properties/$id/contacts'
     | '/_authenticated/properties/$id/documents'
     | '/_authenticated/properties/$id/logbook'
+    | '/_authenticated/fastigheter/$id/'
     | '/_authenticated/properties/$id/'
     | '/_authenticated/properties/$id/actions/$actionId'
     | '/_authenticated/properties/$id/apartments/$apartmentId'
@@ -1028,6 +1054,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPropertiesIdIndexRouteImport
       parentRoute: typeof AuthenticatedPropertiesIdRoute
     }
+    '/_authenticated/fastigheter/$id/': {
+      id: '/_authenticated/fastigheter/$id/'
+      path: '/fastigheter/$id'
+      fullPath: '/fastigheter/$id/'
+      preLoaderRoute: typeof AuthenticatedFastigheterIdIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/properties/$id/logbook': {
       id: '/_authenticated/properties/$id/logbook'
       path: '/logbook'
@@ -1061,6 +1094,13 @@ declare module '@tanstack/react-router' {
       path: '/fastigheter/$id/installningar'
       fullPath: '/fastigheter/$id/installningar'
       preLoaderRoute: typeof AuthenticatedFastigheterIdInstallningarRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/fastigheter/$id/dashboard': {
+      id: '/_authenticated/fastigheter/$id/dashboard'
+      path: '/fastigheter/$id/dashboard'
+      fullPath: '/fastigheter/$id/dashboard'
+      preLoaderRoute: typeof AuthenticatedFastigheterIdDashboardRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/properties/$id/projects/': {
@@ -1280,7 +1320,9 @@ interface AuthenticatedRouteChildren {
   AuthenticatedInspectionsIndexRoute: typeof AuthenticatedInspectionsIndexRoute
   AuthenticatedIssuesIndexRoute: typeof AuthenticatedIssuesIndexRoute
   AuthenticatedProjectsIndexRoute: typeof AuthenticatedProjectsIndexRoute
+  AuthenticatedFastigheterIdDashboardRoute: typeof AuthenticatedFastigheterIdDashboardRoute
   AuthenticatedFastigheterIdInstallningarRoute: typeof AuthenticatedFastigheterIdInstallningarRoute
+  AuthenticatedFastigheterIdIndexRoute: typeof AuthenticatedFastigheterIdIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -1311,8 +1353,11 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedInspectionsIndexRoute: AuthenticatedInspectionsIndexRoute,
   AuthenticatedIssuesIndexRoute: AuthenticatedIssuesIndexRoute,
   AuthenticatedProjectsIndexRoute: AuthenticatedProjectsIndexRoute,
+  AuthenticatedFastigheterIdDashboardRoute:
+    AuthenticatedFastigheterIdDashboardRoute,
   AuthenticatedFastigheterIdInstallningarRoute:
     AuthenticatedFastigheterIdInstallningarRoute,
+  AuthenticatedFastigheterIdIndexRoute: AuthenticatedFastigheterIdIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

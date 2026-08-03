@@ -117,7 +117,7 @@ function PropertySettingsPage() {
       qc.invalidateQueries({ queryKey: ["section-overview-properties"] });
       qc.invalidateQueries({ queryKey: ["property", id] });
       qc.invalidateQueries({ queryKey: ["property-settings", id] });
-      navigate({ to: "/fastigheter" });
+      navigate({ to: "/fastigheter/$id", params: { id } });
     },
     onError: (e: Error) => toast.error(e.message ?? "Kunde inte spara"),
   });
@@ -144,7 +144,8 @@ function PropertySettingsPage() {
       }}
     >
       <Link
-        to="/fastigheter"
+        to="/fastigheter/$id"
+        params={{ id }}
         style={{
           display: "inline-flex",
           alignItems: "center",
@@ -155,7 +156,7 @@ function PropertySettingsPage() {
           width: "fit-content",
         }}
       >
-        <ArrowLeft size={16} /> Tillbaka till fastigheter
+        <ArrowLeft size={16} /> Tillbaka
       </Link>
 
       <h1
@@ -183,7 +184,15 @@ function PropertySettingsPage() {
       >
         {/* Image */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: C.secondary, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+          <label
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: C.secondary,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+            }}
+          >
             Bild
           </label>
           <div
@@ -200,7 +209,13 @@ function PropertySettingsPage() {
             <img
               src={previewSrc}
               alt=""
-              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+              }}
             />
           </div>
           <input
@@ -239,7 +254,15 @@ function PropertySettingsPage() {
 
         {/* Name */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: C.secondary, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+          <label
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: C.secondary,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+            }}
+          >
             Namn
           </label>
           <input
@@ -260,7 +283,15 @@ function PropertySettingsPage() {
 
         {/* Address */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: C.secondary, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+          <label
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: C.secondary,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+            }}
+          >
             Adress
           </label>
           <input
@@ -281,7 +312,15 @@ function PropertySettingsPage() {
 
         {/* Beteckning */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: C.secondary, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+          <label
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: C.secondary,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+            }}
+          >
             Beteckning
           </label>
           <input
@@ -302,7 +341,15 @@ function PropertySettingsPage() {
 
         {/* Antal lägenheter */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: C.secondary, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+          <label
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: C.secondary,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+            }}
+          >
             Antal lägenheter
           </label>
           <input
@@ -325,7 +372,15 @@ function PropertySettingsPage() {
 
         {/* Beskrivning */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: C.secondary, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+          <label
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: C.secondary,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+            }}
+          >
             Beskrivning
           </label>
           <textarea
@@ -348,7 +403,15 @@ function PropertySettingsPage() {
 
         {/* Anteckningar */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: C.secondary, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+          <label
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: C.secondary,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+            }}
+          >
             Anteckningar
           </label>
           <textarea
@@ -371,7 +434,8 @@ function PropertySettingsPage() {
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 4 }}>
           <Link
-            to="/fastigheter"
+            to="/fastigheter/$id"
+            params={{ id }}
             style={{
               height: 40,
               padding: "0 18px",

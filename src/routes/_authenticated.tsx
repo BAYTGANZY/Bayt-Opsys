@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { canAccess, homeForRole } from "@/lib/permissions";
 import { AppShell } from "@/components/AppShell";
 import { NotificationsProvider } from "@/lib/notifications";
+import { BuildingWorldProvider } from "@/lib/building-world";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -63,7 +64,9 @@ function AuthenticatedLayout() {
 
   return (
     <NotificationsProvider>
-      <AppShell />
+      <BuildingWorldProvider>
+        <AppShell />
+      </BuildingWorldProvider>
     </NotificationsProvider>
   );
 }

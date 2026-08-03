@@ -25,10 +25,14 @@ const T = {
 
 // ---------- helpers ----------
 function startOfDay(d: Date) {
-  const x = new Date(d); x.setHours(0, 0, 0, 0); return x;
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
 }
 function daysAgo(n: number) {
-  const d = startOfDay(new Date()); d.setDate(d.getDate() - n); return d;
+  const d = startOfDay(new Date());
+  d.setDate(d.getDate() - n);
+  return d;
 }
 function fmtTimestamp(d: Date) {
   const days = ["sön", "mån", "tis", "ons", "tor", "fre", "lör"];
@@ -67,12 +71,25 @@ type Stats = {
 };
 
 const EMPTY: Stats = {
-  openTickets: 0, newTicketsThisWeek: 0, highPriority: 0, mediumPriority: 0, lowPriority: 0,
+  openTickets: 0,
+  newTicketsThisWeek: 0,
+  highPriority: 0,
+  mediumPriority: 0,
+  lowPriority: 0,
   ticketsLast7Days: [0, 0, 0, 0, 0, 0, 0],
-  totalActiveReports: 0, newReportsThisWeek: 0, vilandeReports: 0, openReports: 0, resolvedReports: 0,
+  totalActiveReports: 0,
+  newReportsThisWeek: 0,
+  vilandeReports: 0,
+  openReports: 0,
+  resolvedReports: 0,
   reportsLast7Days: [0, 0, 0, 0, 0, 0, 0],
-  upcomingInspections: 0, nextInspectionDate: null, activeProjects: 0, activeProjectsTarget: 10,
-  propertyCount: 0, apartmentCount: 0, documentCount: 0,
+  upcomingInspections: 0,
+  nextInspectionDate: null,
+  activeProjects: 0,
+  activeProjectsTarget: 10,
+  propertyCount: 0,
+  apartmentCount: 0,
+  documentCount: 0,
 };
 
 // Buckets follow LIFECYCLE_OF — 'oppet' includes all three writer values
@@ -81,23 +98,41 @@ const EMPTY: Stats = {
 // deriveIssueStatus does.
 const lifecycleOf = (status: string) => LIFECYCLE_OF[status] ?? "vilande";
 
-async function loadStats(): Promise<Stats> {
+async function loadStats(propertyId?: string): Promise<Stats> {
   const weekAgo = daysAgo(6);
   const today = startOfDay(new Date());
-  const in30 = new Date(today); in30.setDate(in30.getDate() + 30);
+  const in30 = new Date(today);
+  in30.setDate(in30.getDate() + 30);
   const iso = (d: Date) => d.toISOString().slice(0, 10);
 
+  let issuesQ = supabase.from("issues").select("id, status, priority, created_at");
+  let inspQ = supabase
+    .from("inspections")
+    .select("id, next_due_date")
+    .gte("next_due_date", iso(today))
+    .lte("next_due_date", iso(in30))
+    .order("next_due_date", { ascending: true });
+  let projQ = supabase.from("projects").select("id, status").eq("status", "aktiv");
+  let aptQ = supabase.from("apartments").select("*", { count: "exact", head: true } as never);
+  let docQ = supabase.from("documents").select("*", { count: "exact", head: true } as never);
+  if (propertyId) {
+    issuesQ = issuesQ.eq("property_id", propertyId);
+    inspQ = inspQ.eq("property_id", propertyId);
+    projQ = projQ.eq("property_id", propertyId);
+    aptQ = aptQ.eq("property_id", propertyId);
+    docQ = docQ.eq("property_id", propertyId);
+  }
+
   const [issuesRes, inspRes, projRes, propRes, aptRes, docRes] = await Promise.all([
-    supabase.from("issues").select("id, status, priority, created_at"),
-    supabase.from("inspections")
-      .select("id, next_due_date")
-      .gte("next_due_date", iso(today))
-      .lte("next_due_date", iso(in30))
-      .order("next_due_date", { ascending: true }),
-    supabase.from("projects").select("id, status").eq("status", "aktiv"),
-    supabase.from("properties").select("*", { count: "exact", head: true } as never),
-    supabase.from("apartments").select("*", { count: "exact", head: true } as never),
-    supabase.from("documents").select("*", { count: "exact", head: true } as never),
+    issuesQ,
+    inspQ,
+    projQ,
+    // A single building's own count would always read "1" — not worth a query.
+    propertyId
+      ? Promise.resolve({ count: 0 })
+      : supabase.from("properties").select("*", { count: "exact", head: true } as never),
+    aptQ,
+    docQ,
   ]);
 
   const issues = (issuesRes.data ?? []) as Issue[];
@@ -151,13 +186,23 @@ async function loadStats(): Promise<Stats> {
 // ---------- bar chart ----------
 function BarChart({ data, palette }: { data: number[]; palette: "red" | "amber" }) {
   const max = Math.max(1, ...data);
-  const colors = palette === "red"
-    ? ["#FCE4E0", "#F6B8AE", "#EE8C7E", "#E36A57", "#D55139", "#C63D2E", "#A82E22"]
-    : ["#FBE9C9", "#F4D293", "#ECB85F", "#E1A435", "#D4951F", "#B97D14", "#9A660E"];
+  const colors =
+    palette === "red"
+      ? ["#FCE4E0", "#F6B8AE", "#EE8C7E", "#E36A57", "#D55139", "#C63D2E", "#A82E22"]
+      : ["#FBE9C9", "#F4D293", "#ECB85F", "#E1A435", "#D4951F", "#B97D14", "#9A660E"];
   return (
     <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 90, width: "100%" }}>
       {data.map((v, i) => (
-        <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+        <div
+          key={i}
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
           <div
             style={{
               width: "100%",
@@ -174,26 +219,45 @@ function BarChart({ data, palette }: { data: number[]; palette: "red" | "amber" 
 }
 
 // ---------- main component ----------
-export function OversiktDashboard() {
+/** When `propertyId` is set, every stat and every card link is scoped to that one building. */
+export function OversiktDashboard({ propertyId }: { propertyId?: string } = {}) {
   const [stats, setStats] = useState<Stats>(EMPTY);
   const [now, setNow] = useState(new Date());
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    loadStats().then(setStats).catch(() => setStats(EMPTY));
+    loadStats(propertyId)
+      .then(setStats)
+      .catch(() => setStats(EMPTY));
     const t = setInterval(() => setNow(new Date()), 60_000);
     const mql = window.matchMedia("(max-width: 768px)");
     const sync = () => setIsMobile(mql.matches);
     sync();
     mql.addEventListener("change", sync);
-    return () => { clearInterval(t); mql.removeEventListener("change", sync); };
-  }, []);
+    return () => {
+      clearInterval(t);
+      mql.removeEventListener("change", sync);
+    };
+  }, [propertyId]);
+
+  const GLOBAL_SECTION_PATH: Record<string, string> = {
+    issues: "/issues",
+    inspections: "/inspections",
+    projects: "/projects",
+    apartments: "/apartments",
+    documents: "/dokument",
+  };
+  const link = (section: "issues" | "inspections" | "projects" | "apartments" | "documents") =>
+    (propertyId ? `/properties/${propertyId}/${section}` : GLOBAL_SECTION_PATH[section]) as never;
 
   const total = Math.max(1, stats.vilandeReports + stats.openReports + stats.resolvedReports);
   const segRed = (stats.vilandeReports / total) * 100;
   const segAmber = (stats.openReports / total) * 100;
   const segGray = 100 - segRed - segAmber;
-  const projPct = Math.min(100, (stats.activeProjects / Math.max(1, stats.activeProjectsTarget)) * 100);
+  const projPct = Math.min(
+    100,
+    (stats.activeProjects / Math.max(1, stats.activeProjectsTarget)) * 100,
+  );
 
   const cardStyle: React.CSSProperties = {
     background: T.card,
@@ -204,17 +268,33 @@ export function OversiktDashboard() {
   };
 
   return (
-    <div style={{
-      background: T.bg,
-      fontFamily: T.body,
-      color: T.text,
-      padding: isMobile ? "20px 16px" : "28px 30px",
-      display: "flex", flexDirection: "column", gap: 20,
-      minHeight: "100%",
-    }}>
+    <div
+      style={{
+        background: T.bg,
+        fontFamily: T.body,
+        color: T.text,
+        padding: isMobile ? "20px 16px" : "28px 30px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 20,
+        minHeight: "100%",
+      }}
+    >
       {/* Row 0 — title */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-        <h1 style={{ fontFamily: T.outfit, fontWeight: 600, fontSize: 26, margin: 0, color: T.text }}>Översikt</h1>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <h1
+          style={{ fontFamily: T.outfit, fontWeight: 600, fontSize: 26, margin: 0, color: T.text }}
+        >
+          Översikt
+        </h1>
         <div style={{ color: T.secondary, fontSize: 13 }}>{fmtTimestamp(now)}</div>
       </div>
 
@@ -243,7 +323,7 @@ export function OversiktDashboard() {
               <span style={{ color: T.gray, fontWeight: 600 }}>{stats.lowPriority} låg</span>
             </div>
           }
-          cardLinkTo="/oppna-arenden"
+          cardLinkTo={propertyId ? link("issues") : "/oppna-arenden"}
         />
 
         {/* HERO 2 — Felanmälan */}
@@ -266,22 +346,26 @@ export function OversiktDashboard() {
               <span style={{ color: T.label, margin: "0 8px" }}>·</span>
               <span style={{ color: T.amber, fontWeight: 600 }}>{stats.openReports} öppna</span>
               <span style={{ color: T.label, margin: "0 8px" }}>·</span>
-              <span style={{ color: T.gray, fontWeight: 600 }}>{stats.resolvedReports} avslutade</span>
+              <span style={{ color: T.gray, fontWeight: 600 }}>
+                {stats.resolvedReports} avslutade
+              </span>
             </div>
           }
-          cardLinkTo="/felanmalningar"
+          cardLinkTo={propertyId ? link("issues") : "/felanmalningar"}
         />
       </div>
 
       {/* Row 2 — three small cards */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1.4fr",
-        gap: 16,
-      }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1.4fr",
+          gap: 16,
+        }}
+      >
         {/* Besiktningar */}
         <Link
-          to="/inspections"
+          to={link("inspections")}
           style={{
             ...cardStyle,
             display: "block",
@@ -306,7 +390,7 @@ export function OversiktDashboard() {
 
         {/* Aktiva projekt */}
         <Link
-          to="/projects"
+          to={link("projects")}
           style={{
             ...cardStyle,
             display: "block",
@@ -324,8 +408,24 @@ export function OversiktDashboard() {
         >
           <div style={labelStyle()}>AKTIVA PROJEKT</div>
           <div style={smallNumberStyle()}>{stats.activeProjects}</div>
-          <div style={{ height: 4, background: T.divider, borderRadius: 3, marginTop: 12, overflow: "hidden" }}>
-            <div style={{ width: `${projPct}%`, height: "100%", background: T.accent, borderRadius: 3, transition: "width 300ms" }} />
+          <div
+            style={{
+              height: 4,
+              background: T.divider,
+              borderRadius: 3,
+              marginTop: 12,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                width: `${projPct}%`,
+                height: "100%",
+                background: T.accent,
+                borderRadius: 3,
+                transition: "width 300ms",
+              }}
+            />
           </div>
           <div style={{ color: T.secondary, fontSize: 13, marginTop: 8 }}>
             {stats.activeProjects} av {stats.activeProjectsTarget} mål
@@ -334,7 +434,7 @@ export function OversiktDashboard() {
 
         {/* Aktiva felanmälningar */}
         <Link
-          to="/issues"
+          to={link("issues")}
           style={{
             ...cardStyle,
             gridColumn: isMobile ? "1 / -1" : "auto",
@@ -352,14 +452,26 @@ export function OversiktDashboard() {
           }}
         >
           <div style={labelStyle()}>AKTIVA FELANMÄLNINGAR</div>
-          <div style={smallNumberStyle()}>{stats.vilandeReports + stats.openReports + stats.resolvedReports}</div>
-          <div style={{ display: "flex", height: 5, borderRadius: 3, overflow: "hidden", marginTop: 12, background: T.divider }}>
+          <div style={smallNumberStyle()}>
+            {stats.vilandeReports + stats.openReports + stats.resolvedReports}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              height: 5,
+              borderRadius: 3,
+              overflow: "hidden",
+              marginTop: 12,
+              background: T.divider,
+            }}
+          >
             <div style={{ width: `${segRed}%`, background: T.red }} />
             <div style={{ width: `${segAmber}%`, background: T.amber }} />
             <div style={{ width: `${segGray}%`, background: T.gray }} />
           </div>
           <div style={{ color: T.secondary, fontSize: 13, marginTop: 8 }}>
-            {stats.vilandeReports} nya · {stats.openReports} öppna · {stats.resolvedReports} avslutade
+            {stats.vilandeReports} nya · {stats.openReports} öppna · {stats.resolvedReports}{" "}
+            avslutade
           </div>
         </Link>
       </div>
@@ -367,12 +479,23 @@ export function OversiktDashboard() {
       {/* Row 3 — Bestånd strip */}
       <div style={{ ...cardStyle, padding: "16px 22px" }}>
         <div style={{ ...labelStyle(), marginBottom: 12 }}>BESTÅND · ÄNDRAS SÄLLAN</div>
-        <div style={{
-          display: "flex", gap: 0, flexWrap: "wrap",
-        }}>
-          <BestandItem label="Fastigheter" value={stats.propertyCount} to="/fastigheter" first />
-          <BestandItem label="Lägenheter" value={stats.apartmentCount} to="/apartments" />
-          <BestandItem label="Dokument" value={stats.documentCount} to="/dokument" />
+        <div
+          style={{
+            display: "flex",
+            gap: 0,
+            flexWrap: "wrap",
+          }}
+        >
+          {!propertyId && (
+            <BestandItem label="Fastigheter" value={stats.propertyCount} to="/fastigheter" first />
+          )}
+          <BestandItem
+            label="Lägenheter"
+            value={stats.apartmentCount}
+            to={link("apartments")}
+            first={!!propertyId}
+          />
+          <BestandItem label="Dokument" value={stats.documentCount} to={link("documents")} />
         </div>
       </div>
     </div>
@@ -414,27 +537,50 @@ function HeroCard(props: {
   const wrapperProps: Record<string, unknown> = props.cardLinkTo
     ? {
         to: props.cardLinkTo,
-        style: { ...card, textDecoration: "none", color: "inherit", cursor: "pointer", transition: "border-color 0.15s" },
-        onMouseEnter: (e: React.MouseEvent<HTMLElement>) => { (e.currentTarget as HTMLElement).style.borderColor = T.accent; },
-        onMouseLeave: (e: React.MouseEvent<HTMLElement>) => { (e.currentTarget as HTMLElement).style.borderColor = T.border; },
+        style: {
+          ...card,
+          textDecoration: "none",
+          color: "inherit",
+          cursor: "pointer",
+          transition: "border-color 0.15s",
+        },
+        onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
+          (e.currentTarget as HTMLElement).style.borderColor = T.accent;
+        },
+        onMouseLeave: (e: React.MouseEvent<HTMLElement>) => {
+          (e.currentTarget as HTMLElement).style.borderColor = T.border;
+        },
       }
     : { style: card };
   return (
     <Wrapper {...wrapperProps}>
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-          <div style={{ fontFamily: T.outfit, fontWeight: 600, fontSize: 16, color: T.text }}>{props.title}</div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: props.rightColor }}>{props.rightLabel}</div>
+        <div
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}
+        >
+          <div style={{ fontFamily: T.outfit, fontWeight: 600, fontSize: 16, color: T.text }}>
+            {props.title}
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: props.rightColor }}>
+            {props.rightLabel}
+          </div>
         </div>
-        <div style={{
-          fontFamily: T.outfit, fontWeight: 600,
-          fontSize: props.isMobile ? 64 : 84,
-          color: props.bigColor, lineHeight: 1, marginTop: 8,
-        }}>
+        <div
+          style={{
+            fontFamily: T.outfit,
+            fontWeight: 600,
+            fontSize: props.isMobile ? 64 : 84,
+            color: props.bigColor,
+            lineHeight: 1,
+            marginTop: 8,
+          }}
+        >
           {props.bigNumber}
         </div>
         <div style={{ marginTop: 6 }}>
-          <span style={{ color: props.deltaColor, fontWeight: 700, fontSize: 13 }}>{props.delta}</span>
+          <span style={{ color: props.deltaColor, fontWeight: 700, fontSize: 13 }}>
+            {props.delta}
+          </span>
           <span style={{ color: T.secondary, fontSize: 13, marginLeft: 8 }}>{props.subtext}</span>
         </div>
 
@@ -450,14 +596,25 @@ function HeroCard(props: {
 
         {props.link && (
           <div style={{ marginTop: "auto", paddingTop: 16 }}>
-            <Link to={props.link.to} style={accentLink()}>{props.link.label}</Link>
+            <Link to={props.link.to} style={accentLink()}>
+              {props.link.label}
+            </Link>
           </div>
         )}
       </div>
 
       {/* Right panel — desktop only */}
       {!props.isMobile && (
-        <div style={{ width: 160, borderLeft: `1px solid ${T.divider}`, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div
+          style={{
+            width: 160,
+            borderLeft: `1px solid ${T.divider}`,
+            paddingLeft: 18,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
           <div style={labelStyle()}>{props.rightPanelLabel}</div>
           {props.rightPanelChart}
         </div>
@@ -466,32 +623,75 @@ function HeroCard(props: {
   );
 }
 
-function BestandItem({ label, value, to, first }: { label: string; value: number; to: string; first?: boolean }) {
+function BestandItem({
+  label,
+  value,
+  to,
+  first,
+}: {
+  label: string;
+  value: number;
+  to: string;
+  first?: boolean;
+}) {
   return (
-    <div style={{
-      flex: 1, minWidth: 180,
-      padding: "4px 24px",
-      borderLeft: first ? "none" : `1px solid ${T.divider}`,
-      display: "flex", flexDirection: "column", gap: 4,
-    }}>
-      <div style={{ color: T.label, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600 }}>{label}</div>
-      <div style={{ fontFamily: T.mono, fontWeight: 600, fontSize: 24, color: T.text }}>{value}</div>
-      <Link to={to} style={{ ...accentLink(), marginTop: 2 }}>Visa →</Link>
+    <div
+      style={{
+        flex: 1,
+        minWidth: 180,
+        padding: "4px 24px",
+        borderLeft: first ? "none" : `1px solid ${T.divider}`,
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+      }}
+    >
+      <div
+        style={{
+          color: T.label,
+          fontSize: 11,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          fontWeight: 600,
+        }}
+      >
+        {label}
+      </div>
+      <div style={{ fontFamily: T.mono, fontWeight: 600, fontSize: 24, color: T.text }}>
+        {value}
+      </div>
+      <Link to={to} style={{ ...accentLink(), marginTop: 2 }}>
+        Visa →
+      </Link>
     </div>
   );
 }
 
 function labelStyle(): React.CSSProperties {
   return {
-    fontSize: 10, color: T.label, fontWeight: 600,
-    letterSpacing: "0.12em", textTransform: "uppercase",
+    fontSize: 10,
+    color: T.label,
+    fontWeight: 600,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase",
   };
 }
 function smallNumberStyle(): React.CSSProperties {
-  return { fontFamily: T.outfit, fontWeight: 600, fontSize: 38, color: T.text, marginTop: 10, lineHeight: 1.1 };
+  return {
+    fontFamily: T.outfit,
+    fontWeight: 600,
+    fontSize: 38,
+    color: T.text,
+    marginTop: 10,
+    lineHeight: 1.1,
+  };
 }
 function accentLink(): React.CSSProperties {
-  return { color: T.accent, fontSize: 13, fontWeight: 600, textDecoration: "none", display: "inline-block" };
+  return {
+    color: T.accent,
+    fontSize: 13,
+    fontWeight: 600,
+    textDecoration: "none",
+    display: "inline-block",
+  };
 }
-
-
