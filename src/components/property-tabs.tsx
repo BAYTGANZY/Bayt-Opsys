@@ -9,12 +9,14 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useMyContactId } from "@/hooks/useMyContactId";
 import { SectionHeaderRow, sortByMode, NEXT_SORT_MODE, type SortMode } from "@/components/SortFilterControls";
 import {
+  APARTMENT_STATUSES,
   DUPLICATE_APARTMENT_MESSAGE,
   isDuplicateApartmentError,
   normalizeApartmentNumber,
   normalizeTrappa,
   TRAPPA_PLACEHOLDER,
 } from "@/lib/apartment-tokens";
+import { EditableSelect } from "@/components/EditableSelect";
 import { canEdit } from "@/lib/permissions";
 import { useMyAssignedApartmentIds } from "@/hooks/useMyAssignedApartmentIds";
 import {
@@ -115,9 +117,10 @@ const priorityBadge: Record<string, React.CSSProperties> = {
   akut: { background: "#fde8e8", color: "#DC2626" },
 };
 const apartmentStatusBadge: Record<string, React.CSSProperties> = {
-  uthyrd: { background: "#e8f0d8", color: "#2E6B24" },
-  vakant: { background: "#fde8e8", color: "#DC2626" },
-  renovering: { background: "#ebebeb", color: "#555555" },
+  Uthyrd: { background: "#e8f0d8", color: "#2E6B24" },
+  Ledig: { background: "#E8F5E4", color: "#3D8A30" },
+  Renovering: { background: "#fff3cd", color: "#856404" },
+  Reserverad: { background: "#ebebeb", color: "#555555" },
 };
 
 function Badge({ value, map }: { value: string | null; map: Record<string, React.CSSProperties> }) {
@@ -175,7 +178,7 @@ export function ApartmentsTab({ propertyId }: { propertyId: string }) {
   const [error, setError] = useState("");
   const [mode, setMode] = useState<SortMode>("newest");
   const [form, setForm] = useState({
-    apartment_number: "", trappa: "", floor: "", area_sqm: "", status: "vakant",
+    apartment_number: "", trappa: "", floor: "", area_sqm: "", status: "Ledig",
     tenant_name: "", tenant_phone: "", tenant_email: "",
     move_in_date: "", move_out_date: "", notes: "",
   });
@@ -265,9 +268,7 @@ export function ApartmentsTab({ propertyId }: { propertyId: string }) {
           </div>
           <div>
             <label style={labelStyle}>Status</label>
-            <select style={inputStyle} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-              <option value="uthyrd">Uthyrd</option><option value="vakant">Vakant</option><option value="renovering">Renovering</option>
-            </select>
+            <EditableSelect value={form.status} onChange={(v) => setForm({ ...form, status: v })} options={APARTMENT_STATUSES} style={inputStyle} placeholder="Skriv eller välj status" />
           </div>
           <div><label style={labelStyle}>Hyresgäst namn</label><input style={inputStyle} value={form.tenant_name} onChange={(e) => setForm({ ...form, tenant_name: e.target.value })} /></div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>

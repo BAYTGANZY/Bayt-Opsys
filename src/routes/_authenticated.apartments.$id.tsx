@@ -9,13 +9,13 @@ import { useAuth } from "@/lib/auth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   APARTMENT_STATUSES,
-  APARTMENT_STATUS_LABEL,
   DUPLICATE_APARTMENT_MESSAGE,
   isDuplicateApartmentError,
   normalizeApartmentNumber,
   normalizeTrappa,
   TRAPPA_PLACEHOLDER,
 } from "@/lib/apartment-tokens";
+import { EditableSelect } from "@/components/EditableSelect";
 import { DeleteButton } from "@/components/DeleteButton";
 import {
   LogSelectCheckbox, LogSelectionBar, useLogSelection, type LogTable, type LogTarget,
@@ -416,7 +416,7 @@ function InfoTab({ apt, isMobile }: { apt: Apartment; isMobile: boolean }) {
   const [trappa, setTrappa] = useState(apt.trappa ?? "");
   const [floor, setFloor] = useState(apt.floor?.toString() ?? "");
   const [areaSqm, setAreaSqm] = useState(apt.area_sqm?.toString() ?? "");
-  const [status, setStatus] = useState(apt.status ?? "ledig");
+  const [status, setStatus] = useState(apt.status ?? "Ledig");
   const [tenantName, setTenantName] = useState(apt.tenant_name ?? "");
   const [tenantPhone, setTenantPhone] = useState(apt.tenant_phone ?? "");
   const [tenantEmail, setTenantEmail] = useState(apt.tenant_email ?? "");
@@ -430,7 +430,7 @@ function InfoTab({ apt, isMobile }: { apt: Apartment; isMobile: boolean }) {
     setTrappa(apt.trappa ?? "");
     setFloor(apt.floor?.toString() ?? "");
     setAreaSqm(apt.area_sqm?.toString() ?? "");
-    setStatus(apt.status ?? "ledig");
+    setStatus(apt.status ?? "Ledig");
     setTenantName(apt.tenant_name ?? "");
     setTenantPhone(apt.tenant_phone ?? "");
     setTenantEmail(apt.tenant_email ?? "");
@@ -550,9 +550,7 @@ function InfoTab({ apt, isMobile }: { apt: Apartment; isMobile: boolean }) {
       </div>
       <div>
         <label style={labelStyle}>Status</label>
-        <select style={inputStyle} value={status} onChange={(e) => setStatus(e.target.value)}>
-          {APARTMENT_STATUSES.map((s) => <option key={s} value={s}>{APARTMENT_STATUS_LABEL[s]}</option>)}
-        </select>
+        <EditableSelect value={status} onChange={setStatus} options={APARTMENT_STATUSES} style={inputStyle} placeholder="Skriv eller välj status" />
       </div>
       <div><label style={labelStyle}>Hyresgäst</label><input style={inputStyle} value={tenantName} onChange={(e) => setTenantName(e.target.value)} /></div>
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>

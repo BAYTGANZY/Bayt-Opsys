@@ -39,18 +39,13 @@ export function isDuplicateApartmentError(err: unknown): boolean {
   return e.code === "23505" || /apartments_property_number/.test(e.message ?? "");
 }
 
-export const APARTMENT_STATUSES = ["uthyrd", "ledig", "renovering", "reserverad"] as const;
-
-export const APARTMENT_STATUS_LABEL: Record<string, string> = {
-  uthyrd: "Uthyrd",
-  ledig: "Ledig",
-  renovering: "Renovering",
-  reserverad: "Reserverad",
-};
+// Suggestions only, not an enum — apartments.status is free text so a
+// custom value typed here is saved as-is (see EditableSelect).
+export const APARTMENT_STATUSES = ["Ledig", "Uthyrd", "Renovering", "Reserverad"] as const;
 
 export const APARTMENT_STATUS_BADGE: Record<string, { bg: string; color: string }> = {
-  uthyrd: { bg: "#e8f0d8", color: "#2E6B24" },
-  ledig: { bg: "#E8F5E4", color: "#3D8A30" },
-  renovering: { bg: "#fff3cd", color: "#856404" },
-  reserverad: { bg: "#ebebeb", color: "#555555" },
+  Uthyrd: { bg: "#e8f0d8", color: "#2E6B24" },
+  Ledig: { bg: "#E8F5E4", color: "#3D8A30" },
+  Renovering: { bg: "#fff3cd", color: "#856404" },
+  Reserverad: { bg: "#ebebeb", color: "#555555" },
 };

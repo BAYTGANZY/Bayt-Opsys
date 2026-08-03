@@ -8,13 +8,13 @@ import { useAuth } from "@/lib/auth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   APARTMENT_STATUSES,
-  APARTMENT_STATUS_LABEL,
   DUPLICATE_APARTMENT_MESSAGE,
   isDuplicateApartmentError,
   normalizeApartmentNumber,
   normalizeTrappa,
   TRAPPA_PLACEHOLDER,
 } from "@/lib/apartment-tokens";
+import { EditableSelect } from "@/components/EditableSelect";
 
 export const Route = createFileRoute("/_authenticated/apartments/new")({
   head: () => ({ meta: [{ title: "Ny lägenhet — BAYT" }] }),
@@ -50,7 +50,7 @@ function NewApartmentPage() {
   const [trappa, setTrappa] = useState("");
   const [floor, setFloor] = useState("");
   const [areaSqm, setAreaSqm] = useState("");
-  const [status, setStatus] = useState("ledig");
+  const [status, setStatus] = useState("Ledig");
   const [tenantName, setTenantName] = useState("");
   const [tenantPhone, setTenantPhone] = useState("");
   const [tenantEmail, setTenantEmail] = useState("");
@@ -189,11 +189,7 @@ function NewApartmentPage() {
           </div>
           <div style={{ maxWidth: isMobile ? "100%" : "calc(50% - 8px)", minWidth: 0 }}>
             <label style={labelStyle}>Status</label>
-            <select style={inputStyle} value={status} onChange={(e) => setStatus(e.target.value)}>
-              {APARTMENT_STATUSES.map((s) => (
-                <option key={s} value={s}>{APARTMENT_STATUS_LABEL[s]}</option>
-              ))}
-            </select>
+            <EditableSelect value={status} onChange={setStatus} options={APARTMENT_STATUSES} style={inputStyle} placeholder="Skriv eller välj status" />
           </div>
         </section>
 
