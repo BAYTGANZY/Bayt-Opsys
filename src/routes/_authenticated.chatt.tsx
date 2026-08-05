@@ -144,10 +144,12 @@ function DeleteMessageButton({ onClick, busy }: { onClick: () => void; busy: boo
       aria-label="Radera meddelande"
       title="Radera meddelande"
       style={{
-        flexShrink: 0, width: 26, height: 26, borderRadius: "50%", border: "none",
+        // 32px, not 26: a comfortable touch target on phones (26px reads fine on
+        // desktop but is tight to tap accurately) — always-visible on touch anyway.
+        flexShrink: 0, width: 32, height: 32, borderRadius: "50%", border: "none",
         background: "transparent", color: C.muted, cursor: busy ? "default" : "pointer",
         display: "flex", alignItems: "center", justifyContent: "center", opacity: busy ? 0.5 : 1,
-        padding: 0,
+        padding: 0, touchAction: "manipulation",
       }}
     >
       <HugeiconsIcon icon={Delete02Icon} size={15} />
@@ -164,9 +166,10 @@ function ReplyMessageButton({ onClick }: { onClick: () => void }) {
       aria-label="Svara på meddelande"
       title="Svara"
       style={{
-        flexShrink: 0, width: 26, height: 26, borderRadius: "50%", border: "none",
+        flexShrink: 0, width: 32, height: 32, borderRadius: "50%", border: "none",
         background: "transparent", color: C.muted, cursor: "pointer",
         display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+        touchAction: "manipulation",
       }}
     >
       <HugeiconsIcon icon={MessageCircleReplyIcon} size={15} />
@@ -717,7 +720,7 @@ function ConversationView({
   };
 
   return (
-    <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, background: C.card }}>
+    <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", minHeight: 0, background: C.card }}>
       <div
         style={{
           flexShrink: 0, display: "flex", alignItems: "center", gap: 12,
@@ -753,7 +756,7 @@ function ConversationView({
         </div>
       </div>
 
-      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
+      <div ref={scrollRef} style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
         {messagesFailed && (
           <div style={{ margin: "auto", textAlign: "center", maxWidth: 320 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Meddelandena kunde inte hämtas</div>
@@ -787,7 +790,6 @@ function ConversationView({
           // (a non-admin tombstone can't be deleted a second time).
           const canDelete = mine && !removed;
           const showActions = !removed && (isMobile || hoveredId === m.id || deletingId === m.id);
-          const showDelete = canDelete && showActions;
           const quoted = m.reply_to_id ? messagesById.get(m.reply_to_id) : undefined;
           const highlighted = highlightedId === m.id;
           return (
@@ -795,13 +797,25 @@ function ConversationView({
               key={m.id}
               onMouseEnter={() => setHoveredId(m.id)}
               onMouseLeave={() => setHoveredId((prev) => (prev === m.id ? null : prev))}
-              style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: mine ? "flex-end" : "flex-start" }}
+              style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, justifyContent: mine ? "flex-end" : "flex-start" }}
             >
-              {mine && showDelete && (
-                <DeleteMessageButton onClick={() => onDelete(m)} busy={deletingId === m.id} />
-              )}
-              {mine && showActions && (
-                <ReplyMessageButton onClick={() => setReplyingTo(m)} />
+              {mine && !removed && (
+                // Actions stay mounted (opacity-toggled, not conditionally rendered) so
+                // hovering away never un-mounts them mid-interaction: that used to pull
+                // the bubble ~64px sideways the instant the mouse left the row (twice as
+                // far as a received message's single button), reading as a jarring
+                // "zoom"/jump — worst right after tapping Svara, since the reply bar
+                // opening below shifts the row out from under a stationary cursor.
+                <div
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+                    opacity: showActions ? 1 : 0, pointerEvents: showActions ? "auto" : "none",
+                    transition: "opacity 0.15s ease",
+                  }}
+                >
+                  <DeleteMessageButton onClick={() => onDelete(m)} busy={deletingId === m.id} />
+                  <ReplyMessageButton onClick={() => setReplyingTo(m)} />
+                </div>
               )}
               <div
                 ref={(el) => {
@@ -832,7 +846,11 @@ function ConversationView({
                       paddingLeft: 8,
                       marginBottom: 6,
                       opacity: 0.85,
-                      maxWidth: 260,
+                      // 100%, not a fixed px cap: on a narrow phone the bubble's own
+                      // 70vw max-width already leaves less than 260px of content
+                      // room, so a fixed cap here overflowed past the bubble edge.
+                      maxWidth: "100%",
+                      minWidth: 0,
                     }}
                   >
                     <div style={{ fontSize: 11, fontWeight: 700 }}>
@@ -860,8 +878,16 @@ function ConversationView({
                   )}
                 </div>
               </div>
-              {!mine && showActions && (
-                <ReplyMessageButton onClick={() => setReplyingTo(m)} />
+              {!mine && !removed && (
+                <div
+                  style={{
+                    display: "flex", alignItems: "center", flexShrink: 0,
+                    opacity: showActions ? 1 : 0, pointerEvents: showActions ? "auto" : "none",
+                    transition: "opacity 0.15s ease",
+                  }}
+                >
+                  <ReplyMessageButton onClick={() => setReplyingTo(m)} />
+                </div>
               )}
             </div>
           );
@@ -877,7 +903,7 @@ function ConversationView({
       {replyingTo && (
         <div
           style={{
-            display: "flex", alignItems: "center", gap: 10, padding: "8px 16px",
+            display: "flex", alignItems: "center", gap: 10, padding: "8px 16px", minWidth: 0,
             borderTop: `1px solid ${C.border}`, background: "#F7F8F7",
           }}
         >
@@ -895,9 +921,10 @@ function ConversationView({
             aria-label="Avbryt svar"
             title="Avbryt svar"
             style={{
-              flexShrink: 0, width: 24, height: 24, borderRadius: "50%", border: "none",
+              flexShrink: 0, width: 32, height: 32, borderRadius: "50%", border: "none",
               background: "transparent", color: C.muted, cursor: "pointer",
               display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+              touchAction: "manipulation",
             }}
           >
             <HugeiconsIcon icon={Cancel01Icon} size={14} />
