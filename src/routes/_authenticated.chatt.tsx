@@ -786,7 +786,10 @@ function ConversationView({
           // party's turns stay in the thread. Own message only, and only once
           // (a non-admin tombstone can't be deleted a second time).
           const canDelete = mine && !removed;
-          const showDelete = canDelete && (isMobile || hoveredId === m.id || deletingId === m.id);
+          const showActions = !removed && (isMobile || hoveredId === m.id || deletingId === m.id);
+          const showDelete = canDelete && showActions;
+          const quoted = m.reply_to_id ? messagesById.get(m.reply_to_id) : undefined;
+          const highlighted = highlightedId === m.id;
           return (
             <div
               key={m.id}
@@ -797,20 +800,51 @@ function ConversationView({
               {mine && showDelete && (
                 <DeleteMessageButton onClick={() => onDelete(m)} busy={deletingId === m.id} />
               )}
+              {mine && showActions && (
+                <ReplyMessageButton onClick={() => setReplyingTo(m)} />
+              )}
               <div
+                ref={(el) => {
+                  if (el) bubbleRefs.current.set(m.id, el);
+                  else bubbleRefs.current.delete(m.id);
+                }}
                 style={{
                   maxWidth: "70%",
                   padding: "8px 12px",
                   borderRadius: 14,
                   background: removed ? "#F5F6F5" : mine ? C.greenDark : "#F0F1EF",
-                  border: removed ? `1px dashed ${C.border}` : "none",
+                  border: removed ? `1px dashed ${C.border}` : highlighted ? `1px solid ${C.green}` : "none",
+                  boxShadow: highlighted ? `0 0 0 3px rgba(92, 184, 74, 0.35)` : "none",
                   color: removed ? C.muted : mine ? "#fff" : C.text,
                   fontSize: 14,
                   lineHeight: 1.4,
                   whiteSpace: "pre-wrap",
                   wordBreak: "break-word",
+                  transition: "box-shadow 0.2s ease",
                 }}
               >
+                {m.reply_to_id && !removed && (
+                  <div
+                    onClick={() => scrollToMessage(m.reply_to_id!)}
+                    style={{
+                      cursor: quoted ? "pointer" : "default",
+                      borderLeft: `3px solid ${mine ? "rgba(255,255,255,0.55)" : C.green}`,
+                      paddingLeft: 8,
+                      marginBottom: 6,
+                      opacity: 0.85,
+                      maxWidth: 260,
+                    }}
+                  >
+                    <div style={{ fontSize: 11, fontWeight: 700 }}>
+                      {quoted ? senderLabel(quoted.sender_id) : "Borttaget meddelande"}
+                    </div>
+                    {quoted && (
+                      <div style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {messagePreview(quoted)}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div style={removed ? { fontStyle: "italic" } : undefined}>
                   {removed ? (mine ? "Du tog bort meddelandet" : "Meddelandet togs bort") : renderChatText(m.body)}
                 </div>
@@ -826,6 +860,9 @@ function ConversationView({
                   )}
                 </div>
               </div>
+              {!mine && showActions && (
+                <ReplyMessageButton onClick={() => setReplyingTo(m)} />
+              )}
             </div>
           );
         })}
@@ -834,6 +871,37 @@ function ConversationView({
       {sendError && (
         <div style={{ padding: "8px 16px", background: "#FEF2F2", color: "#B91C1C", fontSize: 12, borderTop: `1px solid ${C.border}` }}>
           {sendError}
+        </div>
+      )}
+
+      {replyingTo && (
+        <div
+          style={{
+            display: "flex", alignItems: "center", gap: 10, padding: "8px 16px",
+            borderTop: `1px solid ${C.border}`, background: "#F7F8F7",
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0, borderLeft: `3px solid ${C.green}`, paddingLeft: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.text }}>
+              Svarar {senderLabel(replyingTo.sender_id)}
+            </div>
+            <div style={{ fontSize: 12, color: C.secondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {messagePreview(replyingTo)}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setReplyingTo(null)}
+            aria-label="Avbryt svar"
+            title="Avbryt svar"
+            style={{
+              flexShrink: 0, width: 24, height: 24, borderRadius: "50%", border: "none",
+              background: "transparent", color: C.muted, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+            }}
+          >
+            <HugeiconsIcon icon={Cancel01Icon} size={14} />
+          </button>
         </div>
       )}
 
