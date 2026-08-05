@@ -380,7 +380,11 @@ function ChattPage() {
                       borderBottom: `1px solid ${C.border}`,
                     }}
                   >
-                    <Avatar name={name} url={url} />
+                    {conv.type === "group" ? (
+                      <AvatarStack participants={conv.participants} size={30} max={3} />
+                    ) : (
+                      <Avatar name={name} url={url} />
+                    )}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                         <span style={{ fontWeight: unread ? 700 : 600, fontSize: 14, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
