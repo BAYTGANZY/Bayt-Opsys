@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router"
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Chatting01Icon, Add01Icon, ArrowLeft01Icon, CheckmarkCircle01Icon, SentIcon, Delete02Icon } from "@hugeicons/core-free-icons";
+import { Chatting01Icon, Add01Icon, ArrowLeft01Icon, CheckmarkCircle01Icon, SentIcon, Delete02Icon, MessageCircleReplyIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -52,9 +52,12 @@ type Message = {
   created_at: string;
   /** Set = soft-deleted by its sender; body is blank and a tombstone is rendered. */
   deleted_at: string | null;
+  /** Message this one is quoting, or null. Nulled by the DB (FK ON DELETE SET
+   *  NULL) when the target is hard-deleted, so a dangling reference never lingers. */
+  reply_to_id: string | null;
 };
 
-const MESSAGE_COLUMNS = "id, conversation_id, sender_id, body, created_at, deleted_at";
+const MESSAGE_COLUMNS = "id, conversation_id, sender_id, body, created_at, deleted_at, reply_to_id";
 
 /**
  * Newest-wins comparison used to pick a conversation's preview message.
@@ -148,6 +151,25 @@ function DeleteMessageButton({ onClick, busy }: { onClick: () => void; busy: boo
       }}
     >
       <HugeiconsIcon icon={Delete02Icon} size={15} />
+    </button>
+  );
+}
+
+/** Hover-revealed (always visible on touch) reply icon next to any bubble. */
+function ReplyMessageButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Svara på meddelande"
+      title="Svara"
+      style={{
+        flexShrink: 0, width: 26, height: 26, borderRadius: "50%", border: "none",
+        background: "transparent", color: C.muted, cursor: "pointer",
+        display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+      }}
+    >
+      <HugeiconsIcon icon={MessageCircleReplyIcon} size={15} />
     </button>
   );
 }
@@ -463,7 +485,10 @@ function ConversationView({
   const [sendError, setSendError] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const bubbleRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Composer height is user-resizable via the drag handle above the textarea
   // (see composerDragStart below) — dragging up grows it so more text is
@@ -527,6 +552,25 @@ function ConversationView({
   const title = conversationTitle(conversation, selfId);
   const { name: avatarName, url: avatarUrl } = conversationAvatar(conversation, selfId);
   const otherIds = conversation.participants.filter((p) => p.id !== selfId).map((p) => p.id);
+
+  // Full thread history is always loaded (no pagination), so a reply's target is
+  // always resolvable here unless it was hard-deleted — in which case the DB
+  // already nulled reply_to_id via ON DELETE SET NULL and there's nothing to find.
+  const messagesById = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
+  const nameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of conversation.participants) map.set(p.id, p.full_name ?? "—");
+    return map;
+  }, [conversation.participants]);
+  const senderLabel = (id: string) => (id === selfId ? "Dig" : (nameById.get(id) ?? "—"));
+
+  const scrollToMessage = (id: string) => {
+    const el = bubbleRefs.current.get(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightedId(id);
+    window.setTimeout(() => setHighlightedId((prev) => (prev === id ? null : prev)), 1500);
+  };
 
   const markRead = async () => {
     await supabase
@@ -611,6 +655,7 @@ function ConversationView({
     e.preventDefault();
     const text = body.trim();
     if (!text || sending) return;
+    const replyToId = replyingTo?.id ?? null;
     setSending(true);
     setSendError(null);
     setBody("");
@@ -619,17 +664,19 @@ function ConversationView({
     // to show what the database now holds.
     const { data, error } = await supabase
       .from("chat_messages")
-      .insert({ conversation_id: conversation.id, sender_id: selfId, body: text })
+      .insert({ conversation_id: conversation.id, sender_id: selfId, body: text, reply_to_id: replyToId })
       .select(MESSAGE_COLUMNS)
       .single();
     setSending(false);
     if (error) {
       // Surface the failure — silently restoring the draft looked like the
-      // message had been sent and then swallowed.
+      // message had been sent and then swallowed. Keep the reply quote too,
+      // for the same reason.
       setBody(text);
       setSendError(`Meddelandet kunde inte skickas: ${error.message}`);
       return;
     }
+    setReplyingTo(null);
     queryClient.setQueryData<Message[]>(messagesKey(conversation.id), (prev) =>
       upsertMessage(prev, data as Message),
     );
