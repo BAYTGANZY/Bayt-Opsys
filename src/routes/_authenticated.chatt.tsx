@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Chatting01Icon, Add01Icon, ArrowLeft01Icon, CheckmarkCircle01Icon, SentIcon, Delete02Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
@@ -91,6 +91,42 @@ function Avatar({ name, url, size = 36 }: { name: string | null; url?: string | 
       }}
     >
       {initials(name)}
+    </div>
+  );
+}
+
+/** Overlapping avatar stack for a group conversation's topbar. */
+function AvatarStack({ participants, size = 32, max = 5 }: { participants: ProfileLite[]; size?: number; max?: number }) {
+  const visible = participants.slice(0, max);
+  const overflow = participants.length - visible.length;
+  const overlap = Math.round(size * 0.4);
+  return (
+    <div style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+      {visible.map((p, i) => (
+        <div
+          key={p.id}
+          style={{
+            marginLeft: i === 0 ? 0 : -overlap,
+            zIndex: visible.length - i,
+            border: "2px solid #fff",
+            borderRadius: "50%",
+            lineHeight: 0,
+          }}
+        >
+          <Avatar name={p.full_name} url={p.avatar_url} size={size} />
+        </div>
+      ))}
+      {overflow > 0 && (
+        <div
+          style={{
+            marginLeft: -overlap, zIndex: 0, width: size, height: size, borderRadius: "50%",
+            border: "2px solid #fff", background: C.border, color: C.secondary, flexShrink: 0,
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.32, fontWeight: 700,
+          }}
+        >
+          +{overflow}
+        </div>
+      )}
     </div>
   );
 }
@@ -425,6 +461,39 @@ function ConversationView({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
+  // Composer height is user-resizable via the drag handle above the textarea
+  // (see composerDragStart below) — dragging up grows it so more text is
+  // visible while typing; native `resize` only offers a bottom-right handle,
+  // which would grow the box downward off-screen since the composer sits at
+  // the bottom of the page.
+  const COMPOSER_MIN_HEIGHT = 40;
+  const COMPOSER_MAX_HEIGHT = 320;
+  const [composerHeight, setComposerHeight] = useState(COMPOSER_MIN_HEIGHT);
+  const composerDragRef = useRef<{ startY: number; startHeight: number } | null>(null);
+
+  const composerDragMove = useCallback((e: PointerEvent) => {
+    const drag = composerDragRef.current;
+    if (!drag) return;
+    const next = Math.min(
+      COMPOSER_MAX_HEIGHT,
+      Math.max(COMPOSER_MIN_HEIGHT, drag.startHeight + (drag.startY - e.clientY))
+    );
+    setComposerHeight(next);
+  }, []);
+
+  const composerDragEnd = useCallback(() => {
+    composerDragRef.current = null;
+    document.removeEventListener("pointermove", composerDragMove);
+    document.removeEventListener("pointerup", composerDragEnd);
+  }, [composerDragMove]);
+
+  const composerDragStart = (e: React.PointerEvent) => {
+    e.preventDefault();
+    composerDragRef.current = { startY: e.clientY, startHeight: composerHeight };
+    document.addEventListener("pointermove", composerDragMove);
+    document.addEventListener("pointerup", composerDragEnd);
+  };
+
   // The thread lives in the query cache, not component state: re-entering a
   // conversation then renders from cache instead of blanking to [] while a
   // fresh fetch runs, and TanStack re-syncs it on focus/reconnect. Realtime is
@@ -613,8 +682,24 @@ function ConversationView({
             <HugeiconsIcon icon={ArrowLeft01Icon} size={20} />
           </button>
         )}
-        <Avatar name={avatarName} url={avatarUrl} size={32} />
-        <div style={{ fontWeight: 600, fontSize: 15, color: C.text }}>{title}</div>
+        {conversation.type === "group" ? (
+          <AvatarStack participants={conversation.participants} size={32} />
+        ) : (
+          <Avatar name={avatarName} url={avatarUrl} size={32} />
+        )}
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 15, color: C.text }}>{title}</div>
+          {conversation.type === "group" && (
+            <div
+              style={{
+                fontSize: 12, color: C.secondary, overflow: "hidden", textOverflow: "ellipsis",
+                whiteSpace: "nowrap", maxWidth: 420,
+              }}
+            >
+              {conversation.participants.map((p) => p.full_name ?? "—").join(", ")}
+            </div>
+          )}
+        </div>
       </div>
 
       <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
@@ -701,28 +786,39 @@ function ConversationView({
         </div>
       )}
 
-      <form onSubmit={onSend} style={{ display: "flex", gap: 10, padding: "12px 16px", borderTop: `1px solid ${C.border}` }}>
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              onSend(e as unknown as FormEvent);
-            }
-          }}
-          placeholder="Skriv ett meddelande…"
-          rows={1}
-          style={{
-            flex: 1, resize: "none", border: `1px solid ${C.border}`, borderRadius: 10,
-            padding: "10px 14px", fontSize: 14, fontFamily: bodyFont, color: C.text,
-          }}
-        />
+      <form onSubmit={onSend} style={{ display: "flex", gap: 10, padding: "12px 16px", borderTop: `1px solid ${C.border}`, alignItems: "flex-end" }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+          <div
+            onPointerDown={composerDragStart}
+            title="Dra för att ändra höjd"
+            style={{
+              height: 8, margin: "-4px 0", cursor: "ns-resize", display: "flex",
+              alignItems: "center", justifyContent: "center", touchAction: "none",
+            }}
+          >
+            <div style={{ width: 32, height: 4, borderRadius: 2, background: C.border }} />
+          </div>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                onSend(e as unknown as FormEvent);
+              }
+            }}
+            placeholder="Skriv ett meddelande…"
+            style={{
+              height: composerHeight, resize: "none", border: `1px solid ${C.border}`, borderRadius: 10,
+              padding: "10px 14px", fontSize: 14, fontFamily: bodyFont, color: C.text, overflowY: "auto",
+            }}
+          />
+        </div>
         <button
           type="submit"
           disabled={!body.trim() || sending}
           style={{
-            padding: "0 18px", background: C.green, color: "#fff", border: "none", borderRadius: 10,
+            padding: "0 18px", height: 40, background: C.green, color: "#fff", border: "none", borderRadius: 10,
             fontWeight: 600, fontSize: 14, cursor: body.trim() ? "pointer" : "default",
             opacity: body.trim() ? 1 : 0.6,
           }}
