@@ -440,7 +440,7 @@ function InfoTab({ apt, isMobile }: { apt: Apartment; isMobile: boolean }) {
     setNotes(apt.notes ?? "");
   }, [apt]);
 
-  const [renameGuard, setRenameGuard] = useState<{ objects: { id: string; name: string }[] } | null>(null);
+  const [renameGuard, setRenameGuard] = useState<{ objects: { id: string; name: string | null; type: string }[] } | null>(null);
 
   async function performSave(detachObjects: boolean) {
     if (detachObjects) {
@@ -468,9 +468,9 @@ function InfoTab({ apt, isMobile }: { apt: Apartment; isMobile: boolean }) {
       if (numberChanged) {
         const { data: linked } = await supabase
           .from("property_objects")
-          .select("id, name")
+          .select("id, name, type")
           .eq("apartment_id", apt.id);
-        const list = (linked ?? []) as { id: string; name: string }[];
+        const list = (linked ?? []) as { id: string; name: string | null; type: string }[];
         if (list.length > 0) {
           setRenameGuard({ objects: list });
           return;
@@ -591,7 +591,7 @@ function InfoTab({ apt, isMobile }: { apt: Apartment; isMobile: boolean }) {
           <div style={{ background: "#fff", borderRadius: 12, padding: 24, maxWidth: 480, width: "100%" }}>
             <h3 style={{ marginTop: 0, fontSize: 18 }}>Kopplade objekt</h3>
             <p style={{ fontSize: 14, color: "#374151" }}>
-              Är <strong>{renameGuard.objects.map((o) => o.name).join(", ")}</strong> fortfarande kopplade till lägenhet <strong>{apartmentNumber}</strong>?
+              Är <strong>{renameGuard.objects.map((o) => o.name || objectTypeLabel(o.type)).join(", ")}</strong> fortfarande kopplade till lägenhet <strong>{apartmentNumber}</strong>?
             </p>
             <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 20 }}>
               <button type="button" onClick={() => resolveRename(false)} style={{ ...primaryBtn, background: "#fff", color: "#374151", border: "1px solid #D1D5DB" }}>Nej, koppla bort</button>
@@ -632,7 +632,7 @@ function LinkedObjects({ apartmentId, propertyId, readOnly }: { apartmentId: str
         .select("id, name, type, status")
         .eq("apartment_id", apartmentId)
         .order("name");
-      return (data ?? []) as Array<{ id: string; name: string; type: string; status: string | null }>;
+      return (data ?? []) as Array<{ id: string; name: string | null; type: string; status: string | null }>;
     },
   });
 
@@ -665,7 +665,7 @@ function LinkedObjects({ apartmentId, propertyId, readOnly }: { apartmentId: str
               params={{ id: propertyId ?? "", objectId: o.id }}
               style={{ flex: 1, minWidth: 0, textDecoration: "none", color: "inherit" }}
             >
-              <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{o.name}</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{o.name || objectTypeLabel(o.type)}</div>
               <div style={{ fontSize: 12, color: C.secondary }}>{objectTypeLabel(o.type)} · {meta.label}</div>
             </Link>
             {!readOnly && (

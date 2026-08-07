@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_authenticated/properties/$id/objects/")(
 });
 
 type Obj = {
-  id: string; name: string; type: string; status: string | null; apartment_id: string | null;
+  id: string; name: string | null; type: string; status: string | null; apartment_id: string | null;
 };
 
 const C = { card: "#fff", border: "#E5E7EB", text: "#1a1a1a", secondary: "#6B7280", primary: "#3D8A30", green: "#5CB84A" };
@@ -167,7 +167,7 @@ function ObjectsIndex() {
                 >
                   <span title={sm.label} style={{ width: 12, height: 12, borderRadius: "50%", background: sm.color, flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{o.name}</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{o.name || objectTypeLabel(o.type)}</div>
                     <div style={{ fontSize: 12, color: C.secondary, marginTop: 2 }}>{objectTypeLabel(o.type)} · {sm.label}</div>
                   </div>
                   <div style={{ fontSize: 12, color: o.issues > 0 ? "#DC2626" : C.secondary, fontWeight: 600 }}>

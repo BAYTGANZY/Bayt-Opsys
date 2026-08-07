@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
-import { OBJECT_TYPES } from "@/lib/object-tokens";
+import { objectTypeLabel } from "@/lib/object-tokens";
 import { logEvent } from "@/lib/logbook";
 import { EditableSelect } from "@/components/EditableSelect";
 import { useObjectTypeOptions } from "@/hooks/useObjectTypeOptions";
@@ -17,13 +17,19 @@ export const Route = createFileRoute("/_authenticated/properties/$id/objects/new
 const C = { border: "#E5E7EB", text: "#1a1a1a", primary: "#3D8A30", secondary: "#6B7280" };
 const label: React.CSSProperties = { display: "block", fontSize: 12, fontWeight: 500, color: C.secondary, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 };
 const input: React.CSSProperties = { width: "100%", height: 40, padding: "0 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 14, outline: "none", background: "#fff", boxSizing: "border-box" };
+const textarea: React.CSSProperties = { ...input, height: "auto", minHeight: 80, padding: 12, resize: "vertical", fontFamily: "inherit" };
 
 function NewObjectRoute() {
   const { id: propertyId } = Route.useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [type, setType] = useState<string>(OBJECT_TYPES[0].label);
-  const [name, setName] = useState("");
+  // Starts empty on purpose: the admin is met by a blank textbox and, as they
+  // type, EditableSelect's native <datalist> filters to matching suggestions
+  // — pick one, or keep typing and the raw text becomes the value on save
+  // (and a future suggestion for the next objekt).
+  const [type, setType] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [apartmentId, setApartmentId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,14 +49,14 @@ function NewObjectRoute() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!name.trim()) { setError("Namn krävs"); return; }
     if (!type.trim()) { setError("Typ krävs"); return; }
     setSaving(true);
     try {
       const { data, error } = await supabase.from("property_objects").insert({
         property_id: propertyId,
         type: type.trim(),
-        name: name.trim(),
+        name: title.trim() || null,
+        description: description.trim() || null,
         apartment_id: apartmentId || null,
         created_by: user?.id ?? null,
       } as any).select("id").single();
@@ -60,7 +66,7 @@ function NewObjectRoute() {
         property_id: propertyId,
         apartment_id: apartmentId || null,
         property_object_id: (data as any).id,
-        description: `Nytt objekt: ${name.trim()}`,
+        description: `Nytt objekt: ${title.trim() || objectTypeLabel(type)}`,
         created_by: user?.id ?? null,
       });
       toast.success("Sparat!");
@@ -81,8 +87,12 @@ function NewObjectRoute() {
           <EditableSelect value={type} onChange={setType} options={typeOptions} style={input} placeholder="Skriv eller välj typ" />
         </div>
         <div>
-          <label style={label}>Namn *</label>
-          <input style={input} value={name} onChange={(e) => setName(e.target.value)} placeholder="T.ex. Hiss A, Källare plan 1" required />
+          <label style={label}>Titel</label>
+          <input style={input} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="T.ex. Hiss A, Källare plan 1" />
+        </div>
+        <div>
+          <label style={label}>Beskrivning</label>
+          <textarea style={textarea} value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
         </div>
         <div>
           <label style={label}>Koppla till lägenhet</label>

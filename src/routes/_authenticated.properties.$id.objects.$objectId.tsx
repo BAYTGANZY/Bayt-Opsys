@@ -90,7 +90,7 @@ function ObjectDetail() {
           event_type: "objekt_status_andring",
           property_id: propertyId,
           property_object_id: objectId,
-          description: `${obj.data?.name ?? "Objekt"}: ${objectStatusMeta(prev).label} → ${objectStatusMeta(next).label}`,
+          description: `${obj.data?.name || objectTypeLabel(obj.data?.type)}: ${objectStatusMeta(prev).label} → ${objectStatusMeta(next).label}`,
           created_by: user?.id ?? null,
         });
       } catch {}
@@ -111,7 +111,7 @@ function ObjectDetail() {
           </div>
           <h2 style={{ margin: "4px 0 0", fontSize: 22, fontWeight: 700, color: C.text, display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ width: 12, height: 12, borderRadius: "50%", background: meta.color, display: "inline-block" }} />
-            {obj.data?.name ?? "…"}
+            {obj.data ? (obj.data.name || objectTypeLabel(obj.data.type)) : "…"}
           </h2>
         </div>
         {readOnlyStatus ? (
@@ -153,7 +153,7 @@ function ObjectDetail() {
       </div>
       <div>
         <SectionTitle>Loggbok</SectionTitle>
-        <LogbookSection objectId={objectId} />
+        <LogbookSection propertyId={propertyId} objectId={objectId} />
       </div>
     </div>
   );
@@ -173,14 +173,16 @@ function InfoSection({
   const qc = useQueryClient();
   const typeOptions = useObjectTypeOptions();
   const [type, setType] = useState("");
-  const [name, setName] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [apartmentId, setApartmentId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (obj) {
       setType(obj.type ?? "");
-      setName(obj.name ?? "");
+      setTitle(obj.name ?? "");
+      setDescription(obj.description ?? "");
       setApartmentId(obj.apartment_id ?? "");
     }
   }, [obj]);
@@ -195,10 +197,11 @@ function InfoSection({
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!name.trim() || !type.trim()) throw new Error("Typ och namn krävs");
+      if (!type.trim()) throw new Error("Typ krävs");
       const { error } = await supabase.from("property_objects").update({
         type: type.trim(),
-        name: name.trim(),
+        name: title.trim() || null,
+        description: description.trim() || null,
         apartment_id: apartmentId || null,
       } as any).eq("id", objectId);
       if (error) throw error;
@@ -224,8 +227,10 @@ function InfoSection({
     return (
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20, display: "grid", gap: 10, fontSize: 14 }}>
         <div><b>Typ:</b> {objectTypeLabel(obj.type)}</div>
+        <div><b>Titel:</b> {obj.name || "—"}</div>
         <div><b>Status:</b> {objectStatusMeta(obj.status).label}</div>
         <div><b>Lägenhet:</b> {obj.apartment_id ? (apt ? `Lgh ${apt.apartment_number} · Trappa ${apt.trappa}` : "—") : "—"}</div>
+        {obj.description && <div><b>Beskrivning:</b> {obj.description}</div>}
       </div>
     );
   }
@@ -240,8 +245,12 @@ function InfoSection({
         <EditableSelect value={type} onChange={setType} options={typeOptions} style={inputStyle} placeholder="Skriv eller välj typ" />
       </div>
       <div>
-        <label style={labelStyle}>Namn *</label>
-        <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} required />
+        <label style={labelStyle}>Titel</label>
+        <input style={inputStyle} value={title} onChange={(e) => setTitle(e.target.value)} />
+      </div>
+      <div>
+        <label style={labelStyle}>Beskrivning</label>
+        <textarea style={textareaStyle} value={description} onChange={(e) => setDescription(e.target.value)} />
       </div>
       <div>
         <label style={labelStyle}>Lägenhet</label>
@@ -610,7 +619,12 @@ function ProjectsSection({ propertyId, objectId, mayEdit }: { propertyId: string
   );
 }
 
-function LogbookSection({ objectId }: { objectId: string }) {
+function LogbookSection({ propertyId, objectId }: { propertyId: string; objectId: string }) {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const [content, setContent] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
   const q = useQuery({
     queryKey: ["object-logbook", objectId],
     queryFn: async () => {
@@ -627,20 +641,64 @@ function LogbookSection({ objectId }: { objectId: string }) {
     rows.map((e) => ({ table: "logbook_entries" as const, id: e.id as string })),
   );
 
-  if (q.isLoading) return <div style={{ color: C.secondary }}>Laddar…</div>;
-  if (rows.length === 0) return <div style={{ padding: 24, textAlign: "center", color: C.secondary, border: `1px solid ${C.border}`, borderRadius: 12 }}>Ingen aktivitet</div>;
+  // Manual anteckning — same composer apartments' egen loggbokstab has (no
+  // role gate there either; comments come from LogbookEntryCard, already
+  // shared with apartments' fastighets-/allbyggnadsloggbok).
+  const addNote = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Inte inloggad");
+      if (!content.trim()) throw new Error("Anteckning krävs");
+      const today = new Date().toISOString().slice(0, 10);
+      const { error } = await supabase.from("logbook_entries").insert({
+        property_object_id: objectId,
+        property_id: propertyId,
+        content: content.trim(),
+        entry_date: today,
+        created_by: user.id,
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setContent("");
+      setError(null);
+      qc.invalidateQueries({ queryKey: ["object-logbook", objectId] });
+      toast.success("Sparat!", { style: { background: "#3D8A30", color: "#fff" } });
+    },
+    onError: (e: Error) => setError(e.message ?? "Kunde inte spara"),
+  });
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <LogSelectionBar
-        selection={selection}
-        invalidateKeys={[
-          ["object-logbook", objectId],
-          ["property-objects-logs"],
-          ["property-timeline"],
-          ["all-buildings-loggbok"],
-        ]}
-      />
-      {rows.map((e) => <LogbookEntryCard key={e.id} entry={e} selection={selection} />)}
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <form
+        onSubmit={(e) => { e.preventDefault(); addNote.mutate(); }}
+        style={{ display: "grid", gap: 12, padding: 16, border: `1px solid ${C.border}`, borderRadius: 8, background: "#fafbfc" }}
+      >
+        <div>
+          <label style={labelStyle}>Anteckning *</label>
+          <textarea style={textareaStyle} rows={3} value={content} onChange={(e) => setContent(e.target.value)} required />
+        </div>
+        {error && <div style={{ color: C.error, fontSize: 13 }}>{error}</div>}
+        <button type="submit" disabled={addNote.isPending} style={{ ...primaryBtn, width: "fit-content", opacity: addNote.isPending ? 0.7 : 1 }}>
+          {addNote.isPending ? "Sparar…" : "Lägg till anteckning"}
+        </button>
+      </form>
+
+      {q.isLoading ? <div style={{ color: C.secondary }}>Laddar…</div> : rows.length === 0 ? (
+        <div style={{ padding: 24, textAlign: "center", color: C.secondary, border: `1px solid ${C.border}`, borderRadius: 12 }}>Ingen aktivitet</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <LogSelectionBar
+            selection={selection}
+            invalidateKeys={[
+              ["object-logbook", objectId],
+              ["property-objects-logs"],
+              ["property-timeline"],
+              ["all-buildings-loggbok"],
+            ]}
+          />
+          {rows.map((e) => <LogbookEntryCard key={e.id} entry={e} selection={selection} />)}
+        </div>
+      )}
     </div>
   );
 }
