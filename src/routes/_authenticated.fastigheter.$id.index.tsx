@@ -10,7 +10,6 @@ import {
   ClipboardCheckIcon,
   Briefcase01Icon,
   File02Icon,
-  UserGroupIcon,
   BookOpen01Icon,
   MinimizeScreenIcon,
   Image02Icon,
@@ -82,12 +81,6 @@ const TILES = [
     label: "Dokument",
     icon: File02Icon,
     propertySection: "documents",
-  },
-  {
-    to: "/properties/$id/contacts",
-    label: "Kontakter",
-    icon: UserGroupIcon,
-    propertySection: "contacts",
   },
   {
     to: "/properties/$id/logbook",

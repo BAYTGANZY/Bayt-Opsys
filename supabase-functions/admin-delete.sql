@@ -95,7 +95,10 @@ DECLARE
     'property_objects.apartment_id',
     'issues.property_object_id',
     'inspections.property_object_id',
-    'logbook_entries.property_object_id'
+    'logbook_entries.property_object_id',
+    -- Added 2026-08-07 with property-objects-freeform-type-and-projects.sql —
+    -- keep in sync or a re-run of this sweep flips it to CASCADE.
+    'projects.property_object_id'
   ];
 
   r         RECORD;

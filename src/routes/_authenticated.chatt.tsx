@@ -516,15 +516,29 @@ function ConversationView({
     return () => URL.revokeObjectURL(url);
   }, [pendingImage]);
 
-  const pickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] ?? null;
-    e.target.value = "";
+  const applyImageFile = (file: File | null) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       toast.error("Endast bilder kan bifogas.");
       return;
     }
     setPendingImage(file);
+  };
+
+  const pickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    e.target.value = "";
+    applyImageFile(file);
+  };
+
+  // Ctrl/Cmd+V with an image on the clipboard (a screenshot, or a copied image
+  // from elsewhere) attaches it the same as picking a file — a plain text paste
+  // is untouched since no clipboard item matches image/*.
+  const pasteImage = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const item = Array.from(e.clipboardData.items).find((i) => i.type.startsWith("image/"));
+    if (!item) return;
+    e.preventDefault();
+    applyImageFile(item.getAsFile());
   };
 
   // Composer height is user-resizable via the drag handle above the textarea
@@ -1085,6 +1099,7 @@ function ConversationView({
                 onSend(e as unknown as FormEvent);
               }
             }}
+            onPaste={pasteImage}
             placeholder="Skriv ett meddelande…"
             style={{
               height: composerHeight, resize: "none", border: `1px solid ${C.border}`, borderRadius: 10,

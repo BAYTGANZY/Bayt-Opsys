@@ -16,6 +16,10 @@ import { LogbookEntryCard } from "@/components/LogbookEntryCard";
 import { LogSelectionBar, useLogSelection } from "@/components/LogSelection";
 import { useAuth } from "@/lib/auth";
 import { useMyContactId } from "@/hooks/useMyContactId";
+import { canEdit, isStyrelse } from "@/lib/permissions";
+import { EditableSelect } from "@/components/EditableSelect";
+import { useObjectTypeOptions } from "@/hooks/useObjectTypeOptions";
+import { deriveProjectStatus } from "@/lib/issue-tokens";
 
 export const Route = createFileRoute("/_authenticated/properties/$id/objects/$objectId")({
   head: () => ({ meta: [{ title: "Objekt — BAYT" }] }),
@@ -54,8 +58,14 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 function ObjectDetail() {
   const { id: propertyId, objectId } = Route.useParams();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const qc = useQueryClient();
+  // Status stays editable for admin and entreprenör (RLS's entreprenor_update
+  // policy only exists for that), but styrelse is read-only by spec — the
+  // select had no role gate at all before, same latent bug the apartment
+  // InfoTab had until it got a <fieldset disabled>.
+  const readOnlyStatus = isStyrelse(profile?.role);
+  const mayEdit = canEdit(profile?.role);
 
   const obj = useQuery({
     queryKey: ["property-object", objectId],
@@ -104,29 +114,42 @@ function ObjectDetail() {
             {obj.data?.name ?? "…"}
           </h2>
         </div>
-        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.secondary }}>
-          Status
-          <select
-            value={status}
-            onChange={(e) => { setStatus(e.target.value); updateStatus.mutate(e.target.value); }}
-            style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13, color: C.text, background: "#fff" }}
-          >
-            {OBJECT_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-        </label>
+        {readOnlyStatus ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.secondary }}>
+            Status
+            <span style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13, color: C.text, background: "#F9FAFB" }}>
+              {meta.label}
+            </span>
+          </div>
+        ) : (
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.secondary }}>
+            Status
+            <select
+              value={status}
+              onChange={(e) => { setStatus(e.target.value); updateStatus.mutate(e.target.value); }}
+              style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13, color: C.text, background: "#fff" }}
+            >
+              {OBJECT_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </label>
+        )}
       </div>
 
       <div>
         <SectionTitle>Info</SectionTitle>
-        <InfoSection obj={obj.data} />
+        <InfoSection propertyId={propertyId} objectId={objectId} obj={obj.data} mayEdit={mayEdit} />
       </div>
       <div>
         <SectionTitle>Felanmälningar</SectionTitle>
-        <IssuesSection propertyId={propertyId} objectId={objectId} apartmentId={obj.data?.apartment_id ?? null} />
+        <IssuesSection propertyId={propertyId} objectId={objectId} apartmentId={obj.data?.apartment_id ?? null} mayEdit={mayEdit} />
       </div>
       <div>
         <SectionTitle>Besiktningar</SectionTitle>
-        <InspectionsSection propertyId={propertyId} objectId={objectId} apartmentId={obj.data?.apartment_id ?? null} />
+        <InspectionsSection propertyId={propertyId} objectId={objectId} apartmentId={obj.data?.apartment_id ?? null} mayEdit={mayEdit} />
+      </div>
+      <div>
+        <SectionTitle>Projekt</SectionTitle>
+        <ProjectsSection propertyId={propertyId} objectId={objectId} mayEdit={mayEdit} />
       </div>
       <div>
         <SectionTitle>Loggbok</SectionTitle>
@@ -136,19 +159,111 @@ function ObjectDetail() {
   );
 }
 
-function InfoSection({ obj }: { obj: any }) {
+function InfoSection({
+  propertyId,
+  objectId,
+  obj,
+  mayEdit,
+}: {
+  propertyId: string;
+  objectId: string;
+  obj: any;
+  mayEdit: boolean;
+}) {
+  const qc = useQueryClient();
+  const typeOptions = useObjectTypeOptions();
+  const [type, setType] = useState("");
+  const [name, setName] = useState("");
+  const [apartmentId, setApartmentId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (obj) {
+      setType(obj.type ?? "");
+      setName(obj.name ?? "");
+      setApartmentId(obj.apartment_id ?? "");
+    }
+  }, [obj]);
+
+  const aptsQ = useQuery({
+    queryKey: ["apartments-for-property", propertyId],
+    queryFn: async () => {
+      const { data } = await supabase.from("apartments").select("id, apartment_number, trappa").eq("property_id", propertyId).order("apartment_number");
+      return (data ?? []) as Array<{ id: string; apartment_number: string; trappa: string | null }>;
+    },
+  });
+
+  const save = useMutation({
+    mutationFn: async () => {
+      if (!name.trim() || !type.trim()) throw new Error("Typ och namn krävs");
+      const { error } = await supabase.from("property_objects").update({
+        type: type.trim(),
+        name: name.trim(),
+        apartment_id: apartmentId || null,
+      } as any).eq("id", objectId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Sparat!", { style: { background: "#3D8A30", color: "#fff" } });
+      setError(null);
+      qc.invalidateQueries({ queryKey: ["property-object", objectId] });
+      qc.invalidateQueries({ queryKey: ["property-objects", propertyId] });
+      qc.invalidateQueries({ queryKey: ["object-type-options"] });
+      // Apartment id may have just changed on either end of the link —
+      // invalidate every apartment's "kopplade objekt" cache rather than
+      // tracking which one lost/gained this object.
+      qc.invalidateQueries({ queryKey: ["apartment-linked-objects"] });
+    },
+    onError: (e: Error) => setError(e.message ?? "Kunde inte spara"),
+  });
+
   if (!obj) return <div style={{ color: C.secondary }}>Laddar…</div>;
+
+  if (!mayEdit) {
+    const apt = obj.apartment_id ? (aptsQ.data ?? []).find((a) => a.id === obj.apartment_id) : null;
+    return (
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20, display: "grid", gap: 10, fontSize: 14 }}>
+        <div><b>Typ:</b> {objectTypeLabel(obj.type)}</div>
+        <div><b>Status:</b> {objectStatusMeta(obj.status).label}</div>
+        <div><b>Lägenhet:</b> {obj.apartment_id ? (apt ? `Lgh ${apt.apartment_number} · Trappa ${apt.trappa}` : "—") : "—"}</div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20, display: "grid", gap: 10, fontSize: 14 }}>
-      <div><b>Typ:</b> {objectTypeLabel(obj.type)}</div>
-      <div><b>Status:</b> {objectStatusMeta(obj.status).label}</div>
-      <div><b>Lägenhet:</b> {obj.apartment_id ?? "—"}</div>
-      {obj.description && <div><b>Beskrivning:</b> {obj.description}</div>}
-    </div>
+    <form
+      onSubmit={(e) => { e.preventDefault(); save.mutate(); }}
+      style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20, display: "grid", gap: 14 }}
+    >
+      <div>
+        <label style={labelStyle}>Typ *</label>
+        <EditableSelect value={type} onChange={setType} options={typeOptions} style={inputStyle} placeholder="Skriv eller välj typ" />
+      </div>
+      <div>
+        <label style={labelStyle}>Namn *</label>
+        <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} required />
+      </div>
+      <div>
+        <label style={labelStyle}>Lägenhet</label>
+        <select style={inputStyle} value={apartmentId} onChange={(e) => setApartmentId(e.target.value)}>
+          <option value="">— Ingen —</option>
+          {(aptsQ.data ?? []).map((a) => <option key={a.id} value={a.id}>Lgh {a.apartment_number} · Trappa {a.trappa}</option>)}
+        </select>
+        <div style={{ fontSize: 12, color: C.secondary, marginTop: 6 }}>
+          Kopplar objektet som en relaterad post på lägenhetens sida. Välj "— Ingen —" för att koppla bort.
+        </div>
+      </div>
+      {error && <div style={{ color: C.error, fontSize: 13 }}>{error}</div>}
+      <div>
+        <button type="submit" disabled={save.isPending} style={{ ...primaryBtn, opacity: save.isPending ? 0.7 : 1 }}>
+          {save.isPending ? "Sparar…" : "Spara"}
+        </button>
+      </div>
+    </form>
   );
 }
 
-function IssuesSection({ propertyId, objectId, apartmentId }: { propertyId: string; objectId: string; apartmentId: string | null }) {
+function IssuesSection({ propertyId, objectId, apartmentId, mayEdit }: { propertyId: string; objectId: string; apartmentId: string | null; mayEdit: boolean }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -233,10 +348,12 @@ function IssuesSection({ propertyId, objectId, apartmentId }: { propertyId: stri
   const rows = q.data ?? [];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <button onClick={() => setShowForm((v) => !v)} style={primaryBtn}><Plus size={18} /> Ny felanmälan</button>
-      </div>
-      {showForm && (
+      {mayEdit && (
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button onClick={() => setShowForm((v) => !v)} style={primaryBtn}><Plus size={18} /> Ny felanmälan</button>
+        </div>
+      )}
+      {mayEdit && showForm && (
         <form onSubmit={onSubmit} style={{ display: "grid", gap: 12, padding: 16, border: `1px solid ${C.border}`, borderRadius: 8, background: "#fafbfc" }}>
           <div><label style={labelStyle}>Rubrik *</label><input style={inputStyle} value={title} onChange={(e) => setTitle(e.target.value)} required /></div>
           <div><label style={labelStyle}>Orsak / fri text</label><input style={inputStyle} value={cause} onChange={(e) => setCause(e.target.value)} placeholder="Kort orsak…" /></div>
@@ -289,7 +406,7 @@ function IssuesSection({ propertyId, objectId, apartmentId }: { propertyId: stri
   );
 }
 
-function InspectionsSection({ propertyId, objectId, apartmentId }: { propertyId: string; objectId: string; apartmentId: string | null }) {
+function InspectionsSection({ propertyId, objectId, apartmentId, mayEdit }: { propertyId: string; objectId: string; apartmentId: string | null; mayEdit: boolean }) {
   const qc = useQueryClient();
   const { user } = useAuth();
   const [showForm, setShowForm] = useState(false);
@@ -360,10 +477,12 @@ function InspectionsSection({ propertyId, objectId, apartmentId }: { propertyId:
   const rows = q.data ?? [];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <button onClick={() => setShowForm((v) => !v)} style={primaryBtn}><Plus size={18} /> Ny besiktning</button>
-      </div>
-      {showForm && (
+      {mayEdit && (
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button onClick={() => setShowForm((v) => !v)} style={primaryBtn}><Plus size={18} /> Ny besiktning</button>
+        </div>
+      )}
+      {mayEdit && showForm && (
         <form onSubmit={onSubmit} style={{ display: "grid", gap: 12, padding: 16, border: `1px solid ${C.border}`, borderRadius: 8, background: "#fafbfc" }}>
           <div>
             <label style={labelStyle}>Typ</label>
@@ -392,6 +511,97 @@ function InspectionsSection({ propertyId, objectId, apartmentId }: { propertyId:
           {rows.map((r) => (
             <Link key={r.id} to="/properties/$id/inspections/$inspectionId" params={{ id: propertyId, inspectionId: r.id }} style={{ display: "block", padding: "12px 14px", borderBottom: "1px solid #F3F4F6", fontSize: 14, color: C.text, textDecoration: "none" }}>
               <b>{r.inspection_type ?? "Besiktning"}</b> — <DerivedStatusBadge status={deriveInspectionStatus(r)} /> {r.next_due_date ? `· nästa ${r.next_due_date}` : ""}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProjectsSection({ propertyId, objectId, mayEdit }: { propertyId: string; objectId: string; mayEdit: boolean }) {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const { contactId, isEntreprenor } = useMyContactId();
+
+  const q = useQuery({
+    queryKey: ["object-projects", objectId, isEntreprenor ? contactId : null],
+    enabled: !isEntreprenor || contactId !== undefined,
+    queryFn: async () => {
+      let query = supabase
+        .from("projects")
+        .select("id, title, status, arende_status, end_date, created_at")
+        .eq("property_object_id", objectId)
+        .order("created_at", { ascending: false });
+      if (isEntreprenor) query = query.eq("assigned_contact_id", contactId ?? "__none__");
+      const { data } = await query;
+      return (data ?? []) as Array<{ id: string; title: string; status: string | null; arende_status: string | null; end_date: string | null; created_at: string }>;
+    },
+  });
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!title.trim() || !user) { setError("Titel krävs"); return; }
+    setSaving(true);
+    try {
+      const { data: inserted, error: insErr } = await supabase.from("projects").insert({
+        property_object_id: objectId,
+        property_id: propertyId,
+        title: title.trim(),
+        description: description.trim() || null,
+        status: "planerad",
+        // Starts vilande so Öppna ärende has something to flip — same rule as
+        // the standalone /projects/new form.
+        arende_status: "vilande",
+        end_date: endDate || null,
+        created_by: user.id,
+      }).select("id").single();
+      if (insErr) throw insErr;
+      toast.success("Sparat!", { style: { background: "#3D8A30", color: "#fff" } });
+      qc.invalidateQueries({ queryKey: ["object-projects", objectId] });
+      navigate({ to: "/properties/$id/projects/$projectId", params: { id: propertyId, projectId: inserted!.id as string } });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kunde inte spara");
+      setSaving(false);
+    }
+  }
+
+  const rows = q.data ?? [];
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {mayEdit && (
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button onClick={() => setShowForm((v) => !v)} style={primaryBtn}><Plus size={18} /> Nytt projekt</button>
+        </div>
+      )}
+      {mayEdit && showForm && (
+        <form onSubmit={onSubmit} style={{ display: "grid", gap: 12, padding: 16, border: `1px solid ${C.border}`, borderRadius: 8, background: "#fafbfc" }}>
+          <div><label style={labelStyle}>Titel *</label><input style={inputStyle} value={title} onChange={(e) => setTitle(e.target.value)} required /></div>
+          <div><label style={labelStyle}>Beskrivning</label><textarea style={textareaStyle} value={description} onChange={(e) => setDescription(e.target.value)} /></div>
+          <div><label style={labelStyle}>Slutdatum</label><input type="date" style={inputStyle} value={endDate} onChange={(e) => setEndDate(e.target.value)} /></div>
+          {error && <div style={{ color: C.error, fontSize: 13 }}>{error}</div>}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="submit" disabled={saving} style={{ ...primaryBtn, opacity: saving ? 0.7 : 1 }}>{saving ? "Sparar…" : "Spara projekt"}</button>
+            <button type="button" onClick={() => setShowForm(false)} style={{ ...primaryBtn, background: "#ebebeb", color: C.text }}>Avbryt</button>
+          </div>
+          <div style={{ fontSize: 12, color: C.secondary }}>Ansvarig entreprenör väljs på projektets egen sida efter att den skapats.</div>
+        </form>
+      )}
+      {q.isLoading ? <div style={{ color: C.secondary }}>Laddar…</div> : rows.length === 0 ? (
+        <div style={{ padding: 24, textAlign: "center", color: C.secondary, border: `1px solid ${C.border}`, borderRadius: 12 }}>Inga projekt</div>
+      ) : (
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" }}>
+          {rows.map((r) => (
+            <Link key={r.id} to="/properties/$id/projects/$projectId" params={{ id: propertyId, projectId: r.id }} style={{ display: "block", padding: "12px 14px", borderBottom: "1px solid #F3F4F6", fontSize: 14, color: C.text, textDecoration: "none" }}>
+              <b>{r.title}</b> — <DerivedStatusBadge status={deriveProjectStatus(r)} /> {r.end_date ? `· slutdatum ${r.end_date}` : ""}
             </Link>
           ))}
         </div>

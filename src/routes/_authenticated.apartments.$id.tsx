@@ -35,6 +35,7 @@ import { DerivedStatusBadge } from "@/components/DerivedStatusBadge";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
 import { sanitizeStorageName } from "@/lib/storage";
 import { INSPECTION_TYPES, inspectionTypeLabel } from "@/lib/inspection-tokens";
+import { objectTypeLabel, objectStatusMeta } from "@/lib/object-tokens";
 
 export const Route = createFileRoute("/_authenticated/apartments/$id")({
   head: () => ({ meta: [{ title: "Lägenhet — BAYT" }] }),
@@ -601,6 +602,14 @@ function InfoTab({ apt, isMobile }: { apt: Apartment; isMobile: boolean }) {
       )}
       </form>
 
+      {/* Kopplade objekt sits OUTSIDE the <form> too, same reasoning as
+          Historik below — "Koppla bort" is a button of its own. */}
+      <div style={{ marginTop: 32, paddingTop: 24, borderTop: `1px solid ${C.border}`, maxWidth: 720 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: "0 0 2px" }}>Kopplade objekt</h2>
+        <div style={{ fontSize: 13, color: C.secondary, marginBottom: 16 }}>Hiss, förråd eller annat objekt kopplat till lägenheten</div>
+        <LinkedObjects apartmentId={apt.id} propertyId={apt.property_id} readOnly={readOnly} />
+      </div>
+
       {/* Historik sits OUTSIDE the <form> on purpose: its filter chips are
           buttons, and a stray button inside a form submits it. */}
       <div style={{ marginTop: 32, paddingTop: 24, borderTop: `1px solid ${C.border}`, maxWidth: 720 }}>
@@ -609,6 +618,70 @@ function InfoTab({ apt, isMobile }: { apt: Apartment; isMobile: boolean }) {
         <ApartmentAuditTimeline apartmentId={apt.id} />
       </div>
     </>
+  );
+}
+
+function LinkedObjects({ apartmentId, propertyId, readOnly }: { apartmentId: string; propertyId: string | null; readOnly: boolean }) {
+  const qc = useQueryClient();
+
+  const q = useQuery({
+    queryKey: ["apartment-linked-objects", apartmentId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("property_objects")
+        .select("id, name, type, status")
+        .eq("apartment_id", apartmentId)
+        .order("name");
+      return (data ?? []) as Array<{ id: string; name: string; type: string; status: string | null }>;
+    },
+  });
+
+  const unlink = useMutation({
+    mutationFn: async (objectId: string) => {
+      const { error } = await supabase.from("property_objects").update({ apartment_id: null } as any).eq("id", objectId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Objektet kopplades bort", { style: { background: "#3D8A30", color: "#fff" } });
+      qc.invalidateQueries({ queryKey: ["apartment-linked-objects", apartmentId] });
+      qc.invalidateQueries({ queryKey: ["property-object"] });
+    },
+    onError: (e: Error) => toast.error(e.message ?? "Kunde inte koppla bort"),
+  });
+
+  const rows = q.data ?? [];
+  if (q.isLoading) return <div style={{ color: C.secondary, fontSize: 13 }}>Laddar…</div>;
+  if (rows.length === 0) return <div style={{ color: C.secondary, fontSize: 13 }}>Inga kopplade objekt</div>;
+
+  return (
+    <div style={{ background: "#fff", border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" }}>
+      {rows.map((o) => {
+        const meta = objectStatusMeta(o.status);
+        return (
+          <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderBottom: "1px solid #F3F4F6" }}>
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: meta.color, flexShrink: 0 }} />
+            <Link
+              to="/properties/$id/objects/$objectId"
+              params={{ id: propertyId ?? "", objectId: o.id }}
+              style={{ flex: 1, minWidth: 0, textDecoration: "none", color: "inherit" }}
+            >
+              <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{o.name}</div>
+              <div style={{ fontSize: 12, color: C.secondary }}>{objectTypeLabel(o.type)} · {meta.label}</div>
+            </Link>
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={() => unlink.mutate(o.id)}
+                disabled={unlink.isPending}
+                style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 6, padding: "6px 12px", fontSize: 12, color: C.secondary, cursor: "pointer", whiteSpace: "nowrap" }}
+              >
+                Koppla bort
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

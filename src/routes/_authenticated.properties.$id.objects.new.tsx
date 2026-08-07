@@ -6,6 +6,8 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { OBJECT_TYPES } from "@/lib/object-tokens";
 import { logEvent } from "@/lib/logbook";
+import { EditableSelect } from "@/components/EditableSelect";
+import { useObjectTypeOptions } from "@/hooks/useObjectTypeOptions";
 
 export const Route = createFileRoute("/_authenticated/properties/$id/objects/new")({
   head: () => ({ meta: [{ title: "Nytt objekt — BAYT" }] }),
@@ -20,11 +22,12 @@ function NewObjectRoute() {
   const { id: propertyId } = Route.useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [type, setType] = useState<string>(OBJECT_TYPES[0].value);
+  const [type, setType] = useState<string>(OBJECT_TYPES[0].label);
   const [name, setName] = useState("");
   const [apartmentId, setApartmentId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const typeOptions = useObjectTypeOptions();
 
   const aptsQ = useQuery({
     queryKey: ["apartments-for-property", propertyId],
@@ -41,11 +44,12 @@ function NewObjectRoute() {
     e.preventDefault();
     setError(null);
     if (!name.trim()) { setError("Namn krävs"); return; }
+    if (!type.trim()) { setError("Typ krävs"); return; }
     setSaving(true);
     try {
       const { data, error } = await supabase.from("property_objects").insert({
         property_id: propertyId,
-        type,
+        type: type.trim(),
         name: name.trim(),
         apartment_id: apartmentId || null,
         created_by: user?.id ?? null,
@@ -74,9 +78,7 @@ function NewObjectRoute() {
       <form onSubmit={submit} style={{ display: "grid", gap: 14, maxWidth: 520 }}>
         <div>
           <label style={label}>Typ *</label>
-          <select style={input} value={type} onChange={(e) => setType(e.target.value)}>
-            {OBJECT_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          <EditableSelect value={type} onChange={setType} options={typeOptions} style={input} placeholder="Skriv eller välj typ" />
         </div>
         <div>
           <label style={label}>Namn *</label>
@@ -86,7 +88,7 @@ function NewObjectRoute() {
           <label style={label}>Koppla till lägenhet</label>
           <select style={input} value={apartmentId} onChange={(e) => setApartmentId(e.target.value)}>
             <option value="">— Ingen —</option>
-            {(aptsQ.data ?? []).map((a) => <option key={a.id} value={a.id}>Lgh {a.apartment_number}</option>)}
+            {(aptsQ.data ?? []).map((a) => <option key={a.id} value={a.id}>Lgh {a.apartment_number} · Trappa {a.trappa}</option>)}
           </select>
         </div>
         {error && <div style={{ color: "#DC2626", fontSize: 13 }}>{error}</div>}
