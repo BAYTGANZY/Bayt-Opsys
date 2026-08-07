@@ -1,8 +1,11 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Plus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/lib/auth";
+import { canEdit } from "@/lib/permissions";
 import { objectTypeLabel, objectStatusMeta } from "@/lib/object-tokens";
 import { LogbookEntryCard } from "@/components/LogbookEntryCard";
 import { LogSelectionBar, useLogSelection } from "@/components/LogSelection";
@@ -31,6 +34,8 @@ function ObjectsIndex() {
   // objectsQ itself needs no such filter: property_objects' RLS already
   // returns only objects that role can see.
   const { contactId, isEntreprenor } = useMyContactId();
+  const { profile } = useAuth();
+  const mayEdit = canEdit(profile?.role);
 
   const objectsQ = useQuery({
     queryKey: ["property-objects", propertyId],
@@ -111,22 +116,38 @@ function ObjectsIndex() {
           </div>
         </div>
 
-        <div style={{ display: "inline-flex", border: `1px solid ${C.border}`, borderRadius: 999, padding: 4, background: "#fff", flexShrink: 0 }}>
-          {[{ k: "prio", l: "Prio" }, { k: "logg", l: "Loggbok" }].map((o) => (
-            <button
-              key={o.k}
-              type="button"
-              onClick={() => setView(o.k as "prio" | "logg")}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+          <div style={{ display: "inline-flex", border: `1px solid ${C.border}`, borderRadius: 999, padding: 4, background: "#fff" }}>
+            {[{ k: "prio", l: "Prio" }, { k: "logg", l: "Loggbok" }].map((o) => (
+              <button
+                key={o.k}
+                type="button"
+                onClick={() => setView(o.k as "prio" | "logg")}
+                style={{
+                  padding: "6px 14px", borderRadius: 999, border: "none",
+                  background: view === o.k ? C.primary : "transparent",
+                  color: view === o.k ? "#fff" : C.text, fontWeight: 600, fontSize: 13, cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {o.l}
+              </button>
+            ))}
+          </div>
+          {mayEdit && (
+            <Link
+              to="/properties/$id/objects/new"
+              params={{ id: propertyId }}
               style={{
-                padding: "6px 14px", borderRadius: 999, border: "none",
-                background: view === o.k ? C.primary : "transparent",
-                color: view === o.k ? "#fff" : C.text, fontWeight: 600, fontSize: 13, cursor: "pointer",
+                display: "inline-flex", alignItems: "center", gap: 6,
+                height: 36, padding: "0 16px", background: C.primary, color: "#fff",
+                borderRadius: 999, textDecoration: "none", fontSize: 13, fontWeight: 600,
                 whiteSpace: "nowrap",
               }}
             >
-              {o.l}
-            </button>
-          ))}
+              <Plus size={16} /> Nytt objekt
+            </Link>
+          )}
         </div>
       </div>
 
