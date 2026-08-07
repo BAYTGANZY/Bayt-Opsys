@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   DashboardSquare01Icon,
@@ -13,12 +13,14 @@ import {
   UserGroupIcon,
   BookOpen01Icon,
   MinimizeScreenIcon,
+  Image02Icon,
 } from "@hugeicons/core-free-icons";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { useVisibleProperties } from "@/hooks/useVisibleProperties";
 import { useBuildingWorld } from "@/lib/building-world";
-import { PROPERTY_SECTIONS_FOR_ROLE } from "@/lib/permissions";
+import { PROPERTY_SECTIONS_FOR_ROLE, canEdit } from "@/lib/permissions";
 const baytLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
 const buildingSketch = `${import.meta.env.BASE_URL}assets/building-sketch-2.png`;
 
@@ -27,7 +29,7 @@ export const Route = createFileRoute("/_authenticated/fastigheter/$id/")({
   component: BuildingHomePage,
 });
 
-type PropertyRow = { id: string; name: string; address: string | null };
+type PropertyRow = { id: string; name: string; address: string | null; world_image_url: string | null };
 
 // `null` propertySection = always shown; a string checks PROPERTY_SECTIONS_FOR_ROLE
 // the same way the property sub-nav and canAccess() already gate these routes.
@@ -199,12 +201,41 @@ const STYLES = `
     justify-content: center;
     height: 100%;
   }
+  .bw-sketch-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    max-width: 100%;
+    max-height: 500px;
+  }
   .bw-sketch {
+    display: block;
     max-width: 100%;
     max-height: 500px;
     opacity: 0.85;
     filter: drop-shadow(0 8px 24px rgba(0,0,0,0.4));
   }
+  .bw-sketch-upload {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(14, 31, 26, 0.85);
+    border: 1px solid ${ACCENT};
+    color: ${TEXT};
+    padding: 8px 14px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-family: Inter, system-ui, sans-serif;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    backdrop-filter: blur(2px);
+  }
+  .bw-sketch-upload:hover { background: rgba(14, 31, 26, 1); }
+  .bw-sketch-upload:disabled { opacity: 0.6; cursor: not-allowed; }
   .bw-bg-sketch { display: none; }
 
   @media (max-width: 768px) {
@@ -237,8 +268,11 @@ const STYLES = `
 function BuildingHomePage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { profile } = useAuth();
   const { exit } = useBuildingWorld();
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   // A role must not reach a building it isn't scoped to just by typing its id.
   const { allowedIds, isLoading: scopeLoading } = useVisibleProperties();
@@ -248,11 +282,11 @@ function BuildingHomePage() {
   }, [denied, navigate]);
 
   const { data: property, isLoading } = useQuery({
-    queryKey: ["property-settings", id],
+    queryKey: ["property-world", id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("properties")
-        .select("id, name, address")
+        .select("id, name, address, world_image_url")
         .eq("id", id)
         .maybeSingle();
       if (error) throw error;
@@ -261,12 +295,38 @@ function BuildingHomePage() {
   });
 
   const tiles = TILES.filter((t) => canReachSection(profile?.role, t.propertySection));
+  const worldSketch = property?.world_image_url || buildingSketch;
+
+  async function handleWorldImage(file: File) {
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop() || "png";
+      const path = `${id}/world-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("property-images")
+        .upload(path, file, { upsert: false, contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("property-images").getPublicUrl(path);
+      const { error: dbErr } = await supabase
+        .from("properties")
+        .update({ world_image_url: pub.publicUrl })
+        .eq("id", id);
+      if (dbErr) throw dbErr;
+      qc.invalidateQueries({ queryKey: ["property-world", id] });
+      toast.success("Bild uppdaterad");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Kunde inte ladda upp bild";
+      toast.error(msg);
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
     <>
       <style>{STYLES}</style>
       <div className="bw-page">
-        <img src={buildingSketch} alt="" className="bw-bg-sketch" aria-hidden />
+        <img src={worldSketch} alt="" className="bw-bg-sketch" aria-hidden />
 
         <div className="bw-header">
           <div className="bw-header-left">
@@ -305,7 +365,33 @@ function BuildingHomePage() {
           </div>
 
           <div className="bw-right">
-            <img src={buildingSketch} alt="" className="bw-sketch" />
+            <div className="bw-sketch-wrap">
+              <img src={worldSketch} alt="" className="bw-sketch" />
+              {canEdit(profile?.role) && (
+                <>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleWorldImage(f);
+                      e.currentTarget.value = "";
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="bw-sketch-upload"
+                    disabled={uploading}
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    <HugeiconsIcon icon={Image02Icon} size={16} />
+                    {uploading ? "Laddar upp…" : "Byt bild"}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
