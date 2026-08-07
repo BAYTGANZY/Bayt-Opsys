@@ -28,7 +28,7 @@ const MAX_TOASTS = 3;
 /** How long a toast stays on screen before sliding away (client spec: 1s). */
 export const TOAST_MS = 1000;
 
-const MESSAGE_COLUMNS = "id, conversation_id, sender_id, body, created_at, deleted_at";
+const MESSAGE_COLUMNS = "id, conversation_id, sender_id, body, created_at, deleted_at, attachment_url";
 
 export type ChatNotification = {
   /** = chat_messages.id, so the same message never notifies twice. */
@@ -50,6 +50,7 @@ type MessageRow = {
   body: string;
   created_at: string;
   deleted_at: string | null;
+  attachment_url: string | null;
 };
 
 type ConvLite = { id: string; type: "direct" | "group"; name: string | null };
@@ -132,7 +133,7 @@ function buildNotification(
     senderName: sender?.full_name ?? null,
     senderAvatar: sender?.avatar_url ?? null,
     groupName: conv?.type === "group" ? conv.name || "Grupp" : null,
-    body: row.body,
+    body: row.body.trim() ? row.body : row.attachment_url ? "📷 Bild" : row.body,
     createdAt: row.created_at,
   };
 }

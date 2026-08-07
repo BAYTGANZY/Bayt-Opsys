@@ -21,16 +21,15 @@
 -- byte-identical-copy convention), swapping apartment_id for
 -- property_object_id.
 --
--- IMPORTANT CAVEAT, verified live: as of this migration there is NO UI path
--- anywhere in the app that actually sets issues.property_object_id or
--- inspections.property_object_id — the object detail page only *reads* that
--- link to list existing issues/inspections, it doesn't create one. So the
--- entreprenör path in this policy is correct but currently unreachable until
--- a "Ny felanmälan"/"Ny besiktning" flow is added to the object detail page
--- (_authenticated.properties.$id.objects.$objectId.tsx) that sets
--- property_object_id + assigned_contact_id, the same way the apartment pages
--- already do for apartment_id. Admin and styrelse access work today
--- regardless of this gap.
+-- UPDATE 2026-07-31: the gap noted above at migration time is closed. The
+-- object detail page (_authenticated.properties.$id.objects.$objectId.tsx)
+-- now has "Ny felanmälan"/"Ny besiktning" forms that set property_object_id
+-- on insert; assigned_contact_id is then set on the issue's/inspection's own
+-- detail page via <AnsvarigDropdown>, same two-step pattern apartment ärenden
+-- use. Verified live 2026-08-07: RLS policies and has_object_assignment()
+-- match this file exactly, and neither save payload touches
+-- property_object_id, so assigning an ansvarig can't clobber the link. The
+-- entreprenör path is reachable end-to-end.
 --
 -- Applied directly to the live DB via Supabase MCP on 2026-07-30
 -- (migration: property_objects_scoped_rls). Reference copy, same convention

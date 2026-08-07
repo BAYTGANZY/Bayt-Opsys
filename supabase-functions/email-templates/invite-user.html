@@ -1,0 +1,120 @@
+<!--
+  BAYT — Invite user email template (Supabase Auth)
+  ============================================================================
+  NOT deployed automatically. Paste this into:
+    Supabase Dashboard → Authentication → Emails → Invite user → Message body
+  (and set the Subject heading field to something like:
+    "Du är inbjuden till BAYT")
+
+  Uses Supabase's Go-template variables:
+    {{ .ConfirmationURL }} — required, the accept-invite link
+    {{ .Email }}           — invited address, used in the footer
+    {{ .Data.full_name }}  — optional, from invite-user.ts's `data: { full_name }`
+    {{ .Data.role }}       — optional, from invite-user.ts's `data: { role }`
+  Data.* fields render empty if unset — safe to leave in.
+
+  Kept table-based + inline-styled on purpose: Outlook/Gmail strip <style>
+  blocks and ignore flexbox/grid, so this intentionally does NOT match the
+  app's usual inline-style-object convention.
+-->
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Du är inbjuden till BAYT</title>
+</head>
+<body style="margin:0; padding:0; background-color:#F3F4F1; font-family: Inter, Arial, Helvetica, sans-serif;">
+  <!-- Preheader (hidden preview text in inbox list) -->
+  <div style="display:none; max-height:0; overflow:hidden; opacity:0; mso-hide:all;">
+    Du är inbjuden att gå med i BAYT. Klicka på länken i mejlet för att skapa ditt konto.
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F3F4F1; padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px; width:100%; background-color:#ffffff; border-radius:12px; overflow:hidden; border:1px solid #E5E7EB;">
+
+          <!-- Header -->
+          <tr>
+            <td align="center" style="background-color:#0D2B1E; padding:32px 24px;">
+              <span style="font-family: 'Outfit', Arial, Helvetica, sans-serif; font-size:26px; font-weight:700; letter-spacing:0.5px; color:#ffffff;">
+                BAYT
+              </span>
+            </td>
+          </tr>
+
+          <!-- Accent bar -->
+          <tr>
+            <td style="height:4px; background-color:#5CB84A; line-height:4px; font-size:0;">&nbsp;</td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:36px 32px 8px 32px;">
+              <p style="margin:0 0 4px 0; font-family: 'Outfit', Arial, Helvetica, sans-serif; font-size:20px; font-weight:600; color:#0D2B1E;">
+                Du är inbjuden till BAYT
+              </p>
+              <p style="margin:16px 0 0 0; font-size:15px; line-height:1.6; color:#374151;">
+                Hej{{ if .Data.full_name }} {{ .Data.full_name }}{{ end }},
+              </p>
+              <p style="margin:12px 0 0 0; font-size:15px; line-height:1.6; color:#374151;">
+                Du har blivit inbjuden att skapa ett konto i BAYT{{ if .Data.role }} som <strong>{{ .Data.role }}</strong>{{ end }} — plattformen för förvaltning av din bostadsrättsförening.
+                Klicka på knappen nedan för att sätta ditt lösenord och komma igång.
+              </p>
+            </td>
+          </tr>
+
+          <!-- CTA -->
+          <tr>
+            <td align="center" style="padding:28px 32px 8px 32px;">
+              <table role="presentation" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="border-radius:8px; background-color:#3D8A30;">
+                    <a href="{{ .ConfirmationURL }}"
+                       style="display:inline-block; padding:14px 32px; font-family: Inter, Arial, Helvetica, sans-serif; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">
+                      Skapa konto
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Fallback link -->
+          <tr>
+            <td style="padding:20px 32px 0 32px;">
+              <p style="margin:0; font-size:12px; line-height:1.6; color:#9CA3AF;">
+                Fungerar inte knappen? Kopiera och klistra in denna länk i din webbläsare:<br />
+                <a href="{{ .ConfirmationURL }}" style="color:#3D8A30; word-break:break-all;">{{ .ConfirmationURL }}</a>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Divider -->
+          <tr>
+            <td style="padding:28px 32px 0 32px;">
+              <div style="height:1px; background-color:#E9EBE9; line-height:1px; font-size:0;">&nbsp;</div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:20px 32px 32px 32px;">
+              <p style="margin:0; font-size:12px; line-height:1.6; color:#9CA3AF;">
+                Det här mejlet skickades till {{ .Email }} eftersom någon bjöd in dig till BAYT.
+                Om du inte förväntade dig det kan du ignorera det här mejlet.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+
+        <p style="margin:20px 0 0 0; font-size:12px; color:#9CA3AF;">
+          © BAYT
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

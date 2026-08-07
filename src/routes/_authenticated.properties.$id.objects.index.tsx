@@ -6,6 +6,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { objectTypeLabel, objectStatusMeta } from "@/lib/object-tokens";
 import { LogbookEntryCard } from "@/components/LogbookEntryCard";
 import { LogSelectionBar, useLogSelection } from "@/components/LogSelection";
+import { useMyContactId } from "@/hooks/useMyContactId";
 
 export const Route = createFileRoute("/_authenticated/properties/$id/objects/")({
   head: () => ({ meta: [{ title: "Objekt — BAYT" }] }),
@@ -24,6 +25,12 @@ function ObjectsIndex() {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const [view, setView] = useState<"prio" | "logg">("prio");
+  // Bara mina ärenden: issues has no RLS narrowing (any login can read every
+  // row), so an entreprenör's badge counts must be filtered client-side to
+  // their own assignment — same "?? __none__" pattern as property-tabs.tsx.
+  // objectsQ itself needs no such filter: property_objects' RLS already
+  // returns only objects that role can see.
+  const { contactId, isEntreprenor } = useMyContactId();
 
   const objectsQ = useQuery({
     queryKey: ["property-objects", propertyId],
@@ -38,13 +45,16 @@ function ObjectsIndex() {
   });
 
   const issuesQ = useQuery({
-    queryKey: ["property-objects-issues", propertyId],
+    queryKey: ["property-objects-issues", propertyId, isEntreprenor ? contactId : null],
+    enabled: !isEntreprenor || contactId !== undefined,
     queryFn: async () => {
-      const { data } = await supabase
+      let q = supabase
         .from("issues")
         .select("id, title, priority, status, deadline, property_object_id, created_at")
         .eq("property_id", propertyId)
         .in("status", ["pagande", "oppet", "vantar"]);
+      if (isEntreprenor) q = q.eq("assigned_contact_id", contactId ?? "__none__");
+      const { data } = await q;
       return (data ?? []) as Array<{ id: string; title: string; priority: string; status: string; deadline: string | null; property_object_id: string | null; created_at: string }>;
     },
   });

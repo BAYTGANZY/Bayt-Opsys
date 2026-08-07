@@ -36,6 +36,10 @@ const STYRELSE_ROUTES = [
   "/inspections",
   "/projects",
   "/loggbok",
+  // Objekt (hiss/vind/miljörum/…) mirrors Lägenheter: read-only, own buildings
+  // only, enforced underneath by property_objects' RLS
+  // (supabase-functions/property-objects-scoped-rls.sql).
+  "/objects",
   "/installningar",
   "/chatt",
 ];
@@ -56,6 +60,10 @@ const ENTREPRENOR_ROUTES = [
   "/inspections",
   "/projects",
   "/loggbok",
+  // Narrower again, same shape as Lägenheter: has_object_assignment() (RLS)
+  // only returns an object the entreprenör holds an issue/inspection
+  // assignment against — see property-objects-scoped-rls.sql.
+  "/objects",
   "/installningar",
   "/chatt",
 ];
@@ -65,13 +73,17 @@ const ENTREPRENOR_ROUTES = [
  * the menu and the URL guard can't disagree.
  */
 export const PROPERTY_SECTIONS_FOR_ROLE: Record<string, ReadonlyArray<string>> = {
-  styrelse: ["apartments", "issues", "inspections", "projects", "logbook", "avslutat"],
+  // "objects" reaches the section for both roles; RLS on property_objects then
+  // does the real narrowing (styrelse: own buildings, entreprenor: only an
+  // object they hold an issue/inspection assignment against) — same split as
+  // Lägenheter, see property-objects-scoped-rls.sql.
+  styrelse: ["apartments", "issues", "inspections", "projects", "logbook", "objects", "avslutat"],
   // "apartments" reaches the section; ApartmentsTab then shows an entreprenör
   // only the units they are assigned to, not the building's whole roster.
   // "avslutat" is the per-building archive — its queries repeat the same
   // assigned_contact_id scoping as the section tabs, so an entreprenör only
   // sees their own closed ärenden there.
-  entreprenor: ["apartments", "issues", "inspections", "projects", "logbook", "avslutat"],
+  entreprenor: ["apartments", "issues", "inspections", "projects", "logbook", "objects", "avslutat"],
 };
 
 /**
@@ -102,8 +114,10 @@ export function canAccess(role: string | null | undefined, to: string): boolean 
   if (/(^|\/)new$/.test(to)) return false;
 
   // Building sub-pages: "/properties/<id>/<section>". Allowing "/properties"
-  // wholesale would otherwise expose Objekt, Dokument, Kontakter and
-  // Åtgärdslista by URL even though the sub-nav hides them.
+  // wholesale would otherwise expose Dokument, Kontakter and Åtgärdslista by
+  // URL even though the sub-nav hides them. Objekt used to be in that list too
+  // (2026-07-30) but was reopened to styrelse/entreprenor (2026-08-07) once its
+  // RLS was confirmed to mirror Lägenheter's — see PROPERTY_SECTIONS_FOR_ROLE.
   const sub = to.match(/^\/properties\/[^/]+\/([^/]+)/);
   if (sub && role && PROPERTY_SECTIONS_FOR_ROLE[role]) {
     if (!PROPERTY_SECTIONS_FOR_ROLE[role]!.includes(sub[1])) return false;

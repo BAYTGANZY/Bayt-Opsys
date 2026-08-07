@@ -15,6 +15,7 @@ import { sanitizeStorageName } from "@/lib/storage";
 import { LogbookEntryCard } from "@/components/LogbookEntryCard";
 import { LogSelectionBar, useLogSelection } from "@/components/LogSelection";
 import { useAuth } from "@/lib/auth";
+import { useMyContactId } from "@/hooks/useMyContactId";
 
 export const Route = createFileRoute("/_authenticated/properties/$id/objects/$objectId")({
   head: () => ({ meta: [{ title: "Objekt — BAYT" }] }),
@@ -160,15 +161,22 @@ function IssuesSection({ propertyId, objectId, apartmentId }: { propertyId: stri
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Bara mina ärenden: issues has no RLS narrowing, so an entreprenör only
+  // reaching this object via has_object_assignment() would otherwise still
+  // see every other entreprenör's felanmälningar raised against it.
+  const { contactId, isEntreprenor } = useMyContactId();
 
   const q = useQuery({
-    queryKey: ["object-issues", objectId],
+    queryKey: ["object-issues", objectId, isEntreprenor ? contactId : null],
+    enabled: !isEntreprenor || contactId !== undefined,
     queryFn: async () => {
-      const { data } = await supabase
+      let query = supabase
         .from("issues")
         .select("id, title, status, priority, deadline, created_at")
         .eq("property_object_id", objectId)
         .order("created_at", { ascending: false });
+      if (isEntreprenor) query = query.eq("assigned_contact_id", contactId ?? "__none__");
+      const { data } = await query;
       return (data ?? []) as Array<{ id: string; title: string; status: string; priority: string; deadline: string | null; created_at: string }>;
     },
   });
@@ -292,15 +300,19 @@ function InspectionsSection({ propertyId, objectId, apartmentId }: { propertyId:
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const { contactId, isEntreprenor } = useMyContactId();
 
   const q = useQuery({
-    queryKey: ["object-inspections", objectId],
+    queryKey: ["object-inspections", objectId, isEntreprenor ? contactId : null],
+    enabled: !isEntreprenor || contactId !== undefined,
     queryFn: async () => {
-      const { data } = await supabase
+      let query = supabase
         .from("inspections")
         .select("id, inspection_type, status, arende_status, next_due_date, last_completed_date, interval_months")
         .eq("property_object_id", objectId)
         .order("next_due_date", { ascending: true });
+      if (isEntreprenor) query = query.eq("assigned_contact_id", contactId ?? "__none__");
+      const { data } = await query;
       return (data ?? []) as Array<{ id: string; inspection_type: string | null; status: string | null; next_due_date: string | null }>;
     },
   });

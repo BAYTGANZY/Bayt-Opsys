@@ -28,6 +28,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedDagRapportRouteImport } from './routes/_authenticated.dag-rapport'
 import { Route as AuthenticatedChattRouteImport } from './routes/_authenticated.chatt'
 import { Route as AuthenticatedProjectsIndexRouteImport } from './routes/_authenticated.projects.index'
+import { Route as AuthenticatedObjectsIndexRouteImport } from './routes/_authenticated.objects.index'
 import { Route as AuthenticatedIssuesIndexRouteImport } from './routes/_authenticated.issues.index'
 import { Route as AuthenticatedInspectionsIndexRouteImport } from './routes/_authenticated.inspections.index'
 import { Route as AuthenticatedFastigheterIndexRouteImport } from './routes/_authenticated.fastigheter.index'
@@ -166,6 +167,12 @@ const AuthenticatedProjectsIndexRoute =
   AuthenticatedProjectsIndexRouteImport.update({
     id: '/projects/',
     path: '/projects/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedObjectsIndexRoute =
+  AuthenticatedObjectsIndexRouteImport.update({
+    id: '/objects/',
+    path: '/objects/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedIssuesIndexRoute =
@@ -446,6 +453,7 @@ export interface FileRoutesByFullPath {
   '/fastigheter/': typeof AuthenticatedFastigheterIndexRoute
   '/inspections/': typeof AuthenticatedInspectionsIndexRoute
   '/issues/': typeof AuthenticatedIssuesIndexRoute
+  '/objects/': typeof AuthenticatedObjectsIndexRoute
   '/projects/': typeof AuthenticatedProjectsIndexRoute
   '/fastigheter/$id/dashboard': typeof AuthenticatedFastigheterIdDashboardRoute
   '/fastigheter/$id/installningar': typeof AuthenticatedFastigheterIdInstallningarRoute
@@ -506,6 +514,7 @@ export interface FileRoutesByTo {
   '/fastigheter': typeof AuthenticatedFastigheterIndexRoute
   '/inspections': typeof AuthenticatedInspectionsIndexRoute
   '/issues': typeof AuthenticatedIssuesIndexRoute
+  '/objects': typeof AuthenticatedObjectsIndexRoute
   '/projects': typeof AuthenticatedProjectsIndexRoute
   '/fastigheter/$id/dashboard': typeof AuthenticatedFastigheterIdDashboardRoute
   '/fastigheter/$id/installningar': typeof AuthenticatedFastigheterIdInstallningarRoute
@@ -569,6 +578,7 @@ export interface FileRoutesById {
   '/_authenticated/fastigheter/': typeof AuthenticatedFastigheterIndexRoute
   '/_authenticated/inspections/': typeof AuthenticatedInspectionsIndexRoute
   '/_authenticated/issues/': typeof AuthenticatedIssuesIndexRoute
+  '/_authenticated/objects/': typeof AuthenticatedObjectsIndexRoute
   '/_authenticated/projects/': typeof AuthenticatedProjectsIndexRoute
   '/_authenticated/fastigheter/$id/dashboard': typeof AuthenticatedFastigheterIdDashboardRoute
   '/_authenticated/fastigheter/$id/installningar': typeof AuthenticatedFastigheterIdInstallningarRoute
@@ -632,6 +642,7 @@ export interface FileRouteTypes {
     | '/fastigheter/'
     | '/inspections/'
     | '/issues/'
+    | '/objects/'
     | '/projects/'
     | '/fastigheter/$id/dashboard'
     | '/fastigheter/$id/installningar'
@@ -692,6 +703,7 @@ export interface FileRouteTypes {
     | '/fastigheter'
     | '/inspections'
     | '/issues'
+    | '/objects'
     | '/projects'
     | '/fastigheter/$id/dashboard'
     | '/fastigheter/$id/installningar'
@@ -754,6 +766,7 @@ export interface FileRouteTypes {
     | '/_authenticated/fastigheter/'
     | '/_authenticated/inspections/'
     | '/_authenticated/issues/'
+    | '/_authenticated/objects/'
     | '/_authenticated/projects/'
     | '/_authenticated/fastigheter/$id/dashboard'
     | '/_authenticated/fastigheter/$id/installningar'
@@ -926,6 +939,13 @@ declare module '@tanstack/react-router' {
       path: '/projects'
       fullPath: '/projects/'
       preLoaderRoute: typeof AuthenticatedProjectsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/objects/': {
+      id: '/_authenticated/objects/'
+      path: '/objects'
+      fullPath: '/objects/'
+      preLoaderRoute: typeof AuthenticatedObjectsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/issues/': {
@@ -1319,6 +1339,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedFastigheterIndexRoute: typeof AuthenticatedFastigheterIndexRoute
   AuthenticatedInspectionsIndexRoute: typeof AuthenticatedInspectionsIndexRoute
   AuthenticatedIssuesIndexRoute: typeof AuthenticatedIssuesIndexRoute
+  AuthenticatedObjectsIndexRoute: typeof AuthenticatedObjectsIndexRoute
   AuthenticatedProjectsIndexRoute: typeof AuthenticatedProjectsIndexRoute
   AuthenticatedFastigheterIdDashboardRoute: typeof AuthenticatedFastigheterIdDashboardRoute
   AuthenticatedFastigheterIdInstallningarRoute: typeof AuthenticatedFastigheterIdInstallningarRoute
@@ -1352,6 +1373,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedFastigheterIndexRoute: AuthenticatedFastigheterIndexRoute,
   AuthenticatedInspectionsIndexRoute: AuthenticatedInspectionsIndexRoute,
   AuthenticatedIssuesIndexRoute: AuthenticatedIssuesIndexRoute,
+  AuthenticatedObjectsIndexRoute: AuthenticatedObjectsIndexRoute,
   AuthenticatedProjectsIndexRoute: AuthenticatedProjectsIndexRoute,
   AuthenticatedFastigheterIdDashboardRoute:
     AuthenticatedFastigheterIdDashboardRoute,

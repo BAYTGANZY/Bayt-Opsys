@@ -14,6 +14,7 @@ import {
   BookOpen01Icon,
   MinimizeScreenIcon,
   Image02Icon,
+  Package01Icon,
 } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -69,6 +70,12 @@ const TILES = [
     label: "Projekt",
     icon: Briefcase01Icon,
     propertySection: "projects",
+  },
+  {
+    to: "/properties/$id/objects",
+    label: "Objekt",
+    icon: Package01Icon,
+    propertySection: "objects",
   },
   {
     to: "/properties/$id/documents",

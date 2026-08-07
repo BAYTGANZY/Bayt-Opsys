@@ -23,6 +23,7 @@ import {
   Chatting01Icon,
   Home01Icon,
   MinimizeScreenIcon,
+  Package01Icon,
 } from "@hugeicons/core-free-icons";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -57,6 +58,7 @@ const SECTIONS: NavSection[] = [
     items: [
       { to: "/fastigheter", label: "Fastigheter", icon: Building02Icon },
       { to: "/apartments", label: "Lägenheter", icon: DoorOpenIcon },
+      { to: "/objects", label: "Objekt", icon: Package01Icon },
     ],
   },
   {

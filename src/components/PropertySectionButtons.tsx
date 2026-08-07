@@ -3,13 +3,14 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { StatusDot, OpenAgeDot } from "./StatusDot";
 
-type SectionKey = "apartments" | "issues" | "inspections" | "projects" | "documents" | "logbook";
+type SectionKey = "apartments" | "issues" | "inspections" | "projects" | "documents" | "logbook" | "objects";
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: "apartments", label: "Lägenheter" },
   { key: "issues", label: "Felanmälan" },
   { key: "inspections", label: "Besiktningar" },
   { key: "projects", label: "Projekt" },
+  { key: "objects", label: "Objekt" },
   { key: "documents", label: "Dokument" },
   { key: "logbook", label: "Loggbok" },
 ];

@@ -10,6 +10,7 @@ import {
   File02Icon,
   UserGroupIcon,
   BookOpen01Icon,
+  Package01Icon,
 } from "@hugeicons/core-free-icons";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -34,6 +35,7 @@ const TILES = [
   { to: "/issues", label: "Felanmälningar", icon: AlertCircleIcon },
   { to: "/inspections", label: "Besiktningar", icon: ClipboardCheckIcon },
   { to: "/projects", label: "Projekt", icon: Briefcase01Icon },
+  { to: "/objects", label: "Objekt", icon: Package01Icon },
   { to: "/dokument", label: "Dokument", icon: File02Icon },
   { to: "/contacts", label: "Kontakter", icon: UserGroupIcon },
   { to: "/loggbok", label: "Loggbok", icon: BookOpen01Icon },

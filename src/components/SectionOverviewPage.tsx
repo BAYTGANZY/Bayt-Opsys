@@ -10,7 +10,7 @@ import { useMyArendeScope } from "@/hooks/useMyContactId";
 import { StatusDot } from "./StatusDot";
 const buildingSketch = `${import.meta.env.BASE_URL}assets/building-sketch.png`;
 
-export type SectionKey = "apartments" | "issues" | "inspections" | "projects" | "documents" | "logbook";
+export type SectionKey = "apartments" | "issues" | "inspections" | "projects" | "documents" | "logbook" | "objects";
 
 const DOT_SECTIONS = new Set<SectionKey>(["issues", "inspections", "projects"]);
 
@@ -21,6 +21,7 @@ const SECTION_LABEL: Record<SectionKey, string> = {
   projects: "Projekt",
   documents: "Dokument",
   logbook: "Loggbok",
+  objects: "Objekt",
 };
 
 type PropertyRow = { id: string; name: string; address: string | null; image_url: string | null };
@@ -40,8 +41,9 @@ const PROPERTY_COLUMNS = "id, name, address, image_url";
  * entreprenör's own assignments. Without it a card counted every ärende in the
  * building while the list inside showed only theirs — the number contradicted
  * the page and leaked how much other work exists there.
- * Lägenheter/Dokument/Loggbok are not ärenden and carry no assignment, so they
- * are left as-is; the buildings themselves are already scoped by RLS.
+ * Lägenheter/Dokument/Loggbok/Objekt are not ärenden and carry no assignment,
+ * so they are left as-is; the buildings themselves are already scoped by RLS
+ * (Objekt additionally scopes per-row, see the "objects" branch below).
  */
 async function loadStats(
   section: SectionKey,
@@ -128,6 +130,15 @@ async function loadStats(
     }
   } else if (section === "logbook") {
     const { data } = await supabase.from("logbook_entries").select("property_id");
+    for (const r of (data ?? []) as Array<{ property_id: string | null }>) {
+      if (!r.property_id) continue;
+      bump(r.property_id).count += 1;
+    }
+  } else if (section === "objects") {
+    // No `scoped()` filter needed here, unlike issues/inspections/projects:
+    // property_objects' own RLS already narrows rows per role (styrelse: own
+    // buildings, entreprenor: has_object_assignment()), same as apartments.
+    const { data } = await supabase.from("property_objects").select("property_id");
     for (const r of (data ?? []) as Array<{ property_id: string | null }>) {
       if (!r.property_id) continue;
       bump(r.property_id).count += 1;

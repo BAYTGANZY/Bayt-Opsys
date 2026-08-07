@@ -2,13 +2,14 @@ import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router"
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Chatting01Icon, Add01Icon, ArrowLeft01Icon, CheckmarkCircle01Icon, SentIcon, Delete02Icon, MessageCircleReplyIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { Chatting01Icon, Add01Icon, ArrowLeft01Icon, CheckmarkCircle01Icon, SentIcon, Delete02Icon, MessageCircleReplyIcon, Cancel01Icon, Image02Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { renderChatText } from "@/lib/chat-format";
 import { confirmDialog } from "@/components/ConfirmDialog";
+import { sanitizeStorageName, useSignedFileUrls } from "@/lib/storage";
 
 type Search = { c?: string };
 
@@ -55,9 +56,14 @@ type Message = {
   /** Message this one is quoting, or null. Nulled by the DB (FK ON DELETE SET
    *  NULL) when the target is hard-deleted, so a dangling reference never lingers. */
   reply_to_id: string | null;
+  /** Stored getPublicUrl() link into the private `chat-files` bucket — resolve
+   *  through useSignedFileUrls before rendering, same as every other bucket. */
+  attachment_url: string | null;
+  attachment_type: string | null;
 };
 
-const MESSAGE_COLUMNS = "id, conversation_id, sender_id, body, created_at, deleted_at, reply_to_id";
+const MESSAGE_COLUMNS =
+  "id, conversation_id, sender_id, body, created_at, deleted_at, reply_to_id, attachment_url, attachment_type";
 
 /**
  * Newest-wins comparison used to pick a conversation's preview message.
@@ -181,9 +187,11 @@ function ReplyMessageButton({ onClick }: { onClick: () => void }) {
 function messagePreview(message: Message | null): string {
   if (!message) return "Inga meddelanden än";
   if (message.deleted_at) return "Meddelandet togs bort";
+  if (!message.body.trim()) return message.attachment_url ? "📷 Bild" : "";
   // The bubble renders **bold** and honours newlines; the preview is a single
   // clipped line, so drop the markers and collapse the whitespace.
-  return message.body.replace(/\*\*/g, "").replace(/\s+/g, " ").trim();
+  const text = message.body.replace(/\*\*/g, "").replace(/\s+/g, " ").trim();
+  return message.attachment_url ? `📷 ${text}` : text;
 }
 
 function conversationTitle(conv: Conversation, selfId: string): string {
@@ -490,8 +498,34 @@ function ConversationView({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [pendingImage, setPendingImage] = useState<File | null>(null);
+  const [pendingImagePreview, setPendingImagePreview] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const bubbleRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Object URL for the pending image's local preview — revoked whenever it's
+  // replaced or the user removes it, so a fast pick-then-remove doesn't leak.
+  useEffect(() => {
+    if (!pendingImage) {
+      setPendingImagePreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(pendingImage);
+    setPendingImagePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [pendingImage]);
+
+  const pickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Endast bilder kan bifogas.");
+      return;
+    }
+    setPendingImage(file);
+  };
 
   // Composer height is user-resizable via the drag handle above the textarea
   // (see composerDragStart below) — dragging up grows it so more text is
@@ -545,6 +579,9 @@ function ConversationView({
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });
+
+  const attachmentUrls = useMemo(() => messages.map((m) => m.attachment_url), [messages]);
+  const resolveAttachmentUrl = useSignedFileUrls(attachmentUrls);
 
   const { data: participants = {} } = useQuery({
     queryKey: receiptsKey(conversation.id),
@@ -657,17 +694,43 @@ function ConversationView({
   const onSend = async (e: FormEvent) => {
     e.preventDefault();
     const text = body.trim();
-    if (!text || sending) return;
+    const image = pendingImage;
+    if ((!text && !image) || sending) return;
     const replyToId = replyingTo?.id ?? null;
     setSending(true);
     setSendError(null);
     setBody("");
+    setPendingImage(null);
+
+    let attachmentUrl: string | null = null;
+    let attachmentType: string | null = null;
+    if (image) {
+      const path = `${conversation.id}/${Date.now()}-${sanitizeStorageName(image.name)}`;
+      const { error: uploadError } = await supabase.storage.from("chat-files").upload(path, image);
+      if (uploadError) {
+        setSending(false);
+        setBody(text);
+        setPendingImage(image);
+        setSendError(`Bilden kunde inte laddas upp: ${uploadError.message}`);
+        return;
+      }
+      attachmentUrl = supabase.storage.from("chat-files").getPublicUrl(path).data.publicUrl;
+      attachmentType = image.type;
+    }
+
     // Read the row back rather than waiting for the realtime echo to render it:
     // if the socket is down the message is still committed, and the thread has
     // to show what the database now holds.
     const { data, error } = await supabase
       .from("chat_messages")
-      .insert({ conversation_id: conversation.id, sender_id: selfId, body: text, reply_to_id: replyToId })
+      .insert({
+        conversation_id: conversation.id,
+        sender_id: selfId,
+        body: text,
+        reply_to_id: replyToId,
+        attachment_url: attachmentUrl,
+        attachment_type: attachmentType,
+      })
       .select(MESSAGE_COLUMNS)
       .single();
     setSending(false);
@@ -676,6 +739,7 @@ function ConversationView({
       // message had been sent and then swallowed. Keep the reply quote too,
       // for the same reason.
       setBody(text);
+      if (image) setPendingImage(image);
       setSendError(`Meddelandet kunde inte skickas: ${error.message}`);
       return;
     }
@@ -863,9 +927,25 @@ function ConversationView({
                     )}
                   </div>
                 )}
-                <div style={removed ? { fontStyle: "italic" } : undefined}>
-                  {removed ? (mine ? "Du tog bort meddelandet" : "Meddelandet togs bort") : renderChatText(m.body)}
-                </div>
+                {m.attachment_url && !removed && (
+                  <a
+                    href={resolveAttachmentUrl(m.attachment_url)}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ display: "block", marginBottom: m.body.trim() ? 6 : 0 }}
+                  >
+                    <img
+                      src={resolveAttachmentUrl(m.attachment_url)}
+                      alt="Bifogad bild"
+                      style={{ maxWidth: "100%", maxHeight: 260, borderRadius: 10, display: "block", objectFit: "cover" }}
+                    />
+                  </a>
+                )}
+                {(removed || m.body.trim() || !m.attachment_url) && (
+                  <div style={removed ? { fontStyle: "italic" } : undefined}>
+                    {removed ? (mine ? "Du tog bort meddelandet" : "Meddelandet togs bort") : renderChatText(m.body)}
+                  </div>
+                )}
                 <div
                   style={{
                     fontSize: 10, marginTop: 4, opacity: 0.75, display: "flex", alignItems: "center",
@@ -932,7 +1012,59 @@ function ConversationView({
         </div>
       )}
 
+      {pendingImagePreview && (
+        <div
+          style={{
+            display: "flex", alignItems: "center", gap: 10, padding: "8px 16px", minWidth: 0,
+            borderTop: `1px solid ${C.border}`, background: "#F7F8F7",
+          }}
+        >
+          <img
+            src={pendingImagePreview}
+            alt=""
+            style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover", flexShrink: 0 }}
+          />
+          <div style={{ flex: 1, minWidth: 0, fontSize: 12, color: C.secondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {pendingImage?.name}
+          </div>
+          <button
+            type="button"
+            onClick={() => setPendingImage(null)}
+            aria-label="Ta bort bild"
+            title="Ta bort bild"
+            style={{
+              flexShrink: 0, width: 32, height: 32, borderRadius: "50%", border: "none",
+              background: "transparent", color: C.muted, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+              touchAction: "manipulation",
+            }}
+          >
+            <HugeiconsIcon icon={Cancel01Icon} size={14} />
+          </button>
+        </div>
+      )}
+
       <form onSubmit={onSend} style={{ display: "flex", gap: 10, padding: "12px 16px", borderTop: `1px solid ${C.border}`, alignItems: "flex-end" }}>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={pickImage}
+          style={{ display: "none" }}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          aria-label="Bifoga bild"
+          title="Bifoga bild"
+          style={{
+            flexShrink: 0, width: 40, height: 40, borderRadius: 10, border: `1px solid ${C.border}`,
+            background: "transparent", color: C.secondary, cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          <HugeiconsIcon icon={Image02Icon} size={18} />
+        </button>
         <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
           <div
             onPointerDown={composerDragStart}
@@ -962,11 +1094,11 @@ function ConversationView({
         </div>
         <button
           type="submit"
-          disabled={!body.trim() || sending}
+          disabled={(!body.trim() && !pendingImage) || sending}
           style={{
             padding: "0 18px", height: 40, background: C.green, color: "#fff", border: "none", borderRadius: 10,
-            fontWeight: 600, fontSize: 14, cursor: body.trim() ? "pointer" : "default",
-            opacity: body.trim() ? 1 : 0.6,
+            fontWeight: 600, fontSize: 14, cursor: body.trim() || pendingImage ? "pointer" : "default",
+            opacity: body.trim() || pendingImage ? 1 : 0.6,
           }}
         >
           Skicka
