@@ -1,6 +1,7 @@
 import { deriveInspectionStatus, ISSUE_CATEGORIES, derivePriority } from "@/lib/issue-tokens";
 import { DerivedStatusBadge } from "@/components/DerivedStatusBadge";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
+import { DeleteButton } from "@/components/DeleteButton";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -171,6 +172,7 @@ function InfoSection({
   mayEdit: boolean;
 }) {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const typeOptions = useObjectTypeOptions();
   const [type, setType] = useState("");
   const [title, setTitle] = useState("");
@@ -263,10 +265,18 @@ function InfoSection({
         </div>
       </div>
       {error && <div style={{ color: C.error, fontSize: 13 }}>{error}</div>}
-      <div>
+      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <button type="submit" disabled={save.isPending} style={{ ...primaryBtn, opacity: save.isPending ? 0.7 : 1 }}>
           {save.isPending ? "Sparar…" : "Spara"}
         </button>
+        <DeleteButton
+          table="property_objects"
+          id={objectId}
+          label={obj.name || objectTypeLabel(obj.type)}
+          variant="full"
+          invalidateKeys={[["property-objects", propertyId], ["property-objects-issues", propertyId], ["property-objects-logs", propertyId]]}
+          onDeleted={() => navigate({ to: "/properties/$id/objects", params: { id: propertyId } })}
+        />
       </div>
     </form>
   );
