@@ -11,6 +11,8 @@ import { ImageLightbox } from "@/components/ImageLightbox";
 import { OppnaArendeButton } from "@/components/OppnaArendeButton";
 import { AvslutaArendeButton } from "@/components/AvslutaArendeButton";
 import { AnsvarigDropdown } from "@/components/AnsvarigDropdown";
+import { ObjectDropdown } from "@/components/ObjectDropdown";
+import { ObjectInfoCard } from "@/components/ObjectInfoCard";
 import { DeleteButton } from "@/components/DeleteButton";
 import { ProjektStatusButtons } from "@/components/ProjektStatusButtons";
 import { DerivedStatusField } from "@/components/DerivedStatusBadge";
@@ -83,6 +85,7 @@ type Project = {
   end_date: string | null;
   contractor_id: string | null;
   assigned_contact_id: string | null;
+  property_object_id: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string | null;
@@ -150,6 +153,7 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
   });
 
   const [propertyId, setPropertyId] = useState("");
+  const [propertyObjectId, setPropertyObjectId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [budget, setBudget] = useState("");
@@ -164,6 +168,7 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
     if (!projectQ.data) return;
     const p = projectQ.data;
     setPropertyId(p.property_id ?? "");
+    setPropertyObjectId(p.property_object_id ?? null);
     setTitle(p.title ?? "");
     setDescription(p.description ?? "");
     setBudget(p.budget != null ? String(p.budget) : "");
@@ -183,6 +188,7 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
         .from("projects")
         .update({
           property_id: propertyId || null,
+          property_object_id: propertyObjectId,
           title,
           description: description || null,
           // `status` is deliberately absent — derived via deriveProjectStatus.
@@ -333,6 +339,14 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
                   <option key={pr.id} value={pr.id}>{pr.name}</option>
                 ))}
               </select>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <ObjectDropdown propertyId={propertyId} value={propertyObjectId} onChange={setPropertyObjectId} />
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <ObjectInfoCard objectId={propertyObjectId} />
             </div>
 
             <div style={{ marginBottom: 16 }}>

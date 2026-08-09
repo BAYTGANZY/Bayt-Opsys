@@ -10,6 +10,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { OppnaArendeButton } from "@/components/OppnaArendeButton";
 import { AvslutaArendeButton } from "@/components/AvslutaArendeButton";
 import { AnsvarigDropdown } from "@/components/AnsvarigDropdown";
+import { ObjectDropdown } from "@/components/ObjectDropdown";
+import { ObjectInfoCard } from "@/components/ObjectInfoCard";
 import { DeleteButton } from "@/components/DeleteButton";
 import { DerivedStatusField } from "@/components/DerivedStatusBadge";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
@@ -100,6 +102,7 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
   const [inspectionType, setInspectionType] = useState("");
   const [lastDate, setLastDate] = useState("");
   const [apartmentId, setApartmentId] = useState("");
+  const [propertyObjectId, setPropertyObjectId] = useState<string | null>(null);
   const [trappa, setTrappa] = useState("");
   const [assignedContactId, setAssignedContactId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -133,6 +136,7 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
     setInspectionType(insp.inspection_type ?? "");
     setLastDate(insp.last_completed_date ?? "");
     setApartmentId(insp.apartment_id ?? "");
+    setPropertyObjectId(insp.property_object_id ?? null);
     setTrappa(insp.trappa ?? "");
     setAssignedContactId(insp.assigned_contact_id ?? null);
   }, [insp]);
@@ -161,6 +165,7 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
         last_completed_date: lastDate || null,
         next_due_date: nextDue || null,
         apartment_id: apartmentId || null,
+        property_object_id: propertyObjectId,
         // No `trappa` key: the live DB has no inspections.trappa column, and an
         // unknown column makes PostgREST reject the whole UPDATE. Trappa is
         // displayed derived from the linked apartment instead of persisted.
@@ -299,6 +304,9 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
         <div>
           <DerivedPriorityField priority={derivedPriority} labelStyle={labelStyle} reasonColor={C.secondary} />
         </div>
+
+        <ObjectDropdown propertyId={insp.property_id ?? ""} value={propertyObjectId} onChange={setPropertyObjectId} disabled={entreprenor} />
+        <ObjectInfoCard objectId={propertyObjectId} />
 
         <div>
           <label style={labelStyle}>Lägenhet</label>

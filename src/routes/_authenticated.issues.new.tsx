@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ISSUE_CATEGORIES, derivePriority } from "@/lib/issue-tokens";
 import { AnsvarigDropdown } from "@/components/AnsvarigDropdown";
+import { ObjectDropdown } from "@/components/ObjectDropdown";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
 import { sanitizeStorageName } from "@/lib/storage";
 
@@ -65,6 +66,7 @@ export function NewIssuePage({ initialPropertyId, lockProperty }: { initialPrope
   const { user } = useAuth();
   const [propertyId, setPropertyId] = useState(initialPropertyId ?? "");
   const [apartmentId, setApartmentId] = useState("");
+  const [propertyObjectId, setPropertyObjectId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [cause, setCause] = useState("");
   const [description, setDescription] = useState("");
@@ -130,6 +132,7 @@ export function NewIssuePage({ initialPropertyId, lockProperty }: { initialPrope
         .insert({
           property_id: propertyId,
           apartment_id: apartmentId || null,
+          property_object_id: propertyObjectId,
           title: title.trim(),
           description: combinedDescription,
           category: category.trim() || null,
@@ -216,13 +219,14 @@ export function NewIssuePage({ initialPropertyId, lockProperty }: { initialPrope
       >
         <div style={{ minWidth: 0 }}>
           <label style={labelStyle}>Fastighet *</label>
-          <select style={inputStyle} value={propertyId} onChange={(e) => { setPropertyId(e.target.value); setApartmentId(""); }} required>
+          <select style={inputStyle} value={propertyId} onChange={(e) => { setPropertyId(e.target.value); setApartmentId(""); setPropertyObjectId(null); }} required>
             <option value="">Välj fastighet</option>
             {properties.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
         </div>
+        <ObjectDropdown propertyId={propertyId} value={propertyObjectId} onChange={setPropertyObjectId} />
         <div style={{ minWidth: 0 }}>
           <label style={labelStyle}>Lägenhet</label>
           <div onMouseDown={() => { if (!propertyId) setApartmentWarn(true); }}>

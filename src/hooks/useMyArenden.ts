@@ -15,6 +15,7 @@ import {
   type DerivedStatus,
 } from "@/lib/issue-tokens";
 import { inspectionTypeLabel } from "@/lib/inspection-tokens";
+import { objectTypeLabel } from "@/lib/object-tokens";
 
 /**
  * Every ärende assigned to the signed-in entreprenör — felanmälan, besiktning
@@ -114,6 +115,7 @@ type NameMap = Map<string, string>;
 
 type IssueRow = {
   apartment_id: string | null;
+  property_object_id: string | null;
   assigned_contact_id: string | null;
   id: string;
   title: string | null;
@@ -132,6 +134,7 @@ type IssueRow = {
 
 type InspectionRow = {
   apartment_id: string | null;
+  property_object_id: string | null;
   assigned_contact_id: string | null;
   id: string;
   /** Optional: only present once trappa-field.sql has been applied. */
@@ -151,6 +154,7 @@ type InspectionRow = {
 
 type ProjectRow = {
   id: string;
+  property_object_id: string | null;
   assigned_contact_id: string | null;
   title: string | null;
   description: string | null;
@@ -163,6 +167,10 @@ type ProjectRow = {
   property_id: string | null;
   properties: { name: string | null } | null;
 };
+
+/** property_object_id → objektets typ/namn + koppladen lägenhet, om någon. */
+type ObjectRow = { id: string; type: string; name: string | null; apartment_id: string | null };
+type ObjectMap = Map<string, ObjectRow>;
 
 /**
  * Vilka ärenden som ska hämtas. Två helt olika frågor:
@@ -192,7 +200,7 @@ async function loadArenden(scope: ArendeScope) {
       supabase
         .from("issues")
         .select(
-          "id, title, description, category, priority, status, deadline, created_at, property_id, apartment_id, assigned_contact_id, trappa, reporter_name, reporter_phone, properties(name)",
+          "id, title, description, category, priority, status, deadline, created_at, property_id, apartment_id, property_object_id, assigned_contact_id, trappa, reporter_name, reporter_phone, properties(name)",
         ),
     ),
     // `select("*")` on purpose, exactly like the besiktning detail page: the
@@ -205,7 +213,7 @@ async function loadArenden(scope: ArendeScope) {
       supabase
         .from("projects")
         .select(
-          "id, title, description, status, arende_status, budget, start_date, end_date, created_at, property_id, assigned_contact_id, properties(name)",
+          "id, title, description, status, arende_status, budget, start_date, end_date, created_at, property_id, property_object_id, assigned_contact_id, properties(name)",
         ),
     ),
   ]);
@@ -215,17 +223,41 @@ async function loadArenden(scope: ArendeScope) {
 
   const issueRows = (issues.data ?? []) as unknown as IssueRow[];
   const inspectionRows = (inspections.data ?? []) as unknown as InspectionRow[];
+  const projectRows = (projects.data ?? []) as unknown as ProjectRow[];
+
+  // Objektet ett ärende är rest mot — samma separata uppslag, av samma skäl
+  // (ingen embed: en deklarerad FK saknas på minst en av de tre tabellerna).
+  // RLS: has_object_assignment() ger en entreprenör läsrätt på precis det
+  // objekt de har ett ärende mot, vilket är exakt urvalet den här hooken gör.
+  const objectIds = Array.from(
+    new Set(
+      [...issueRows, ...inspectionRows, ...projectRows]
+        .map((r) => r.property_object_id)
+        .filter((id): id is string => !!id),
+    ),
+  );
+  const objects: ObjectMap = new Map();
+  if (objectIds.length > 0) {
+    const { data } = await supabase
+      .from("property_objects")
+      .select("id, type, name, apartment_id")
+      .in("id", objectIds);
+    for (const o of (data ?? []) as ObjectRow[]) objects.set(o.id, o);
+  }
 
   // Apartment identity is fetched separately rather than as a PostgREST embed:
   // an embed needs a declared FK on *both* issues and inspections, and if either
   // is missing the whole query 400s and the page shows nothing. A plain lookup
   // degrades to "no lägenhet shown" instead. RLS lets an entreprenör read the
-  // apartments they hold an ärende in (has_apartment_assignment).
+  // apartments they hold an ärende in (has_apartment_assignment). Objektens
+  // egna kopplade lägenheter räknas in här också — ett projekt har ingen
+  // apartment_id-kolumn alls, så dess "plats" kan bara komma via objektet.
   const aptIds = Array.from(
     new Set(
-      [...issueRows, ...inspectionRows]
-        .map((r) => r.apartment_id)
-        .filter((id): id is string => !!id),
+      [
+        ...[...issueRows, ...inspectionRows].map((r) => r.apartment_id),
+        ...[...objects.values()].map((o) => o.apartment_id),
+      ].filter((id): id is string => !!id),
     ),
   );
   const places: PlaceMap = new Map();
@@ -247,7 +279,6 @@ async function loadArenden(scope: ArendeScope) {
   // sidan i stället för bara namnet. select("*") eftersom `active` kommer från
   // en handkörd migration — namnges den explicit 400:ar frågan där den inte är
   // körd (samma regel som AnsvarigDropdown följer).
-  const projectRows = (projects.data ?? []) as unknown as ProjectRow[];
   const contactIds = Array.from(
     new Set(
       [...issueRows, ...inspectionRows, ...projectRows]
@@ -272,6 +303,7 @@ async function loadArenden(scope: ArendeScope) {
     projects: projectRows,
     places,
     names,
+    objects,
   };
 }
 
@@ -300,7 +332,27 @@ function assignee(meta: MyArende["meta"], r: { assigned_contact_id: string | nul
   return name;
 }
 
-function mapIssue(r: IssueRow, places: PlaceMap, names: NameMap): MyArende {
+/**
+ * Objektet ärendet är rest mot, om något — pushar en "Objekt"-rad i meta och
+ * ger tillbaka objektets kopplade lägenhet (om det har en) så anroparen kan
+ * falla tillbaka på den när ärendet inte har en egen apartment_id. Det är så
+ * ett projekt — som inte har någon apartment_id-kolumn alls — ändå kan visa
+ * "var det gäller" när det är rest mot ett objekt som sitter på en lägenhet.
+ */
+function objectInfo(
+  meta: MyArende["meta"],
+  r: { property_object_id: string | null },
+  objects: ObjectMap,
+  places: PlaceMap,
+): { apartmentId: string | null; placeLabel: string | null } {
+  const o = r.property_object_id ? objects.get(r.property_object_id) : undefined;
+  if (!o) return { apartmentId: null, placeLabel: null };
+  const label = o.name?.trim() ? `${objectTypeLabel(o.type)} · ${o.name.trim()}` : objectTypeLabel(o.type);
+  push(meta, "Objekt", label);
+  return { apartmentId: o.apartment_id, placeLabel: (o.apartment_id && places.get(o.apartment_id)) || null };
+}
+
+function mapIssue(r: IssueRow, places: PlaceMap, names: NameMap, objects: ObjectMap): MyArende {
   const status = deriveIssueStatus({
     status: r.status,
     priority: r.priority,
@@ -312,6 +364,7 @@ function mapIssue(r: IssueRow, places: PlaceMap, names: NameMap): MyArende {
   const key = r.priority ?? "normal";
   const meta: MyArende["meta"] = [];
   const assignedName = assignee(meta, r, names);
+  const obj = objectInfo(meta, r, objects, places);
   push(meta, "Kategori", r.category);
   push(meta, "Trappa (angiven på ärendet)", r.trappa);
   push(meta, "Anmäld av", r.reporter_name);
@@ -331,8 +384,8 @@ function mapIssue(r: IssueRow, places: PlaceMap, names: NameMap): MyArende {
     priorityReason: PRIORITY_FULL_LABEL[key] ?? "",
     propertyId: r.property_id,
     propertyName: r.properties?.name ?? null,
-    apartmentId: r.apartment_id,
-    placeLabel: (r.apartment_id && places.get(r.apartment_id)) || null,
+    apartmentId: r.apartment_id ?? obj.apartmentId,
+    placeLabel: (r.apartment_id && places.get(r.apartment_id)) || obj.placeLabel,
     assignedName,
     description: r.description,
     createdAt: r.created_at,
@@ -340,7 +393,7 @@ function mapIssue(r: IssueRow, places: PlaceMap, names: NameMap): MyArende {
   };
 }
 
-function mapInspection(r: InspectionRow, places: PlaceMap, names: NameMap): MyArende {
+function mapInspection(r: InspectionRow, places: PlaceMap, names: NameMap, objects: ObjectMap): MyArende {
   const status = deriveInspectionStatus({
     arende_status: r.arende_status,
     status: r.status,
@@ -351,6 +404,7 @@ function mapInspection(r: InspectionRow, places: PlaceMap, names: NameMap): MyAr
   const prio = derivePriorityFromStatus(status, { from: r.created_at, dueLabel: "Nästa besiktning" });
   const meta: MyArende["meta"] = [];
   const assignedName = assignee(meta, r, names);
+  const obj = objectInfo(meta, r, objects, places);
   push(meta, "Besiktningsman", r.inspector);
   push(meta, "Senast utförd", r.last_completed_date);
   push(meta, "Intervall", r.interval_months ? `${r.interval_months} mån` : null);
@@ -375,8 +429,8 @@ function mapInspection(r: InspectionRow, places: PlaceMap, names: NameMap): MyAr
     priorityReason: prio.reason,
     propertyId: r.property_id,
     propertyName: r.properties?.name ?? null,
-    apartmentId: r.apartment_id,
-    placeLabel: (r.apartment_id && places.get(r.apartment_id)) || null,
+    apartmentId: r.apartment_id ?? obj.apartmentId,
+    placeLabel: (r.apartment_id && places.get(r.apartment_id)) || obj.placeLabel,
     assignedName,
     description: r.notes,
     createdAt: r.created_at,
@@ -384,7 +438,7 @@ function mapInspection(r: InspectionRow, places: PlaceMap, names: NameMap): MyAr
   };
 }
 
-function mapProject(r: ProjectRow, names: NameMap): MyArende {
+function mapProject(r: ProjectRow, names: NameMap, objects: ObjectMap, places: PlaceMap): MyArende {
   const status = deriveProjectStatus({
     arende_status: r.arende_status,
     status: r.status,
@@ -394,6 +448,7 @@ function mapProject(r: ProjectRow, names: NameMap): MyArende {
   const prio = derivePriorityFromStatus(status, { from: r.created_at, dueLabel: "Slutdatum" });
   const meta: MyArende["meta"] = [];
   const assignedName = assignee(meta, r, names);
+  const obj = objectInfo(meta, r, objects, places);
   push(meta, "Startdatum", r.start_date);
   push(meta, "Slutdatum", r.end_date);
   push(meta, "Budget", r.budget != null ? `${new Intl.NumberFormat("sv-SE").format(r.budget)} SEK` : null);
@@ -414,8 +469,10 @@ function mapProject(r: ProjectRow, names: NameMap): MyArende {
     priorityReason: prio.reason,
     propertyId: r.property_id,
     propertyName: r.properties?.name ?? null,
-    apartmentId: null,
-    placeLabel: null,
+    // Projekt har ingen egen apartment_id-kolumn — enda vägen till en plats
+    // är via objektet det ev. är rest mot.
+    apartmentId: obj.apartmentId,
+    placeLabel: obj.placeLabel,
     assignedName,
     description: r.description,
     createdAt: r.created_at,
@@ -432,11 +489,11 @@ type LoadedArenden = Awaited<ReturnType<typeof loadArenden>>;
  */
 function toArenden(data: LoadedArenden | undefined): MyArende[] {
   if (!data) return [];
-  const { places, names } = data;
+  const { places, names, objects } = data;
   return [
-    ...data.issues.map((r) => mapIssue(r, places, names)),
-    ...data.inspections.map((r) => mapInspection(r, places, names)),
-    ...data.projects.map((r) => mapProject(r, names)),
+    ...data.issues.map((r) => mapIssue(r, places, names, objects)),
+    ...data.inspections.map((r) => mapInspection(r, places, names, objects)),
+    ...data.projects.map((r) => mapProject(r, names, objects, places)),
   ].sort(compareMyArenden);
 }
 

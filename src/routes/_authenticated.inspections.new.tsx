@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AnsvarigDropdown } from "@/components/AnsvarigDropdown";
+import { ObjectDropdown } from "@/components/ObjectDropdown";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
 import { derivePriority } from "@/lib/issue-tokens";
 import { sanitizeStorageName } from "@/lib/storage";
@@ -49,6 +50,7 @@ export function NewInspectionPage({ initialPropertyId }: { initialPropertyId?: s
 
   const [propertyId, setPropertyId] = useState(initialPropertyId ?? "");
   const [apartmentId, setApartmentId] = useState("");
+  const [propertyObjectId, setPropertyObjectId] = useState<string | null>(null);
   const [trappa, setTrappa] = useState("");
   const [type, setType] = useState("sba");
   const [inspector, setInspector] = useState("");
@@ -107,6 +109,7 @@ export function NewInspectionPage({ initialPropertyId }: { initialPropertyId?: s
       const { data: ins, error: insErr } = await supabase.from("inspections").insert({
         property_id: propertyId,
         apartment_id: apartmentId || null,
+        property_object_id: propertyObjectId,
         // No `trappa` key: the live DB has no inspections.trappa column, and an
         // unknown column makes PostgREST reject the whole INSERT. Trappa is
         // displayed derived from the linked apartment instead of persisted.
@@ -187,13 +190,15 @@ export function NewInspectionPage({ initialPropertyId }: { initialPropertyId?: s
       }}>
         <div>
           <label style={labelStyle}>Fastighet *</label>
-          <select style={inputStyle} value={propertyId} onChange={(e) => { setPropertyId(e.target.value); setApartmentId(""); }} required>
+          <select style={inputStyle} value={propertyId} onChange={(e) => { setPropertyId(e.target.value); setApartmentId(""); setPropertyObjectId(null); }} required>
             <option value="">Välj fastighet</option>
             {(properties as Array<{ id: string; name: string }>).map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
         </div>
+
+        <ObjectDropdown propertyId={propertyId} value={propertyObjectId} onChange={setPropertyObjectId} />
 
         <div>
           <label style={labelStyle}>Lägenhet</label>

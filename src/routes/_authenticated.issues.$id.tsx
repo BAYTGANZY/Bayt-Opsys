@@ -17,6 +17,8 @@ import { sanitizeStorageName, useSignedFileUrls } from "@/lib/storage";
 import { OppnaArendeButton } from "@/components/OppnaArendeButton";
 import { AvslutaArendeButton } from "@/components/AvslutaArendeButton";
 import { AnsvarigDropdown } from "@/components/AnsvarigDropdown";
+import { ObjectDropdown } from "@/components/ObjectDropdown";
+import { ObjectInfoCard } from "@/components/ObjectInfoCard";
 import { DeleteButton } from "@/components/DeleteButton";
 import { useRecordScopeGuard } from "@/hooks/useRecordScopeGuard";
 
@@ -71,6 +73,7 @@ type Issue = {
   id: string;
   property_id: string | null;
   apartment_id: string | null;
+  property_object_id: string | null;
   title: string;
   description: string | null;
   category: string | null;
@@ -106,7 +109,7 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("issues")
-        .select("id, property_id, apartment_id, title, description, category, priority, status, deadline, assigned_to, assigned_contact_id, reporter_name, reporter_phone, reporter_email, trappa, submission_source, created_by, created_at, properties(name)")
+        .select("id, property_id, apartment_id, property_object_id, title, description, category, priority, status, deadline, assigned_to, assigned_contact_id, reporter_name, reporter_phone, reporter_email, trappa, submission_source, created_by, created_at, properties(name)")
         .eq("id", id)
         .single();
       if (error) throw error;
@@ -193,6 +196,7 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
   const [assignedContactId, setAssignedContactId] = useState<string | null>(null);
   const [propertyId, setPropertyId] = useState("");
   const [apartmentId, setApartmentId] = useState("");
+  const [propertyObjectId, setPropertyObjectId] = useState<string | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
 
@@ -228,6 +232,7 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
     setAssignedContactId(i.assigned_contact_id ?? null);
     setPropertyId(i.property_id ?? "");
     setApartmentId(i.apartment_id ?? "");
+    setPropertyObjectId(i.property_object_id ?? null);
   }, [issueQ.data]);
 
   useEffect(() => {
@@ -285,6 +290,7 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
         assigned_contact_id: assignedContactId,
         property_id: propertyId || null,
         apartment_id: apartmentId || null,
+        property_object_id: propertyObjectId,
       } as any).eq("id", id).select("id");
       if (error) throw error;
       // An UPDATE that RLS filters away is a 200 with zero rows — without this
@@ -417,6 +423,8 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
               ))}
             </select>
           </div>
+          <ObjectDropdown propertyId={propertyId} value={propertyObjectId} onChange={setPropertyObjectId} />
+          <ObjectInfoCard objectId={propertyObjectId} />
           <div style={{ minWidth: 0 }}>
             <label style={labelStyle}>Orsak / fri text</label>
             <input style={inputStyle} value={cause} onChange={(e) => setCause(e.target.value)} placeholder="Kort orsak…" />

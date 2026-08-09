@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AnsvarigDropdown } from "@/components/AnsvarigDropdown";
+import { ObjectDropdown } from "@/components/ObjectDropdown";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
 import { derivePriority } from "@/lib/issue-tokens";
 
@@ -64,6 +65,7 @@ export function NewProjectPage({ initialPropertyId }: { initialPropertyId?: stri
   const { user } = useAuth();
 
   const [propertyId, setPropertyId] = useState(initialPropertyId ?? "");
+  const [propertyObjectId, setPropertyObjectId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [budget, setBudget] = useState("");
@@ -88,6 +90,7 @@ export function NewProjectPage({ initialPropertyId }: { initialPropertyId?: stri
         .from("projects")
         .insert({
           property_id: propertyId,
+          property_object_id: propertyObjectId,
           title,
           description: description || null,
           status: "planerad",
@@ -155,7 +158,7 @@ export function NewProjectPage({ initialPropertyId }: { initialPropertyId?: stri
           <select
             style={inputStyle}
             value={propertyId}
-            onChange={(e) => setPropertyId(e.target.value)}
+            onChange={(e) => { setPropertyId(e.target.value); setPropertyObjectId(null); }}
             required
           >
             <option value="">Välj fastighet</option>
@@ -163,6 +166,10 @@ export function NewProjectPage({ initialPropertyId }: { initialPropertyId?: stri
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <ObjectDropdown propertyId={propertyId} value={propertyObjectId} onChange={setPropertyObjectId} />
         </div>
 
         <div style={{ marginBottom: 16 }}>
