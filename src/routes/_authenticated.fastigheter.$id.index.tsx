@@ -216,26 +216,33 @@ const STYLES = `
     opacity: 0.85;
     filter: drop-shadow(0 8px 24px rgba(0,0,0,0.4));
   }
-  .bw-sketch-upload {
+  .bw-sketch-editable {
+    cursor: pointer;
+    padding: 0;
+    border: none;
+    background: none;
+    display: block;
+  }
+  .bw-sketch-editable:disabled { cursor: not-allowed; }
+  .bw-sketch-overlay {
     position: absolute;
-    bottom: 8px;
-    right: 8px;
+    inset: 0;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
-    background: rgba(14, 31, 26, 0.85);
-    border: 1px solid ${ACCENT};
+    background: rgba(14, 31, 26, 0.55);
+    border-radius: 8px;
     color: ${TEXT};
-    padding: 8px 14px;
-    border-radius: 10px;
-    font-size: 12px;
+    font-size: 13px;
     font-family: Inter, system-ui, sans-serif;
-    cursor: pointer;
     letter-spacing: 0.02em;
-    backdrop-filter: blur(2px);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    pointer-events: none;
   }
-  .bw-sketch-upload:hover { background: rgba(14, 31, 26, 1); }
-  .bw-sketch-upload:disabled { opacity: 0.6; cursor: not-allowed; }
+  .bw-sketch-editable:hover + .bw-sketch-overlay,
+  .bw-sketch-editable:focus-visible + .bw-sketch-overlay { opacity: 1; }
   .bw-bg-sketch { display: none; }
 
   @media (max-width: 768px) {
@@ -366,8 +373,7 @@ function BuildingHomePage() {
 
           <div className="bw-right">
             <div className="bw-sketch-wrap">
-              <img src={worldSketch} alt="" className="bw-sketch" />
-              {canEdit(profile?.role) && (
+              {canEdit(profile?.role) ? (
                 <>
                   <input
                     ref={fileRef}
@@ -382,14 +388,21 @@ function BuildingHomePage() {
                   />
                   <button
                     type="button"
-                    className="bw-sketch-upload"
+                    className="bw-sketch-editable"
                     disabled={uploading}
+                    title="Byt bild"
+                    aria-label="Byt bild"
                     onClick={() => fileRef.current?.click()}
                   >
+                    <img src={worldSketch} alt="" className="bw-sketch" />
+                  </button>
+                  <div className="bw-sketch-overlay" aria-hidden>
                     <HugeiconsIcon icon={Image02Icon} size={16} />
                     {uploading ? "Laddar upp…" : "Byt bild"}
-                  </button>
+                  </div>
                 </>
+              ) : (
+                <img src={worldSketch} alt="" className="bw-sketch" />
               )}
             </div>
           </div>
