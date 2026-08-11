@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate, useParams, useRouterState } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Plus, Upload, Download } from "lucide-react";
 import { FileDropzone } from "@/components/FileDropzone";
 import { toast } from "sonner";
@@ -22,7 +22,7 @@ import {
 } from "@/components/LogSelection";
 import { ApartmentAuditTimeline } from "@/components/ApartmentAuditTimeline";
 import { useRecordScopeGuard } from "@/hooks/useRecordScopeGuard";
-import { useMyArendeScope } from "@/hooks/useMyContactId";
+import { useMyArendeScope, useMyContactId } from "@/hooks/useMyContactId";
 import { canEdit } from "@/lib/permissions";
 import {
   PRIORITY_BADGE,
@@ -30,12 +30,15 @@ import {
   deriveIssueStatus,
   deriveInspectionStatus,
   derivePriority,
+  type ArendeForStatus,
+  type BesiktningForStatus,
+  type ProjektForStatus,
 } from "@/lib/issue-tokens";
 import { DerivedStatusBadge } from "@/components/DerivedStatusBadge";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
 import { sanitizeStorageName } from "@/lib/storage";
 import { INSPECTION_TYPES, inspectionTypeLabel } from "@/lib/inspection-tokens";
-import { objectTypeLabel, objectStatusMeta } from "@/lib/object-tokens";
+import { objectTypeLabel, deriveObjectStatus, type ObjectHealthStatus } from "@/lib/object-tokens";
 
 export const Route = createFileRoute("/_authenticated/apartments/$id")({
   head: () => ({ meta: [{ title: "Lägenhet — BAYT" }] }),
@@ -623,18 +626,56 @@ function InfoTab({ apt, isMobile }: { apt: Apartment; isMobile: boolean }) {
 
 function LinkedObjects({ apartmentId, propertyId, readOnly }: { apartmentId: string; propertyId: string | null; readOnly: boolean }) {
   const qc = useQueryClient();
+  // Bara mina ärenden: an entreprenör's view of each linked objekt's health
+  // must only reflect ärenden they can see, same scoping as everywhere else.
+  const { contactId, isEntreprenor } = useMyContactId();
 
   const q = useQuery({
     queryKey: ["apartment-linked-objects", apartmentId],
     queryFn: async () => {
       const { data } = await supabase
         .from("property_objects")
-        .select("id, name, type, status")
+        .select("id, name, type")
         .eq("apartment_id", apartmentId)
         .order("name");
-      return (data ?? []) as Array<{ id: string; name: string | null; type: string; status: string | null }>;
+      return (data ?? []) as Array<{ id: string; name: string | null; type: string }>;
     },
   });
+
+  const objectIds = (q.data ?? []).map((o) => o.id);
+
+  const healthQ = useQuery({
+    queryKey: ["apartment-linked-objects-health", apartmentId, objectIds.join(","), isEntreprenor ? contactId : null],
+    enabled: objectIds.length > 0 && (!isEntreprenor || contactId !== undefined),
+    queryFn: async () => {
+      let issuesQuery = supabase.from("issues").select("status, priority, deadline, created_at, property_object_id").in("property_object_id", objectIds);
+      let inspectionsQuery = supabase.from("inspections").select("arende_status, status, next_due_date, last_completed_date, interval_months, property_object_id").in("property_object_id", objectIds);
+      let projectsQuery = supabase.from("projects").select("arende_status, status, end_date, property_object_id").in("property_object_id", objectIds);
+      if (isEntreprenor) {
+        issuesQuery = issuesQuery.eq("assigned_contact_id", contactId ?? "__none__");
+        inspectionsQuery = inspectionsQuery.eq("assigned_contact_id", contactId ?? "__none__");
+        projectsQuery = projectsQuery.eq("assigned_contact_id", contactId ?? "__none__");
+      }
+      const [{ data: issues }, { data: inspections }, { data: projects }] = await Promise.all([issuesQuery, inspectionsQuery, projectsQuery]);
+      return {
+        issues: (issues ?? []) as Array<ArendeForStatus & { property_object_id: string | null }>,
+        inspections: (inspections ?? []) as Array<BesiktningForStatus & { property_object_id: string | null }>,
+        projects: (projects ?? []) as Array<ProjektForStatus & { property_object_id: string | null }>,
+      };
+    },
+  });
+
+  const healthByObj = useMemo(() => {
+    const map = new Map<string, ObjectHealthStatus>();
+    for (const o of q.data ?? []) {
+      map.set(o.id, deriveObjectStatus({
+        issues: (healthQ.data?.issues ?? []).filter((i) => i.property_object_id === o.id),
+        inspections: (healthQ.data?.inspections ?? []).filter((i) => i.property_object_id === o.id),
+        projects: (healthQ.data?.projects ?? []).filter((p) => p.property_object_id === o.id),
+      }));
+    }
+    return map;
+  }, [q.data, healthQ.data]);
 
   const unlink = useMutation({
     mutationFn: async (objectId: string) => {
@@ -656,10 +697,10 @@ function LinkedObjects({ apartmentId, propertyId, readOnly }: { apartmentId: str
   return (
     <div style={{ background: "#fff", border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden" }}>
       {rows.map((o) => {
-        const meta = objectStatusMeta(o.status);
+        const meta = healthByObj.get(o.id) ?? { label: "—", color: "#9CA3AF", bg: "#F3F4F6", reason: "" };
         return (
           <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderBottom: "1px solid #F3F4F6" }}>
-            <span style={{ width: 10, height: 10, borderRadius: "50%", background: meta.color, flexShrink: 0 }} />
+            <span title={meta.reason} style={{ width: 10, height: 10, borderRadius: "50%", background: meta.color, flexShrink: 0 }} />
             <Link
               to="/properties/$id/objects/$objectId"
               params={{ id: propertyId ?? "", objectId: o.id }}

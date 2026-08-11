@@ -8,8 +8,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { objectTypeLabel, OBJECT_STATUSES, objectStatusMeta } from "@/lib/object-tokens";
-import { PRIORITY_BADGE, isOverdue } from "@/lib/issue-tokens";
+import { objectTypeLabel, deriveObjectStatus, type ObjectHealthStatus } from "@/lib/object-tokens";
+import { PRIORITY_BADGE, isOverdue, type ArendeForStatus, type BesiktningForStatus, type ProjektForStatus } from "@/lib/issue-tokens";
 import { INSPECTION_TYPES } from "@/lib/inspection-tokens";
 import { FileDropzone } from "@/components/FileDropzone";
 import { sanitizeStorageName } from "@/lib/storage";
@@ -17,7 +17,7 @@ import { LogbookEntryCard } from "@/components/LogbookEntryCard";
 import { LogSelectionBar, useLogSelection } from "@/components/LogSelection";
 import { useAuth } from "@/lib/auth";
 import { useMyContactId } from "@/hooks/useMyContactId";
-import { canEdit, isStyrelse } from "@/lib/permissions";
+import { canEdit } from "@/lib/permissions";
 import { EditableSelect } from "@/components/EditableSelect";
 import { useObjectTypeOptions } from "@/hooks/useObjectTypeOptions";
 import { deriveProjectStatus } from "@/lib/issue-tokens";
@@ -59,14 +59,12 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 function ObjectDetail() {
   const { id: propertyId, objectId } = Route.useParams();
-  const { user, profile } = useAuth();
-  const qc = useQueryClient();
-  // Status stays editable for admin and entreprenör (RLS's entreprenor_update
-  // policy only exists for that), but styrelse is read-only by spec — the
-  // select had no role gate at all before, same latent bug the apartment
-  // InfoTab had until it got a <fieldset disabled>.
-  const readOnlyStatus = isStyrelse(profile?.role);
+  const { profile } = useAuth();
   const mayEdit = canEdit(profile?.role);
+  // Bara mina ärenden: an entreprenör's view of "is this objekt healthy" must
+  // only reflect ärenden they can actually see, same scoping every section
+  // below already applies to its own list.
+  const { contactId, isEntreprenor } = useMyContactId();
 
   const obj = useQuery({
     queryKey: ["property-object", objectId],
@@ -76,30 +74,42 @@ function ObjectDetail() {
     },
   });
 
-  const [status, setStatus] = useState<string>("ok");
-  useEffect(() => { if (obj.data?.status) setStatus(obj.data.status); }, [obj.data?.status]);
-
-  const updateStatus = useMutation({
-    mutationFn: async (next: string) => {
-      const prev = obj.data?.status ?? null;
-      if (prev === next) return;
-      const { error } = await supabase.from("property_objects").update({ status: next } as any).eq("id", objectId);
-      if (error) throw error;
-      try {
-        const { logEvent } = await import("@/lib/logbook");
-        await logEvent({
-          event_type: "objekt_status_andring",
-          property_id: propertyId,
-          property_object_id: objectId,
-          description: `${obj.data?.name || objectTypeLabel(obj.data?.type)}: ${objectStatusMeta(prev).label} → ${objectStatusMeta(next).label}`,
-          created_by: user?.id ?? null,
-        });
-      } catch {}
+  const healthIssuesQ = useQuery({
+    queryKey: ["object-health-issues", objectId, isEntreprenor ? contactId : null],
+    enabled: !isEntreprenor || contactId !== undefined,
+    queryFn: async () => {
+      let q = supabase.from("issues").select("status, priority, deadline, created_at").eq("property_object_id", objectId);
+      if (isEntreprenor) q = q.eq("assigned_contact_id", contactId ?? "__none__");
+      const { data } = await q;
+      return (data ?? []) as ArendeForStatus[];
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["property-object", objectId] }),
+  });
+  const healthInspectionsQ = useQuery({
+    queryKey: ["object-health-inspections", objectId, isEntreprenor ? contactId : null],
+    enabled: !isEntreprenor || contactId !== undefined,
+    queryFn: async () => {
+      let q = supabase.from("inspections").select("arende_status, status, next_due_date, last_completed_date, interval_months").eq("property_object_id", objectId);
+      if (isEntreprenor) q = q.eq("assigned_contact_id", contactId ?? "__none__");
+      const { data } = await q;
+      return (data ?? []) as BesiktningForStatus[];
+    },
+  });
+  const healthProjectsQ = useQuery({
+    queryKey: ["object-health-projects", objectId, isEntreprenor ? contactId : null],
+    enabled: !isEntreprenor || contactId !== undefined,
+    queryFn: async () => {
+      let q = supabase.from("projects").select("arende_status, status, end_date").eq("property_object_id", objectId);
+      if (isEntreprenor) q = q.eq("assigned_contact_id", contactId ?? "__none__");
+      const { data } = await q;
+      return (data ?? []) as ProjektForStatus[];
+    },
   });
 
-  const meta = objectStatusMeta(status);
+  const health: ObjectHealthStatus = deriveObjectStatus({
+    issues: healthIssuesQ.data ?? [],
+    inspections: healthInspectionsQ.data ?? [],
+    projects: healthProjectsQ.data ?? [],
+  });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -111,34 +121,21 @@ function ObjectDetail() {
             {obj.data ? objectTypeLabel(obj.data.type) : ""}
           </div>
           <h2 style={{ margin: "4px 0 0", fontSize: 22, fontWeight: 700, color: C.text, display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ width: 12, height: 12, borderRadius: "50%", background: meta.color, display: "inline-block" }} />
+            <span title={health.reason} style={{ width: 12, height: 12, borderRadius: "50%", background: health.color, display: "inline-block" }} />
             {obj.data ? (obj.data.name || objectTypeLabel(obj.data.type)) : "…"}
           </h2>
         </div>
-        {readOnlyStatus ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.secondary }}>
-            Status
-            <span style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13, color: C.text, background: "#F9FAFB" }}>
-              {meta.label}
-            </span>
-          </div>
-        ) : (
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.secondary }}>
-            Status
-            <select
-              value={status}
-              onChange={(e) => { setStatus(e.target.value); updateStatus.mutate(e.target.value); }}
-              style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13, color: C.text, background: "#fff" }}
-            >
-              {OBJECT_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
-          </label>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.secondary }} title={health.reason}>
+          Status
+          <span style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13, fontWeight: 600, color: health.color, background: health.bg }}>
+            {health.label}
+          </span>
+        </div>
       </div>
 
       <div>
         <SectionTitle>Info</SectionTitle>
-        <InfoSection propertyId={propertyId} objectId={objectId} obj={obj.data} mayEdit={mayEdit} />
+        <InfoSection propertyId={propertyId} objectId={objectId} obj={obj.data} mayEdit={mayEdit} health={health} />
       </div>
       <div>
         <SectionTitle>Felanmälningar</SectionTitle>
@@ -165,11 +162,13 @@ function InfoSection({
   objectId,
   obj,
   mayEdit,
+  health,
 }: {
   propertyId: string;
   objectId: string;
   obj: any;
   mayEdit: boolean;
+  health: ObjectHealthStatus;
 }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -230,7 +229,7 @@ function InfoSection({
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20, display: "grid", gap: 10, fontSize: 14 }}>
         <div><b>Typ:</b> {objectTypeLabel(obj.type)}</div>
         <div><b>Titel:</b> {obj.name || "—"}</div>
-        <div><b>Status:</b> {objectStatusMeta(obj.status).label}</div>
+        <div><b>Status:</b> {health.label}</div>
         <div><b>Lägenhet:</b> {obj.apartment_id ? (apt ? `Lgh ${apt.apartment_number} · Trappa ${apt.trappa}` : "—") : "—"}</div>
         {obj.description && <div><b>Beskrivning:</b> {obj.description}</div>}
       </div>
