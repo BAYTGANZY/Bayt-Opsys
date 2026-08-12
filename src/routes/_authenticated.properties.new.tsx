@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { ArrowLeft } from "lucide-react";
@@ -10,6 +10,19 @@ export const Route = createFileRoute("/_authenticated/properties/new")({
   head: () => ({ meta: [{ title: "Lägg till fastighet — BAYT" }] }),
   component: NewPropertyPage,
 });
+
+// BAYT hanterar för närvarande max den här mängden fastigheter. Kontrolleras
+// både vid sidladdning (visar spärren istället för formuläret) och direkt
+// innan insert (skyddar mot att två flikar skapar #10 och #11 samtidigt).
+const MAX_PROPERTIES = 10;
+
+async function countProperties(): Promise<number> {
+  const { count, error } = await supabase
+    .from("properties")
+    .select("id", { count: "exact", head: true });
+  if (error) throw error;
+  return count ?? 0;
+}
 
 const labelStyle: React.CSSProperties = {
   display: "block",
@@ -62,6 +75,22 @@ function NewPropertyPage() {
 
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [limitReached, setLimitReached] = useState(false);
+  const [checkingLimit, setCheckingLimit] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    countProperties()
+      .then((count) => {
+        if (!cancelled) setLimitReached(count >= MAX_PROPERTIES);
+      })
+      .finally(() => {
+        if (!cancelled) setCheckingLimit(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,6 +105,12 @@ function NewPropertyPage() {
     }
 
     setSaving(true);
+    const currentCount = await countProperties().catch(() => null);
+    if (currentCount !== null && currentCount >= MAX_PROPERTIES) {
+      setSaving(false);
+      setLimitReached(true);
+      return;
+    }
     const { data: inserted, error: insertError } = await supabase.from("properties").insert({
       name: name.trim(),
       address: address.trim() || null,
@@ -135,6 +170,25 @@ function NewPropertyPage() {
         </Link>
       </div>
 
+      {limitReached && (
+        <div
+          style={{
+            background: "#FEF2F2",
+            border: "1px solid #FCA5A5",
+            borderRadius: 8,
+            padding: 16,
+            color: "#991B1B",
+            fontSize: 14,
+            lineHeight: 1.5,
+          }}
+        >
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>Fastighetsgränsen är nådd</div>
+          BAYT hanterar för närvarande max {MAX_PROPERTIES} fastigheter, och den gränsen är
+          redan nådd. Kontakta oss om ni behöver lägga till fler.
+        </div>
+      )}
+
+      {!limitReached && !checkingLimit && (
       <form
         onSubmit={handleSubmit}
         style={{
@@ -226,6 +280,7 @@ function NewPropertyPage() {
           {saving ? "Sparar…" : "Spara fastighet"}
         </button>
       </form>
+      )}
     </div>
   );
 }
