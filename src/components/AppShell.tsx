@@ -819,7 +819,7 @@ export function AppShell() {
           display: "flex",
           flexDirection: "column",
           minWidth: 0,
-          gap: isMobile ? 0 : 20,
+          gap: isMobile ? 0 : 8,
         }}
       >
         {/* Topbar */}
@@ -832,7 +832,7 @@ export function AppShell() {
             padding: "0 16px",
             gap: 12,
             position: "sticky",
-            top: isMobile ? 0 : 12,
+            top: isMobile ? 0 : 0,
             zIndex: 30,
             borderRadius: isMobile ? 0 : 16,
             boxShadow: isMobile ? "none" : "0 4px 16px rgba(0,0,0,0.08)",
