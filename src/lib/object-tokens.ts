@@ -1,7 +1,6 @@
 import {
-  deriveIssueStatus, deriveInspectionStatus, deriveProjectStatus,
+  deriveIssueStatus, deriveInspectionStatus, deriveProjectStatus, worstArendeStatus,
   type ArendeForStatus, type BesiktningForStatus, type ProjektForStatus,
-  type DerivedStatus, type DerivedStatusKey,
 } from "./issue-tokens";
 
 export const OBJECT_TYPES = [
@@ -41,17 +40,16 @@ export function objectTypeLabel(value: string | null | undefined): string {
 // rule as issues/inspections/projects (see issue-tokens.ts). An objekt's
 // health is the worst (most urgent) härledd status among its non-avslutade
 // felanmälningar, besiktningar and projekt; with none active it's fine.
-const OBJECT_STATUS_RANK: Partial<Record<DerivedStatusKey, number>> = {
-  forsenad: 4, bradskande: 3, pagaende: 2, ny: 1,
-};
+// The ranking and the pick itself live in issue-tokens' `worstArendeStatus`,
+// shared with the fastighets- and lägenhetsvyerna.
 
-// Narrower than DerivedStatusKey: pausad/avbruten/avslutat never survive the
-// OBJECT_STATUS_RANK filter below, so they can never become an objekts worst.
+// Narrower than DerivedStatusKey: pausad/avbruten/avslutat never survive
+// ARENDE_URGENCY_RANK, so they can never become an objekts worst.
 export type ObjectHealthStatusKey = "forsenad" | "bradskande" | "pagaende" | "ny" | "ok";
 
 export type ObjectHealthStatus = { key: ObjectHealthStatusKey; label: string; color: string; bg: string; reason: string };
 
-// Same urgency scale as OBJECT_STATUS_RANK, extended with "ok" at the bottom
+// Same urgency scale as ARENDE_URGENCY_RANK, extended with "ok" at the bottom
 // so callers can sort a mixed list of objekt (some active, some fine) by
 // urgency without a separate branch for the OK case.
 export const OBJECT_STATUS_SORT_RANK: Record<ObjectHealthStatusKey, number> = {
@@ -67,15 +65,13 @@ export function deriveObjectStatus(arenden: {
   inspections?: BesiktningForStatus[];
   projects?: ProjektForStatus[];
 }): ObjectHealthStatus {
-  const statuses: DerivedStatus[] = [
+  const { status: worst } = worstArendeStatus([
     ...(arenden.issues ?? []).map(deriveIssueStatus),
     ...(arenden.inspections ?? []).map(deriveInspectionStatus),
     ...(arenden.projects ?? []).map(deriveProjectStatus),
-  ];
-  const active = statuses.filter((s) => OBJECT_STATUS_RANK[s.key] !== undefined);
-  if (active.length === 0) return OBJECT_OK_STATUS;
-  const worst = active.reduce((a, b) => (OBJECT_STATUS_RANK[b.key]! > OBJECT_STATUS_RANK[a.key]! ? b : a));
-  // OBJECT_STATUS_RANK only has entries for forsenad/bradskande/pagaende/ny,
-  // so `active` (and therefore `worst`) can never be pausad/avbruten/avslutat.
+  ]);
+  if (!worst) return OBJECT_OK_STATUS;
+  // ARENDE_URGENCY_RANK only has entries for forsenad/bradskande/pagaende/ny,
+  // so `worst` can never be pausad/avbruten/avslutat.
   return { key: worst.key as ObjectHealthStatusKey, label: worst.label, color: worst.color, bg: worst.bg, reason: worst.reason };
 }

@@ -20,6 +20,8 @@ import { DeleteButton } from "@/components/DeleteButton";
 import {
   LogSelectCheckbox, LogSelectionBar, useLogSelection, type LogTable, type LogTarget,
 } from "@/components/LogSelection";
+import { LoggbokFilterBar, loggbokEmptyText, useLoggbokFilter } from "@/components/LoggbokFilterBar";
+import { actionKindOf, actionKindLabel } from "@/lib/logbook";
 import { ApartmentAuditTimeline } from "@/components/ApartmentAuditTimeline";
 import { useRecordScopeGuard } from "@/hooks/useRecordScopeGuard";
 import { useMyArendeScope, useMyContactId } from "@/hooks/useMyContactId";
@@ -39,6 +41,8 @@ import { DerivedPriorityField } from "@/components/DerivedPriorityField";
 import { sanitizeStorageName } from "@/lib/storage";
 import { INSPECTION_TYPES, inspectionTypeLabel } from "@/lib/inspection-tokens";
 import { objectTypeLabel, deriveObjectStatus, type ObjectHealthStatus } from "@/lib/object-tokens";
+import { DOC_CATEGORIES, documentCategoryLabel } from "@/lib/document-tokens";
+import { applySort, FilterChips, FilterRow, SortToggles, useListSort, usePresentKeys, type SortAxis } from "@/components/ListFilterBar";
 
 export const Route = createFileRoute("/_authenticated/apartments/$id")({
   head: () => ({ meta: [{ title: "Lägenhet — BAYT" }] }),
@@ -79,7 +83,6 @@ const td: React.CSSProperties = {
   padding: "14px 8px", color: C.text, borderBottom: `1px solid ${C.border}`, fontSize: 14,
 };
 
-const DOC_CATEGORIES = ["avtal", "protokoll", "ritningar", "forsakringar", "garantier", "offerter", "driftinstruktioner", "besiktningsprotokoll", "ovrigt"];
 
 function Badge({ value, map }: { value: string | null; map: Record<string, { bg: string; color: string; border?: string }> }) {
   if (!value) return <span style={{ color: C.secondary }}>—</span>;
@@ -252,8 +255,30 @@ function timelineTarget(e: TimelineEvent): LogTarget {
   return { table: KIND_TABLE[e.kind], id: e.key.slice(2) };
 }
 
+/**
+ * Tidslinjens två axlar. Källa är ett filter (vilka slags händelser som ska
+ * synas), datum är sorteringen — samma uppdelning som på loggboksytorna.
+ *
+ * Det finns medvetet inget Vem-filter här, till skillnad från de riktiga
+ * loggboksvyerna: felanmälnings- och besiktningsraderna är härledda ur ärendets
+ * egna data och hämtar ingen created_by, så kontrollen skulle vara tom för två
+ * av tre källor. Ett filter utan något bakom sig är värre än inget filter.
+ */
+const TIMELINE_KINDS: ReadonlyArray<{ value: TimelineEvent["kind"]; label: string }> = [
+  { value: "issue", label: "Felanmälan" },
+  { value: "inspection", label: "Besiktning" },
+  { value: "log", label: "Loggbok" },
+];
+const TIMELINE_KIND_ORDER = TIMELINE_KINDS.map((k) => k.value);
+const TIMELINE_SORT_AXES: readonly SortAxis[] = [
+  { key: "date", label: "Datum", dirLabel: { desc: "Senaste", asc: "Äldst" }, first: "desc" },
+];
+const TIMELINE_SORT_INITIAL = { key: "date", dir: "desc" as const };
+
 function TimelineTab({ apartmentId }: { apartmentId: string }) {
   const navigate = useNavigate();
+  const [kind, setKind] = useState<string | null>(null);
+  const sort = useListSort(TIMELINE_SORT_AXES, TIMELINE_SORT_INITIAL);
   // An entreprenör's feed is their own ärenden only — one assignment must not
   // hand them the unit's whole felanmälningshistorik (see useMyArendeScope).
   const { filterContactId, ready } = useMyArendeScope();
@@ -325,12 +350,28 @@ function TimelineTab({ apartmentId }: { apartmentId: string }) {
         });
       }
 
-      list.sort((a, b) => String(b.date ?? "").localeCompare(String(a.date ?? "")));
+      // Ingen sortering här — ordningen ägs av Ordning-kontrollen nedan, och en
+      // sortering i queryn skulle bara vara den som råkar gälla tills någon rör
+      // vid den.
       return list;
     },
   });
 
-  const selection = useLogSelection(events.map(timelineTarget));
+  // Källchipen visar bara de slags händelser lägenheten faktiskt har.
+  const kindKeys = usePresentKeys(events, (e) => e.kind, kind, TIMELINE_KIND_ORDER);
+  const kindOptions = useMemo(
+    () => kindKeys.map((k) => ({ value: k, label: TIMELINE_KINDS.find((t) => t.value === k)?.label ?? k })),
+    [kindKeys],
+  );
+
+  const visible = useMemo(() => {
+    const rows = kind ? events.filter((e) => e.kind === kind) : events;
+    return applySort(rows, sort, (e) => e.date ?? null);
+  }, [events, kind, sort]);
+
+  // Urvalet följer de synliga raderna, inte allt som hämtats: "Välj alla" under
+  // ett aktivt källfilter får inte också ta med de rader filtret döljer.
+  const selection = useLogSelection(visible.map(timelineTarget));
 
   if (isLoading) return <div style={{ color: C.secondary }}>Laddar…</div>;
   if (events.length === 0) {
@@ -350,6 +391,17 @@ function TimelineTab({ apartmentId }: { apartmentId: string }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <FilterRow style={{ marginBottom: 12 }}>
+        <FilterChips
+          options={kindOptions}
+          value={kind}
+          onChange={setKind}
+          ariaLabel="Filtrera tidslinjen på källa"
+          allLabel="Allt"
+        />
+        <SortToggles axes={TIMELINE_SORT_AXES} sort={sort} label={null} />
+      </FilterRow>
+
       <LogSelectionBar
         selection={selection}
         invalidateKeys={[
@@ -361,8 +413,14 @@ function TimelineTab({ apartmentId }: { apartmentId: string }) {
         style={{ marginBottom: 12 }}
       />
 
-      {events.map((e, i) => {
-        const isLast = i === events.length - 1;
+      {visible.length === 0 && (
+        <div style={{ padding: "32px 16px", textAlign: "center", color: C.secondary, fontSize: 14 }}>
+          Ingen aktivitet för det här valet
+        </div>
+      )}
+
+      {visible.map((e, i) => {
+        const isLast = i === visible.length - 1;
         return (
           <div
             key={e.key}
@@ -542,6 +600,8 @@ function InfoTab({ apt, isMobile }: { apt: Apartment; isMobile: boolean }) {
         <label style={labelStyle}>Trappa *</label>
         <input
           style={inputStyle}
+          inputMode="numeric"
+          pattern="[0-9]*"
           value={trappa}
           onChange={(e) => setTrappa(normalizeTrappa(e.target.value))}
           placeholder={TRAPPA_PLACEHOLDER}
@@ -1096,7 +1156,7 @@ function DocumentsTab({ apartmentId, propertyId }: { apartmentId: string; proper
             <label style={labelStyle}>Kategori</label>
             <select style={inputStyle} value={category} onChange={(e) => setCategory(e.target.value)}>
               <option value="">— Välj —</option>
-              {DOC_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              {DOC_CATEGORIES.map((c) => <option key={c} value={c}>{documentCategoryLabel(c)}</option>)}
             </select>
           </div>
           <div style={{ minWidth: 0 }}>
@@ -1126,7 +1186,7 @@ function DocumentsTab({ apartmentId, propertyId }: { apartmentId: string; proper
               {data.map((r: any) => (
                 <tr key={r.id}>
                   <td style={{ ...td, fontWeight: 600 }}>{r.name}</td>
-                  <td style={td}>{r.category ?? "—"}</td>
+                  <td style={td}>{r.category ? documentCategoryLabel(r.category) : "—"}</td>
                   <td style={td}>{formatBytes(r.file_size)}</td>
                   <td style={td}>
                     <button onClick={() => download(r.file_url, r.name)} style={{
@@ -1158,13 +1218,23 @@ function LogbookTab({ apartmentId, propertyId }: { apartmentId: string; property
     queryFn: async () => {
       const { data, error } = await supabase
         .from("logbook_entries")
-        .select("id, content, entry_date, created_at, created_by, profiles:created_by(full_name)")
+        .select("id, content, entry_date, created_at, event_type, created_by, profiles:created_by(full_name)")
         .eq("apartment_id", apartmentId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
   });
+
+  // Lägenhetens loggbok is logbook_entries only — no Källa control.
+  const { rows, filters } = useLoggbokFilter(data as any[], (e: any) => ({
+    source: "log",
+    actionKind: actionKindOf(e.event_type, e.content),
+    actorId: e.created_by ?? null,
+    actorName: e.profiles?.full_name ?? null,
+    date: e.created_at ?? e.entry_date ?? "",
+    text: `${e.content ?? ""} ${e.profiles?.full_name ?? ""}`,
+  }));
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -1189,7 +1259,7 @@ function LogbookTab({ apartmentId, propertyId }: { apartmentId: string; property
   });
 
   const selection = useLogSelection(
-    (data as any[]).map((e) => ({ table: "logbook_entries" as const, id: e.id as string })),
+    rows.map((e) => ({ table: "logbook_entries" as const, id: e.id as string })),
   );
 
   return (
@@ -1208,8 +1278,12 @@ function LogbookTab({ apartmentId, propertyId }: { apartmentId: string; property
         </button>
       </form>
 
-      {isLoading ? <div style={{ color: C.secondary }}>Laddar…</div> : data.length === 0 ? (
-        <div style={{ padding: "48px 16px", textAlign: "center", color: C.secondary, fontSize: 14 }}>Inga anteckningar ännu</div>
+      <LoggbokFilterBar filters={filters} searchPlaceholder="Sök i loggboken…" />
+
+      {isLoading ? <div style={{ color: C.secondary }}>Laddar…</div> : rows.length === 0 ? (
+        <div style={{ padding: "48px 16px", textAlign: "center", color: C.secondary, fontSize: 14 }}>
+          {loggbokEmptyText(filters.active, "Inga anteckningar ännu")}
+        </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <LogSelectionBar
@@ -1222,7 +1296,7 @@ function LogbookTab({ apartmentId, propertyId }: { apartmentId: string; property
             ]}
           />
 
-          {data.map((e: any) => (
+          {rows.map((e: any) => (
             <div key={e.id} style={{
               background: C.card, border: `1px solid ${C.border}`,
               borderRadius: 8, padding: 16,
@@ -1234,6 +1308,14 @@ function LogbookTab({ apartmentId, propertyId }: { apartmentId: string; property
                 style={{ marginTop: 3 }}
               />
               <div style={{ minWidth: 0, flex: 1 }}>
+                {/* Names the åtgärd the Åtgärd-chipsen filter on, so a filtered
+                    list shows why each row survived. Manuella anteckningar
+                    carry no label — the text is the whole entry. */}
+                {e.event_type && e.event_type !== "manuell" && (
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.primary, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+                    [{actionKindLabel(actionKindOf(e.event_type, e.content))}]
+                  </div>
+                )}
                 <div style={{ fontSize: 14, color: C.text, whiteSpace: "pre-wrap" }}>{e.content}</div>
                 <div style={{ fontSize: 12, color: C.secondary, marginTop: 8 }}>
                   {e.profiles?.full_name ?? "—"} · {formatSwedishDate(e.entry_date ?? e.created_at)}

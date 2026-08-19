@@ -2,11 +2,41 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { COLORS } from "@/components/property-tabs";
 import { inspectionTypeLabel } from "@/lib/inspection-tokens";
+import { actionKindOf } from "@/lib/logbook";
 
-export type TimelineEvent = { id: string; kind: "inspection" | "project" | "log"; date: string; title: string };
+export type TimelineEvent = {
+  id: string;
+  kind: "inspection" | "project" | "log";
+  date: string;
+  title: string;
+  /** Null on the derived besiktning/projekt rows — they are not log entries. */
+  event_type: string | null;
+  /** Filter key from actionKindOf(), or the synthetic kind for derived rows. */
+  actionKind: string;
+  actorId: string | null;
+  actorName: string | null;
+};
 
 export function formatSwedishLongDate(iso: string) {
   return new Date(iso).toLocaleDateString("sv-SE", { year: "numeric", month: "long", day: "numeric" });
+}
+
+/**
+ * Actor names via a separate `profiles` read rather than a
+ * `profiles:created_by(full_name)` embed: an embed needs a declared FK on all
+ * three tables and a missing one 400s the whole feed instead of just losing a
+ * name. Unreadable profiles (chat.sql's profiles_select_for_chat limits
+ * non-admins) simply fall back to "Okänd".
+ */
+async function resolveActorNames(ids: Array<string | null>): Promise<Map<string, string>> {
+  const unique = [...new Set(ids.filter((v): v is string => !!v))];
+  const out = new Map<string, string>();
+  if (unique.length === 0) return out;
+  const { data } = await supabase.from("profiles").select("id, full_name").in("id", unique);
+  for (const p of (data ?? []) as Array<{ id: string; full_name: string | null }>) {
+    if (p.full_name) out.set(p.id, p.full_name);
+  }
+  return out;
 }
 
 /** Merged, newest-first activity feed for a property: completed inspections,
@@ -17,24 +47,37 @@ export function useMergedPropertyTimeline(propertyId: string) {
     queryKey: ["property-timeline", propertyId],
     queryFn: async () => {
       const [insp, projs, logs] = await Promise.all([
-        supabase.from("inspections").select("id, inspection_type, last_completed_date").eq("property_id", propertyId).not("last_completed_date", "is", null),
-        supabase.from("projects").select("id, title, start_date, end_date").eq("property_id", propertyId),
-        supabase.from("logbook_entries").select("id, content, created_at").eq("property_id", propertyId).order("created_at", { ascending: false }).limit(50),
+        supabase.from("inspections").select("id, inspection_type, last_completed_date, created_by").eq("property_id", propertyId).not("last_completed_date", "is", null),
+        supabase.from("projects").select("id, title, start_date, end_date, created_by").eq("property_id", propertyId),
+        supabase.from("logbook_entries").select("id, content, created_at, event_type, created_by").eq("property_id", propertyId).order("created_at", { ascending: false }).limit(50),
       ]);
+
+      const actorName = await resolveActorNames([
+        ...((insp.data ?? []) as any[]).map((r) => r.created_by),
+        ...((projs.data ?? []) as any[]).map((r) => r.created_by),
+        ...((logs.data ?? []) as any[]).map((r) => r.created_by),
+      ]);
+      const actor = (id: string | null | undefined) => ({
+        actorId: id ?? null,
+        actorName: id ? actorName.get(id) ?? null : null,
+      });
+
       const merged: TimelineEvent[] = [];
-      for (const r of insp.data ?? []) {
+      for (const r of (insp.data ?? []) as any[]) {
         if (!r.last_completed_date) continue;
-        merged.push({ id: `i-${r.id}`, kind: "inspection", date: r.last_completed_date, title: `${inspectionTypeLabel(r.inspection_type)} besiktigad` });
+        // The row exists only when last_completed_date is set, so the åtgärd it
+        // stands for is always "besiktning utförd".
+        merged.push({ id: `i-${r.id}`, kind: "inspection", date: r.last_completed_date, title: `${inspectionTypeLabel(r.inspection_type)} besiktigad`, event_type: null, actionKind: "besiktning_utford", ...actor(r.created_by) });
       }
-      for (const r of projs.data ?? []) {
+      for (const r of (projs.data ?? []) as any[]) {
         const d = r.end_date ?? r.start_date;
         if (!d) continue;
-        merged.push({ id: `p-${r.id}`, kind: "project", date: d, title: r.title ?? "Projekt" });
+        merged.push({ id: `p-${r.id}`, kind: "project", date: d, title: r.title ?? "Projekt", event_type: null, actionKind: "projekt", ...actor(r.created_by) });
       }
-      for (const r of logs.data ?? []) {
+      for (const r of (logs.data ?? []) as any[]) {
         if (!r.created_at) continue;
         const text = (r.content ?? "").toString().trim();
-        merged.push({ id: `l-${r.id}`, kind: "log", date: r.created_at, title: text.length > 60 ? `${text.slice(0, 60)}…` : text || "Loggbokspost" });
+        merged.push({ id: `l-${r.id}`, kind: "log", date: r.created_at, title: text.length > 60 ? `${text.slice(0, 60)}…` : text || "Loggbokspost", event_type: r.event_type ?? null, actionKind: actionKindOf(r.event_type, r.content), ...actor(r.created_by) });
       }
       merged.sort((a, b) => (a.date < b.date ? 1 : -1));
       return merged;

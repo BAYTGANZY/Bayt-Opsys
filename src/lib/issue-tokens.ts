@@ -346,6 +346,61 @@ export function deriveActionStatus(a: AtgardForStatus): DerivedStatus {
 }
 
 // ===========================================================================
+// Värsta ärendet vinner (worst-wins)
+// ---------------------------------------------------------------------------
+// Ett objekt, en fastighet och en lägenhet har ingen egen status — den ärvs
+// från det mest angelägna ärendet som hänger på den. Rangordningen och urvalet
+// bor här, så att de tre vyerna inte kan hamna i olika ordning för samma
+// uppsättning ärenden.
+// ===========================================================================
+
+/**
+ * Angelägenhet, värst först. Lägen som en klocka aldrig kan producera
+ * (pausad, avbruten, avslutat) saknas med flit — de gör ingen enhet angelägen,
+ * och att de faller ur filtret är det som gör en avslutad hög "OK".
+ */
+export const ARENDE_URGENCY_RANK: Partial<Record<DerivedStatusKey, number>> = {
+  forsenad: 4, bradskande: 3, pagaende: 2, ny: 1,
+};
+
+export type WorstArende = {
+  /** Det mest angelägna aktiva ärendets status — null när inget är aktivt. */
+  status: DerivedStatus | null;
+  /** ARENDE_URGENCY_RANK för `status`, 0 när inget är aktivt. */
+  rank: number;
+  /** Tidsgränsen för `status` — sorteringens sekundärnyckel inom samma nivå. */
+  dueDate: string | null;
+};
+
+/** Tidigast satt datum vinner; ett saknat datum förlorar alltid mot ett satt. */
+function isEarlier(a: string | null, b: string | null): boolean {
+  if (!a) return false;
+  if (!b) return true;
+  return a < b;
+}
+
+/**
+ * Värsta härledda statusen i en hög ärenden. Vid lika nivå vinner den med
+ * närmaste tidsgräns: två lägenheter som båda är "Brådskande" måste ändå
+ * kunna ordnas, och då är det datumet som skiljer dem åt.
+ */
+export function worstArendeStatus(statuses: DerivedStatus[]): WorstArende {
+  let best: DerivedStatus | null = null;
+  let bestRank = 0;
+  for (const s of statuses) {
+    const rank = ARENDE_URGENCY_RANK[s.key];
+    if (rank === undefined) continue;
+    if (rank > bestRank) {
+      best = s;
+      bestRank = rank;
+    } else if (rank === bestRank && isEarlier(s.dueDate, best?.dueDate ?? null)) {
+      best = s;
+    }
+  }
+  return { status: best, rank: bestRank, dueDate: best?.dueDate ?? null };
+}
+
+// ===========================================================================
 // Härledd prioritet (derived priority)
 // ---------------------------------------------------------------------------
 // Prioritet väljs aldrig i en dropdown inne i portalen — deadline sätter den.

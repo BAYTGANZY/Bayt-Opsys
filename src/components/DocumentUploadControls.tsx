@@ -5,8 +5,7 @@ import { sanitizeStorageName } from "@/lib/storage";
 import { useAuth } from "@/lib/auth";
 import { COLORS } from "@/components/property-tabs";
 import { FileDropzone } from "@/components/FileDropzone";
-
-const DOC_CATEGORIES = ["avtal", "protokoll", "ritningar", "forsakringar", "garantier", "offerter", "driftinstruktioner", "besiktningsprotokoll", "ovrigt"];
+import { DOC_CATEGORIES, documentCategoryLabel } from "@/lib/document-tokens";
 
 /** Kategori dropdown + Ladda upp dokument button, standalone so it can sit
  *  in the property header row next to the building name/address, while the
@@ -48,7 +47,7 @@ export function DocumentUploadControls({ propertyId }: { propertyId: string }) {
           color: "#0D2B1E", fontSize: 13.5, fontWeight: 600, outline: "none", cursor: "pointer",
         }}
       >
-        {DOC_CATEGORIES.map((c) => (<option key={c} value={c}>{c}</option>))}
+        {DOC_CATEGORIES.map((c) => (<option key={c} value={c}>{documentCategoryLabel(c)}</option>))}
       </select>
       <div style={{ width: "100%", minWidth: 280 }}>
         <FileDropzone

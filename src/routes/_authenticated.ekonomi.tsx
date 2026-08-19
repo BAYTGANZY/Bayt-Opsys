@@ -6,6 +6,15 @@ import { X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/lib/auth";
+import {
+  applySort,
+  FilterChips,
+  FilterRow,
+  NONE_KEY,
+  SortToggles,
+  useListSort,
+  type SortAxis,
+} from "@/components/ListFilterBar";
 
 export const Route = createFileRoute("/_authenticated/ekonomi")({
   head: () => ({ meta: [{ title: "Ekonomi — BAYT" }] }),
@@ -175,12 +184,7 @@ function EkonomiPage() {
         <Oversikt budgets={budgets} items={items} categories={categories} catById={catById} />
       )}
       {tab === "budget" && <BudgetTable items={items} catById={catById} groupByCategory />}
-      {tab === "utfall" && (
-        <BudgetTable
-          items={[...items].sort((a, b) => (b.actual_amount ?? 0) - (a.actual_amount ?? 0))}
-          catById={catById}
-        />
-      )}
+      {tab === "utfall" && <BudgetTable items={items} catById={catById} />}
       {tab === "investeringar" && (
         <BudgetTable
           items={items.filter((i) => i.category_id && catById[i.category_id]?.name.toLowerCase() === "investeringar")}
@@ -319,6 +323,23 @@ function Oversikt({
   );
 }
 
+// Budget / Utfall / Differens delar en sorteringsgrupp — exakt en ordnar
+// listan åt gången, precis som Namn/Storlek/Uppladdad gör på dokumentfliken.
+// Differens finns bara som beräknat värde (budget − utfall), ingen egen
+// kolumn i tabellen, så axeln räknar ut den i valueOf i stället för att läsa
+// den.
+const BUDGET_SORT_AXES: readonly SortAxis[] = [
+  { key: "budget", label: "Budget", dirLabel: { desc: "Högst→Lägst", asc: "Lägst→Högst" }, first: "desc" },
+  { key: "utfall", label: "Utfall", dirLabel: { desc: "Högst→Lägst", asc: "Lägst→Högst" }, first: "desc" },
+  { key: "differens", label: "Differens", dirLabel: { desc: "Högst→Lägst", asc: "Lägst→Högst" }, first: "desc" },
+];
+
+function budgetSortValue(i: Item, axis: string): number {
+  if (axis === "budget") return i.budgeted_amount ?? 0;
+  if (axis === "utfall") return i.actual_amount ?? 0;
+  return (i.budgeted_amount ?? 0) - (i.actual_amount ?? 0);
+}
+
 function BudgetTable({
   items,
   catById,
@@ -328,20 +349,79 @@ function BudgetTable({
   catById: Record<string, Category>;
   groupByCategory?: boolean;
 }) {
-  const rows = groupByCategory
-    ? [...items].sort((a, b) => {
-        const an = (a.category_id && catById[a.category_id]?.name) || "";
-        const bn = (b.category_id && catById[b.category_id]?.name) || "";
-        return an.localeCompare(bn);
-      })
-    : items;
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  // Ingen förvald axel: en flik utan filter/sortering ska visa exakt den
+  // ordning queryn gav (grupperad på kategori för Budget-fliken, annars
+  // hämtningsordningen), inte en tyst standardsortering ingen bad om.
+  const sort = useListSort(BUDGET_SORT_AXES);
 
-  if (rows.length === 0) {
-    return (
-      <div style={{ ...cardStyle, color: C.secondary, fontSize: 14 }}>Inga poster ännu</div>
-    );
-  }
+  const categoryName = (i: Item) => (i.category_id ? catById[i.category_id]?.name ?? "Okänd" : "Utan kategori");
 
+  // Bara kategorier som faktiskt förekommer bland raderna den här fliken redan
+  // visar — på Investeringar/Underhåll (redan enkategori-scopade av föräldern)
+  // kollapsar det till ett enda val, och FilterChips visar då ingenting.
+  const categoryOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const i of items) {
+      const key = i.category_id ?? NONE_KEY;
+      if (!map.has(key)) map.set(key, categoryName(i));
+    }
+    if (categoryFilter && !map.has(categoryFilter)) map.set(categoryFilter, "Okänd");
+    return [...map.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => (a.value === NONE_KEY ? 1 : b.value === NONE_KEY ? -1 : a.label.localeCompare(b.label, "sv")));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, categoryFilter, catById]);
+
+  const filteredItems = useMemo(
+    () => (categoryFilter ? items.filter((i) => (i.category_id ?? NONE_KEY) === categoryFilter) : items),
+    [items, categoryFilter],
+  );
+
+  // En aktiv numerisk sortering tar över grupperingen — kategirubrikerna
+  // förutsätter att raderna redan ligger i kategoriordning, och en
+  // beloppssortering bryter den ordningen med flit.
+  const grouped = groupByCategory && !sort.active;
+  const rows = grouped
+    ? [...filteredItems].sort((a, b) => categoryName(a).localeCompare(categoryName(b), "sv"))
+    : applySort(filteredItems, sort, budgetSortValue);
+
+  const isFiltered = categoryFilter !== null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {(categoryOptions.length > 1 || items.length > 0) && (
+        <FilterRow>
+          <FilterChips
+            options={categoryOptions}
+            value={categoryFilter}
+            onChange={setCategoryFilter}
+            ariaLabel="Filtrera på kategori"
+            allLabel="Alla kategorier"
+          />
+          <SortToggles axes={BUDGET_SORT_AXES} sort={sort} />
+        </FilterRow>
+      )}
+      {rows.length === 0 ? (
+        <div style={{ ...cardStyle, color: C.secondary, fontSize: 14 }}>
+          {isFiltered ? "Inga poster för det här valet" : "Inga poster ännu"}
+        </div>
+      ) : (
+        <BudgetRows rows={rows} catById={catById} grouped={!!grouped} />
+      )}
+    </div>
+  );
+}
+
+function BudgetRows({
+  rows,
+  catById,
+  grouped,
+}: {
+  rows: Item[];
+  catById: Record<string, Category>;
+  grouped: boolean;
+}) {
   let lastCat: string | null = null;
 
   return (
@@ -361,7 +441,7 @@ function BudgetTable({
             const budget = i.budgeted_amount ?? 0;
             const actual = i.actual_amount ?? 0;
             const diff = budget - actual;
-            const showHeader = groupByCategory && (cat?.name ?? "—") !== lastCat;
+            const showHeader = grouped && (cat?.name ?? "—") !== lastCat;
             if (showHeader) lastCat = cat?.name ?? "—";
             return (
               <tr key={i.id}>
@@ -385,7 +465,7 @@ function BudgetTable({
                     {i.description ?? "—"}
                     {i.month ? ` · ${i.month}/${i.year ?? YEAR}` : ""}
                   </div>
-                  {!groupByCategory && cat && (
+                  {!grouped && cat && (
                     <div style={{ fontSize: 12, color: C.secondary, marginTop: 2 }}>{cat.name}</div>
                   )}
                 </td>

@@ -10,6 +10,14 @@ import { todayISO } from "@/lib/issue-tokens";
 import { OppnaArendeButton, canOppnaArende } from "@/components/OppnaArendeButton";
 import { AvslutaArendeButton, canAvslutaArende } from "@/components/AvslutaArendeButton";
 import {
+  FilterChips,
+  FilterDropdown,
+  FilterRow,
+  NONE_KEY,
+  usePresentKeys,
+  usePresentOptions,
+} from "@/components/ListFilterBar";
+import {
   useMyArenden,
   useByggnadensArenden,
   arendeKindColor,
@@ -485,6 +493,22 @@ function ArendeSheet({
   );
 }
 
+/**
+ * Filtren på Dag Rapport smalnar av *inom* de två sektionerna och rör inget
+ * annat.
+ *
+ * Sorteringen (tidsgräns, därefter prioritet) och uppdelningen Öppna/Alla är
+ * produktbeslut — se filens toppkommentar och CLAUDE.md. Det finns därför
+ * ingen sorteringskontroll här: en entreprenör som kan sortera bort deadline
+ * som första nyckel kan sortera bort det som gör listan till en arbetsordning.
+ *
+ * Ärendetyp finns i båda vyerna. Fastighet bara i styrelsens: en entreprenörs
+ * dag spänner sällan över flera hus, och kontrollen skulle stå där som en
+ * permanent enda valmöjlighet (samma regel som får Källa att utebli på de
+ * loggboksytor som bara listar loggboksposter).
+ */
+const KIND_ORDER: readonly string[] = ["issue", "inspection", "project"];
+
 type ViewCopy = {
   /** Raden under rubriken, efter datum och namn. */
   lead: string;
@@ -525,10 +549,36 @@ function DagRapportView({
   const isMobile = useIsMobile();
   const { profile } = useAuth();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [kind, setKind] = useState<string | null>(null);
+  const [property, setProperty] = useState<string | null>(null);
 
-  const oppna = useMemo(() => arenden.filter((a) => a.lifecycle === "oppet"), [arenden]);
+  // Ärendetyp finns i båda vyerna. Fastighet bara hos styrelsen — showAssignee
+  // är redan exakt den flaggan som skiljer vyerna åt, så den gör dubbel nytta
+  // här i stället för en till bool med samma innebörd.
+  const kindKeys = usePresentKeys(arenden, (a) => a.kind, kind, KIND_ORDER);
+  const kindOptions = useMemo(
+    () => kindKeys.map((k) => ({ value: k, label: arendeKindLabel(k as MyArendeKind) })),
+    [kindKeys],
+  );
+  const propertyOptions = usePresentOptions(
+    arenden,
+    (a) => ({ value: a.propertyId ?? NONE_KEY, label: a.propertyName ?? "Utan fastighet" }),
+    property,
+  );
+
+  const filtered = useMemo(() => {
+    let rows = arenden;
+    if (kind) rows = rows.filter((a) => a.kind === kind);
+    if (property) rows = rows.filter((a) => (a.propertyId ?? NONE_KEY) === property);
+    return rows;
+  }, [arenden, kind, property]);
+  const isFiltered = kind !== null || property !== null;
+
+  const oppna = useMemo(() => filtered.filter((a) => a.lifecycle === "oppet"), [filtered]);
   // "Alla" = hela arbetslistan. Avslutade ärenden hör hemma i Avslutat, inte här.
-  const alla = useMemo(() => arenden.filter((a) => a.lifecycle !== "avslutat"), [arenden]);
+  const alla = useMemo(() => filtered.filter((a) => a.lifecycle !== "avslutat"), [filtered]);
+  // Slås upp i den ofiltrerade listan — ett val som redan gjorts ska inte
+  // försvinna ur bottenarket bara för att ett filter ändras medan det är öppet.
   const selected = useMemo(
     () => arenden.find((a) => `${a.kind}-${a.id}` === selectedKey) ?? null,
     [arenden, selectedKey],
@@ -577,6 +627,27 @@ function DagRapportView({
         </div>
       )}
 
+      {!isLoading && (kindOptions.length > 1 || (showAssignee && propertyOptions.length > 1)) && (
+        <FilterRow>
+          <FilterChips
+            options={kindOptions}
+            value={kind}
+            onChange={setKind}
+            ariaLabel="Filtrera på ärendetyp"
+            allLabel="Alla typer"
+          />
+          {showAssignee && (
+            <FilterDropdown
+              options={propertyOptions}
+              value={property}
+              onChange={setProperty}
+              resting="Alla fastigheter"
+              ariaLabel="Filtrera på fastighet"
+            />
+          )}
+        </FilterRow>
+      )}
+
       {isLoading ? (
         <div style={{ color: C.secondary, fontSize: 14 }}>Laddar…</div>
       ) : (
@@ -585,7 +656,7 @@ function DagRapportView({
             title={copy.oppnaTitle}
             subtitle={copy.oppnaSubtitle}
             rows={oppna}
-            empty={copy.oppnaEmpty}
+            empty={isFiltered ? "Inga ärenden för det här valet" : copy.oppnaEmpty}
             onPick={(a) => setSelectedKey(`${a.kind}-${a.id}`)}
             showAssignee={showAssignee}
           />
@@ -594,7 +665,7 @@ function DagRapportView({
             title="Alla ärenden"
             subtitle={copy.allaSubtitle}
             rows={alla}
-            empty={copy.allaEmpty}
+            empty={isFiltered ? "Inga ärenden för det här valet" : copy.allaEmpty}
             onPick={(a) => setSelectedKey(`${a.kind}-${a.id}`)}
             showAssignee={showAssignee}
           />
@@ -611,7 +682,7 @@ function DagRapportView({
               }}
             >
               <HugeiconsIcon icon={CheckmarkCircle02Icon} size={18} color={C.green} />
-              {copy.nothingToDo}
+              {isFiltered ? "Inga ärenden för det här valet" : copy.nothingToDo}
             </div>
           )}
         </>

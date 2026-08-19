@@ -10,6 +10,15 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { ROLE_LABEL, ROLE_BADGE } from "@/lib/user-tokens";
 import { confirmDialog } from "@/components/ConfirmDialog";
 import {
+  applySort,
+  FilterChips,
+  FilterRow,
+  SortToggles,
+  useListSort,
+  usePresentKeys,
+  type SortAxis,
+} from "@/components/ListFilterBar";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -157,6 +166,16 @@ type ProfileRow = {
 };
 
 const ROLES = ["admin", "styrelse", "entreprenor"];
+
+// Användarlistan låg fast på skapad fallande. Namn och Skapad delar en grupp —
+// exakt en av dem ordnar listan åt gången — och rollfiltret kombineras fritt
+// med båda. E-post och telefon är fritext och får inget filter.
+const USER_SORT_AXES: readonly SortAxis[] = [
+  { key: "name", label: "Namn", dirLabel: { asc: "A–Ö", desc: "Ö–A" }, first: "asc" },
+  { key: "created", label: "Skapad", dirLabel: { desc: "Senaste", asc: "Äldst" }, first: "desc" },
+];
+/** Queryn sorterar created_at fallande — det förblir viloläget. */
+const USER_SORT_INITIAL = { key: "created", dir: "desc" as const };
 
 type FullProfile = {
   id: string;
@@ -440,6 +459,24 @@ function SettingsPage() {
       return (data ?? []) as unknown as ProfileRow[];
     },
   });
+
+  const [roleFilter, setRoleFilter] = useState<string | null>(null);
+  const userSort = useListSort(USER_SORT_AXES, USER_SORT_INITIAL);
+
+  // Bara roller som faktiskt förekommer bland användarna — ett chip som
+  // garanterat ger en tom lista är inget val.
+  const roleKeys = usePresentKeys(profiles, (p) => p.role, roleFilter, ROLES);
+  const roleOptions = useMemo(
+    () => roleKeys.map((r) => ({ value: r, label: ROLE_LABEL[r] ?? r })),
+    [roleKeys],
+  );
+
+  const visibleProfiles = useMemo(() => {
+    const rows = roleFilter ? profiles.filter((p) => p.role === roleFilter) : profiles;
+    return applySort(rows, userSort, (p, axis) => (axis === "name" ? p.full_name : p.created_at));
+  }, [profiles, roleFilter, userSort]);
+
+  const usersFiltered = roleFilter !== null;
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -796,8 +833,25 @@ function SettingsPage() {
               }}
             >
               <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Alla användare</span>
-              <span style={{ fontSize: 12, color: C.muted }}>{profiles.length} st</span>
+              {/* Siffran följer filtret. En rubrik som säger 12 över en lista med
+                  3 motsäger sidan man tittar på. */}
+              <span style={{ fontSize: 12, color: C.muted }}>
+                {usersFiltered ? `${visibleProfiles.length} av ${profiles.length}` : `${profiles.length} st`}
+              </span>
             </div>
+
+            {profiles.length > 0 && (
+              <FilterRow style={{ padding: "12px 24px", borderBottom: `1px solid ${C.border}` }}>
+                <FilterChips
+                  options={roleOptions}
+                  value={roleFilter}
+                  onChange={setRoleFilter}
+                  ariaLabel="Filtrera användare på roll"
+                  allLabel="Alla roller"
+                />
+                <SortToggles axes={USER_SORT_AXES} sort={userSort} label={null} />
+              </FilterRow>
+            )}
 
             {isLoading ? (
               <div style={{ padding: 8 }}>
@@ -811,14 +865,16 @@ function SettingsPage() {
                   </div>
                 ))}
               </div>
-            ) : profiles.length === 0 ? (
+            ) : visibleProfiles.length === 0 ? (
               <div style={{ padding: "48px 24px", textAlign: "center" }}>
                 <Users size={28} color={C.muted} style={{ marginBottom: 10 }} />
-                <div style={{ fontSize: 14, color: C.secondary }}>Inga användare ännu</div>
+                <div style={{ fontSize: 14, color: C.secondary }}>
+                  {usersFiltered ? "Inga användare för det här valet" : "Inga användare ännu"}
+                </div>
               </div>
             ) : isMobile ? (
               <div>
-                {profiles.map((p) => (
+                {visibleProfiles.map((p) => (
                   <div
                     key={p.id}
                     style={{ display: "flex", gap: 12, padding: "16px 24px", borderBottom: `1px solid ${C.border}` }}
@@ -873,7 +929,7 @@ function SettingsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {profiles.map((p) => (
+                  {visibleProfiles.map((p) => (
                     <tr
                       key={p.id}
                       style={{ transition: "background 0.12s ease" }}

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
-import { EVENT_LABEL } from "@/lib/logbook";
+import { actionKindLabel, actionKindOf } from "@/lib/logbook";
 import { LogSelectCheckbox, type LogSelection } from "@/components/LogSelection";
 
 type Entry = {
@@ -66,7 +66,11 @@ export function LogbookEntryCard({
     },
   });
 
-  const eventLabel = entry.event_type && entry.event_type !== "manuell" ? EVENT_LABEL[entry.event_type] ?? entry.event_type : null;
+  // The same key the Åtgärd-chipsen filter on, so a filtered list shows why
+  // each row survived — "Öppnade ärende", not a flat "Ärende status-ändring".
+  const eventLabel = entry.event_type && entry.event_type !== "manuell"
+    ? actionKindLabel(actionKindOf(entry.event_type, entry.content))
+    : null;
   const when = fmtDateTime.format(new Date(entry.created_at));
 
   return (

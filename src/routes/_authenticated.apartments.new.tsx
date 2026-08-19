@@ -170,6 +170,8 @@ function NewApartmentPage() {
               <label style={labelStyle}>Trappa *</label>
               <input
                 style={inputStyle}
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={trappa}
                 onChange={(e) => setTrappa(normalizeTrappa(e.target.value))}
                 placeholder={TRAPPA_PLACEHOLDER}

@@ -8,6 +8,9 @@ import { useMergedPropertyTimeline, formatSwedishLongDate, type TimelineEvent } 
 import {
   LogSelectCheckbox, LogSelectionBar, useLogSelection, type LogTarget,
 } from "@/components/LogSelection";
+import {
+  LoggbokFilterBar, loggbokEmptyText, useLoggbokFilter, type SourceOption,
+} from "@/components/LoggbokFilterBar";
 
 type CommentRow = {
   id: string;
@@ -28,6 +31,15 @@ function targetPayload(ev: TimelineEvent) {
  *  the ärende. LogSelectionBar spells that out in the confirm dialog. */
 const EVENT_TABLE = { log: "logbook_entries", inspection: "inspections", project: "projects" } as const;
 
+/** Same Källa chips as alla byggnaders loggbok — this feed mixes the same
+ *  three kinds, so the control has to mean the same thing in both. */
+const SOURCES: readonly SourceOption[] = [
+  { key: "alla", label: "Alla" },
+  { key: "log", label: "Loggbok" },
+  { key: "inspection", label: "Besiktningar" },
+  { key: "project", label: "Projekt" },
+];
+
 function deleteTarget(ev: TimelineEvent): LogTarget {
   return { table: EVENT_TABLE[ev.kind], id: ev.id.slice(2) };
 }
@@ -42,15 +54,27 @@ export function PropertyLoggbokWithComments({ propertyId }: { propertyId: string
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
   const timelineQ = useMergedPropertyTimeline(propertyId);
-  const events = timelineQ.data ?? [];
+  const allEvents = timelineQ.data ?? [];
+
+  const { rows: events, filters } = useLoggbokFilter(allEvents, (e) => ({
+    source: e.kind,
+    actionKind: e.actionKind,
+    actorId: e.actorId,
+    actorName: e.actorName,
+    date: e.date,
+    text: e.title,
+  }));
+
   const selection = useLogSelection(events.map(deleteTarget));
 
-  const logIds = useMemo(() => events.filter((e) => e.kind === "log").map((e) => e.id.slice(2)), [events]);
-  const eventKeys = useMemo(() => events.filter((e) => e.kind !== "log").map((e) => e.id), [events]);
+  // Comments load for the whole feed, not the filtered slice — otherwise every
+  // chip press would re-key the query and refetch what is already cached.
+  const logIds = useMemo(() => allEvents.filter((e) => e.kind === "log").map((e) => e.id.slice(2)), [allEvents]);
+  const eventKeys = useMemo(() => allEvents.filter((e) => e.kind !== "log").map((e) => e.id), [allEvents]);
 
   const commentsQ = useQuery({
     queryKey: ["property-loggbok-comments", propertyId, logIds.join(","), eventKeys.join(",")],
-    enabled: events.length > 0,
+    enabled: allEvents.length > 0,
     queryFn: async () => {
       const [byEntry, byKey] = await Promise.all([
         logIds.length
@@ -98,9 +122,6 @@ export function PropertyLoggbokWithComments({ propertyId }: { propertyId: string
   });
 
   if (timelineQ.isLoading) return <div style={{ color: COLORS.secondary }}>Laddar…</div>;
-  if (events.length === 0) {
-    return <div style={{ padding: "48px 16px", textAlign: "center", color: COLORS.secondary, fontSize: 14 }}>Ingen aktivitet ännu</div>;
-  }
 
   const groups: { year: number; items: TimelineEvent[] }[] = [];
   for (const ev of events) {
@@ -111,6 +132,8 @@ export function PropertyLoggbokWithComments({ propertyId }: { propertyId: string
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <LoggbokFilterBar filters={filters} sources={SOURCES} />
+
       <LogSelectionBar
         selection={selection}
         invalidateKeys={[
@@ -122,6 +145,12 @@ export function PropertyLoggbokWithComments({ propertyId }: { propertyId: string
           ["inspections"], ["projects"], ["oppna-arenden"],
         ]}
       />
+
+      {events.length === 0 && (
+        <div style={{ padding: "48px 16px", textAlign: "center", color: COLORS.secondary, fontSize: 14 }}>
+          {loggbokEmptyText(filters.active, "Ingen aktivitet ännu")}
+        </div>
+      )}
 
       {groups.map((g) => (
         <div key={g.year}>
@@ -136,7 +165,10 @@ export function PropertyLoggbokWithComments({ propertyId }: { propertyId: string
                     <LogSelectCheckbox selection={selection} target={deleteTarget(ev)} style={{ marginTop: 3 }} />
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.text }}>{ev.title}</div>
-                      <div style={{ fontSize: 12, color: COLORS.secondary, marginTop: 2 }}>{formatSwedishLongDate(ev.date)}</div>
+                      <div style={{ fontSize: 12, color: COLORS.secondary, marginTop: 2 }}>
+                        {formatSwedishLongDate(ev.date)}
+                        {ev.actorId ? ` · ${ev.actorName ?? "Okänd"}` : ""}
+                      </div>
                     </div>
                   </div>
 

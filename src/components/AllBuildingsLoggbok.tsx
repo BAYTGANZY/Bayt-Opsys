@@ -1,13 +1,16 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { formatSwedishLongDate } from "@/components/PropertyTimeline";
 import {
   LogSelectCheckbox, LogSelectionBar, useLogSelection,
   type LogTable, type LogTarget,
 } from "@/components/LogSelection";
+import {
+  LoggbokFilterBar, loggbokEmptyText, useLoggbokFilter, type SourceOption,
+} from "@/components/LoggbokFilterBar";
 import { inspectionTypeLabel } from "@/lib/inspection-tokens";
+import { actionKindOf } from "@/lib/logbook";
 
 const C = {
   card: "#ffffff", border: "#E5E7EB", secondary: "#6B7280", text: "#1a1a1a",
@@ -37,6 +40,9 @@ type Row = {
   title: string;
   propertyId: string | null;
   propertyName: string;
+  actionKind: string;
+  actorId: string | null;
+  actorName: string | null;
 };
 
 const KIND_TABLE: Record<Kind, LogTable> = {
@@ -57,7 +63,7 @@ const KIND_COLOR: Record<Kind, string> = {
   project: "#E07B35",
 };
 
-const FILTERS: ReadonlyArray<{ key: "alla" | Kind; label: string }> = [
+const FILTERS: readonly SourceOption[] = [
   { key: "alla", label: "Alla" },
   { key: "log", label: "Loggbok" },
   { key: "inspection", label: "Besiktningar" },
@@ -68,19 +74,38 @@ function target(r: Row): LogTarget {
   return { table: KIND_TABLE[r.kind], id: r.id };
 }
 
+/**
+ * Actor names come from a separate `profiles` read keyed on the collected
+ * `created_by`s, not a `profiles:created_by(full_name)` embed. An embed needs a
+ * declared FK on all three tables, and a missing one 400s the entire query
+ * instead of just losing a name — the same reasoning as the lägenhetslabel in
+ * useMyArenden. A non-admin can only read some profiles anyway (chat.sql's
+ * profiles_select_for_chat), so the unresolved ones fall back to "Okänd".
+ */
+async function resolveActorNames(ids: Array<string | null>): Promise<Map<string, string>> {
+  const unique = [...new Set(ids.filter((v): v is string => !!v))];
+  const out = new Map<string, string>();
+  if (unique.length === 0) return out;
+  const { data } = await supabase.from("profiles").select("id, full_name").in("id", unique);
+  for (const p of (data ?? []) as Array<{ id: string; full_name: string | null }>) {
+    if (p.full_name) out.set(p.id, p.full_name);
+  }
+  return out;
+}
+
 async function loadAll(): Promise<Row[]> {
   const [props, logs, insp, projs] = await Promise.all([
     supabase.from("properties").select("id, name"),
     supabase
       .from("logbook_entries")
-      .select("id, content, entry_date, created_at, property_id")
+      .select("id, content, entry_date, created_at, event_type, created_by, property_id")
       .order("created_at", { ascending: false })
       .limit(500),
     supabase
       .from("inspections")
-      .select("id, inspection_type, last_completed_date, property_id")
+      .select("id, inspection_type, last_completed_date, created_by, property_id")
       .not("last_completed_date", "is", null),
-    supabase.from("projects").select("id, title, start_date, end_date, property_id"),
+    supabase.from("projects").select("id, title, start_date, end_date, created_by, property_id"),
   ]);
 
   const nameOf = new Map<string, string>();
@@ -88,6 +113,16 @@ async function loadAll(): Promise<Row[]> {
     nameOf.set(p.id, p.name ?? "Okänd fastighet");
   }
   const name = (id: string | null) => (id ? nameOf.get(id) ?? "Okänd fastighet" : "Ingen fastighet");
+
+  const actorName = await resolveActorNames([
+    ...((logs.data ?? []) as any[]).map((r) => r.created_by),
+    ...((insp.data ?? []) as any[]).map((r) => r.created_by),
+    ...((projs.data ?? []) as any[]).map((r) => r.created_by),
+  ]);
+  const actor = (id: string | null) => ({
+    actorId: id ?? null,
+    actorName: id ? actorName.get(id) ?? null : null,
+  });
 
   const rows: Row[] = [];
 
@@ -99,6 +134,7 @@ async function loadAll(): Promise<Row[]> {
       key: `l-${r.id}`, kind: "log", id: r.id, date: when,
       title: text.length > 120 ? `${text.slice(0, 120)}…` : text || "Loggbokspost",
       propertyId: r.property_id, propertyName: name(r.property_id),
+      actionKind: actionKindOf(r.event_type, r.content), ...actor(r.created_by),
     });
   }
   for (const r of (insp.data ?? []) as any[]) {
@@ -107,6 +143,9 @@ async function loadAll(): Promise<Row[]> {
       key: `i-${r.id}`, kind: "inspection", id: r.id, date: r.last_completed_date,
       title: `${inspectionTypeLabel(r.inspection_type)} besiktigad`,
       propertyId: r.property_id, propertyName: name(r.property_id),
+      // The row only exists when last_completed_date is set, so the åtgärd it
+      // stands for is always "besiktning utförd".
+      actionKind: "besiktning_utford", ...actor(r.created_by),
     });
   }
   for (const r of (projs.data ?? []) as any[]) {
@@ -116,6 +155,7 @@ async function loadAll(): Promise<Row[]> {
       key: `p-${r.id}`, kind: "project", id: r.id, date: d,
       title: r.title ?? "Projekt",
       propertyId: r.property_id, propertyName: name(r.property_id),
+      actionKind: "projekt", ...actor(r.created_by),
     });
   }
 
@@ -124,23 +164,19 @@ async function loadAll(): Promise<Row[]> {
 }
 
 export function AllBuildingsLoggbok() {
-  const isMobile = useIsMobile();
-  const [kind, setKind] = useState<"alla" | Kind>("alla");
-  const [q, setQ] = useState("");
-
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["all-buildings-loggbok"],
     queryFn: loadAll,
   });
 
-  const filtered = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (kind !== "alla" && r.kind !== kind) return false;
-      if (!s) return true;
-      return r.title.toLowerCase().includes(s) || r.propertyName.toLowerCase().includes(s);
-    });
-  }, [rows, kind, q]);
+  const { rows: filtered, filters } = useLoggbokFilter(rows, (r) => ({
+    source: r.kind,
+    actionKind: r.actionKind,
+    actorId: r.actorId,
+    actorName: r.actorName,
+    date: r.date,
+    text: `${r.title} ${r.propertyName}`,
+  }));
 
   // Selection tracks the filtered rows, so "Välj alla" means "everything I can
   // currently see" — never rows hidden behind a chip or the search box.
@@ -159,38 +195,7 @@ export function AllBuildingsLoggbok() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        {FILTERS.map((f) => {
-          const active = kind === f.key;
-          return (
-            <button
-              key={f.key}
-              type="button"
-              onClick={() => setKind(f.key)}
-              style={{
-                height: 30, padding: "0 12px", borderRadius: 8, fontSize: 12.5,
-                fontWeight: 600, cursor: "pointer",
-                border: `1px solid ${active ? C.accent : C.border}`,
-                background: active ? C.accent : C.card,
-                color: active ? "#fff" : C.secondary,
-              }}
-            >
-              {f.label}
-            </button>
-          );
-        })}
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Sök i loggboken…"
-          style={{
-            height: 30, padding: "0 12px", borderRadius: 999, fontSize: 13,
-            border: `1px solid ${C.border}`, outline: "none", background: C.card,
-            color: C.text, minWidth: 0, flex: isMobile ? "1 1 100%" : "0 1 240px",
-            boxSizing: "border-box",
-          }}
-        />
-      </div>
+      <LoggbokFilterBar filters={filters} sources={FILTERS} />
 
       <LogSelectionBar
         selection={selection}
@@ -208,7 +213,7 @@ export function AllBuildingsLoggbok() {
         <div style={{ color: C.secondary }}>Laddar…</div>
       ) : filtered.length === 0 ? (
         <div style={{ padding: "48px 16px", textAlign: "center", color: C.secondary, fontSize: 14 }}>
-          Ingen aktivitet
+          {loggbokEmptyText(filters.active, "Ingen aktivitet")}
         </div>
       ) : (
         years.map((g) => (
@@ -237,6 +242,7 @@ export function AllBuildingsLoggbok() {
                     </div>
                     <div style={{ fontSize: 12, color: C.secondary, marginTop: 2 }}>
                       {formatSwedishLongDate(r.date)}
+                      {r.actorId ? ` · ${r.actorName ?? "Okänd"}` : ""}
                     </div>
                   </div>
                 </div>

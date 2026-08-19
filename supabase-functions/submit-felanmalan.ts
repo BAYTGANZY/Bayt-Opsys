@@ -46,18 +46,15 @@ Deno.serve(async (req) => {
     const residentAddress = (resident_address ?? "").toString().trim();
 
     const aptNum = (apartment_number ?? "").toString().replace(/\D/g, "");
-    // Letters only, uppercased — apartment numbers repeat across stairwells in
-    // this portfolio, so (apartment_number, trappa) together are the real
+    // Digits only — stairwells in this portfolio are identified by number
+    // (the entrance's street number), not by letter. Apartment numbers repeat
+    // across stairwells, so (apartment_number, trappa) together are the real
     // per-property identity of a unit. Normalized server-side too, since the
     // client only enforces this on a best-effort basis.
     // MUST stay identical to normalizeTrappa() in src/lib/apartment-tokens.ts —
     // if the two drift, admin-created apartments stop matching resident
     // submissions and every felanmälan silently creates a duplicate unit.
-    // Stairwells are ALWAYS letters, never numbers. Digits are stripped, so a
-    // resident who types their apartment number here ends up with an empty
-    // trappa and is rejected by the validation below — which is the intent:
-    // better a clear error than a silently-created phantom apartment.
-    const trappaNormalized = (trappa ?? "").toString().replace(/[^a-zA-ZåäöÅÄÖ]/g, "").toUpperCase();
+    const trappaNormalized = (trappa ?? "").toString().replace(/\D/g, "");
 
     if (!property_id || !aptNum || !trappaNormalized || !reporterName || !reporterPhone) {
       return new Response(

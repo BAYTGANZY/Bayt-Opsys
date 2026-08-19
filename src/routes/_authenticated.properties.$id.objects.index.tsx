@@ -10,6 +10,8 @@ import { OBJECT_TYPES, objectTypeLabel, deriveObjectStatus, OBJECT_STATUS_SORT_R
 import { LIFECYCLE_OF, type ArendeForStatus, type BesiktningForStatus, type ProjektForStatus } from "@/lib/issue-tokens";
 import { LogbookEntryCard } from "@/components/LogbookEntryCard";
 import { LogSelectionBar, useLogSelection } from "@/components/LogSelection";
+import { LoggbokFilterBar, loggbokEmptyText, useLoggbokFilter } from "@/components/LoggbokFilterBar";
+import { actionKindOf } from "@/lib/logbook";
 import { useMyContactId } from "@/hooks/useMyContactId";
 
 export const Route = createFileRoute("/_authenticated/properties/$id/objects/")({
@@ -187,7 +189,7 @@ function ObjectsIndex() {
     queryFn: async () => {
       const { data } = await supabase
         .from("logbook_entries")
-        .select("id, entry_date, created_at, content, event_type, property_id, apartment_id, property_object_id, profiles:created_by(full_name)")
+        .select("id, entry_date, created_at, content, event_type, created_by, property_id, apartment_id, property_object_id, profiles:created_by(full_name)")
         .eq("property_id", propertyId)
         .not("property_object_id", "is", null)
         .order("created_at", { ascending: false })
@@ -196,8 +198,19 @@ function ObjectsIndex() {
     },
   });
 
+  // Objektloggen only ever lists logbook_entries, so no Källa control — it
+  // would be a single permanently-selected option pretending to be a choice.
+  const { rows: logRows, filters: logFilters } = useLoggbokFilter(logsQ.data ?? [], (e: any) => ({
+    source: "log",
+    actionKind: actionKindOf(e.event_type, e.content),
+    actorId: e.created_by ?? null,
+    actorName: e.profiles?.full_name ?? null,
+    date: e.created_at ?? e.entry_date ?? "",
+    text: `${e.content ?? ""} ${e.profiles?.full_name ?? ""}`,
+  }));
+
   const logSelection = useLogSelection(
-    (logsQ.data ?? []).map((e) => ({ table: "logbook_entries" as const, id: e.id as string })),
+    logRows.map((e) => ({ table: "logbook_entries" as const, id: e.id as string })),
   );
 
   const presentTypes = useMemo(() => {
@@ -549,8 +562,11 @@ function ObjectsIndex() {
         )
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {(logsQ.data ?? []).length === 0 ? (
-            <div style={{ padding: 32, textAlign: "center", color: C.secondary, border: `1px solid ${C.border}`, borderRadius: 12 }}>Ingen aktivitet ännu</div>
+          <LoggbokFilterBar filters={logFilters} searchPlaceholder="Sök i objektloggen…" />
+          {logRows.length === 0 ? (
+            <div style={{ padding: 32, textAlign: "center", color: C.secondary, border: `1px solid ${C.border}`, borderRadius: 12 }}>
+              {loggbokEmptyText(logFilters.active, "Ingen aktivitet ännu")}
+            </div>
           ) : (
             <>
               <LogSelectionBar
@@ -562,7 +578,7 @@ function ObjectsIndex() {
                   ["all-buildings-loggbok"],
                 ]}
               />
-              {(logsQ.data ?? []).map((e) => (
+              {logRows.map((e) => (
                 <LogbookEntryCard key={e.id} entry={e} selection={logSelection} />
               ))}
             </>

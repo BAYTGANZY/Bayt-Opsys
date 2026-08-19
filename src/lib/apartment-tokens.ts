@@ -5,8 +5,8 @@
 // identify a unit. The /felanmalan public form connects residents to their
 // apartment on exactly this triple (see supabase-functions/submit-felanmalan.ts),
 // which only works if every write path normalizes the parts identically —
-// "1102"/"A" typed by an admin has to land byte-for-byte on "1102"/"A" typed by
-// a resident. Every apartment_number and trappa input in the app must go
+// "1102"/"12" typed by an admin has to land byte-for-byte on "1102"/"12" typed
+// by a resident. Every apartment_number and trappa input in the app must go
 // through these two functions.
 
 /** Digits only. Leading zeros are significant ("0203" ≠ "203"). */
@@ -15,18 +15,15 @@ export function normalizeApartmentNumber(value: string): string {
 }
 
 /**
- * Letters only, uppercased. Stairwells are ALWAYS letters in this system —
- * never numbers — so digits are stripped rather than kept: a digit in this
- * field is a typo (usually the apartment number typed into the wrong box),
- * and dropping it is what stops that typo from minting a phantom apartment.
- * Spaces and punctuation go too, so "Tr. A" and "A" resolve to the same unit.
- * Swedish å/ä/ö are kept — they are letters.
+ * Digits only. Stairwells in this portfolio are identified by number (the
+ * entrance's street number), not by letter — so letters/spaces/punctuation
+ * are stripped rather than kept. A single digit ("1") is a valid trappa.
  */
 export function normalizeTrappa(value: string): string {
-  return value.replace(/[^a-zA-ZåäöÅÄÖ]/g, "").toUpperCase();
+  return value.replace(/\D/g, "");
 }
 
-export const TRAPPA_PLACEHOLDER = "T.ex. A";
+export const TRAPPA_PLACEHOLDER = "T.ex. 12";
 
 /** Swedish message for the (property_id, apartment_number, trappa) unique index. */
 export const DUPLICATE_APARTMENT_MESSAGE =

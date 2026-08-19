@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { FilterChips, FilterRow } from "@/components/ListFilterBar";
 import {
   COLORS,
   usePropertyIssues,
@@ -45,22 +46,45 @@ function formatSwedishDate(s: string | null) {
 }
 
 /** Archive order: most recently created first. No sort controls here — the
- *  page is a record, not a worklist. */
+ *  page is a record, not a worklist. That still holds: the one control on this
+ *  page (below) narrows *which* rows the record contains, it does not reorder
+ *  them. */
 function byNewest(rows: any[]): any[] {
   return [...rows].sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
 }
+
+/**
+ * Ett avbrutet projekt är lika färdigt som ett avslutat — därför ligger båda
+ * här (isClosedProject slår ihop dem). Men "vi blev klara" och "vi lade ner
+ * det" är inte samma sak när man läser arkivet i efterhand, och den skillnaden
+ * fanns tidigare ingenstans i gränssnittet.
+ *
+ * Bara projekt har det här valet. På felanmälningar och besiktningar är
+ * statuskolumnen meningslös på den här sidan — varenda rad är avslutad per
+ * definition — och ett filter med ett enda utfall är inget val.
+ */
+const PROJECT_ARCHIVE_OPTIONS = [
+  { value: "avslutat", label: "Avslutade" },
+  { value: "avbrutet", label: "Avbrutna" },
+];
+
+const projectArchiveKind = (r: any) => (r.status === "avbruten" ? "avbrutet" : "avslutat");
 
 function Section({
   title,
   isLoading,
   count,
   emptyLabel,
+  controls,
   children,
 }: {
   title: string;
   isLoading: boolean;
   count: number;
   emptyLabel: string;
+  /** Renderas under rubriken oavsett om sektionen har rader — annars försvinner
+   *  kontrollen som filtrerade bort dem och valet går inte att ångra. */
+  controls?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -68,6 +92,7 @@ function Section({
       <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: COLORS.text, fontFamily: "Outfit, Inter, system-ui, sans-serif" }}>
         {title}
       </h3>
+      {controls}
       {isLoading ? (
         <div style={{ color: COLORS.secondary, fontSize: 14 }}>Laddar…</div>
       ) : count === 0 ? (
@@ -102,9 +127,22 @@ function AvslutatRoute() {
     () => byNewest(((inspectionsQ.data ?? []) as any[]).filter(isClosedInspection)),
     [inspectionsQ.data],
   );
-  const projects = useMemo(
+  const [projectKind, setProjectKind] = useState<string | null>(null);
+
+  const closedProjects = useMemo(
     () => byNewest(((projectsQ.data ?? []) as any[]).filter(isClosedProject)),
     [projectsQ.data],
+  );
+  // Bara de utfall som faktiskt finns i arkivet — en fastighet utan avbrutna
+  // projekt ska inte erbjudas ett val som garanterat ger en tom lista.
+  const projectKindOptions = useMemo(() => {
+    const present = new Set<string>(closedProjects.map(projectArchiveKind));
+    if (projectKind) present.add(projectKind);
+    return PROJECT_ARCHIVE_OPTIONS.filter((o) => present.has(o.value));
+  }, [closedProjects, projectKind]);
+  const projects = useMemo(
+    () => (projectKind ? closedProjects.filter((r) => projectArchiveKind(r) === projectKind) : closedProjects),
+    [closedProjects, projectKind],
   );
 
   return (
@@ -149,7 +187,25 @@ function AvslutatRoute() {
         </table>
       </Section>
 
-      <Section title="Projekt" isLoading={projectsQ.isLoading} count={projects.length} emptyLabel="avslutade eller avbrutna projekt">
+      <Section
+        title="Projekt"
+        isLoading={projectsQ.isLoading}
+        count={projects.length}
+        emptyLabel={projectKind ? "projekt för det här valet" : "avslutade eller avbrutna projekt"}
+        controls={
+          projectKindOptions.length > 1 ? (
+            <FilterRow>
+              <FilterChips
+                options={projectKindOptions}
+                value={projectKind}
+                onChange={setProjectKind}
+                ariaLabel="Filtrera arkiverade projekt på utfall"
+                allLabel="Alla"
+              />
+            </FilterRow>
+          ) : null
+        }
+      >
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead><tr><th style={th}>Titel</th><th style={th}>Status</th><th style={th}>Start</th><th style={th}>Slut</th></tr></thead>
           <tbody>

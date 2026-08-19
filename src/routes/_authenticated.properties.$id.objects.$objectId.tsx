@@ -15,6 +15,8 @@ import { FileDropzone } from "@/components/FileDropzone";
 import { sanitizeStorageName } from "@/lib/storage";
 import { LogbookEntryCard } from "@/components/LogbookEntryCard";
 import { LogSelectionBar, useLogSelection } from "@/components/LogSelection";
+import { LoggbokFilterBar, loggbokEmptyText, useLoggbokFilter } from "@/components/LoggbokFilterBar";
+import { actionKindOf } from "@/lib/logbook";
 import { useAuth } from "@/lib/auth";
 import { useMyContactId } from "@/hooks/useMyContactId";
 import { canEdit } from "@/lib/permissions";
@@ -639,13 +641,23 @@ function LogbookSection({ propertyId, objectId }: { propertyId: string; objectId
     queryFn: async () => {
       const { data } = await supabase
         .from("logbook_entries")
-        .select("id, entry_date, created_at, content, event_type, property_id, apartment_id, property_object_id, profiles:created_by(full_name)")
+        .select("id, entry_date, created_at, content, event_type, created_by, property_id, apartment_id, property_object_id, profiles:created_by(full_name)")
         .eq("property_object_id", objectId)
         .order("created_at", { ascending: false });
       return (data ?? []) as any[];
     },
   });
-  const rows = q.data ?? [];
+
+  // Only logbook_entries here, so no Källa control — see LoggbokFilterBar.
+  const { rows, filters } = useLoggbokFilter(q.data ?? [], (e: any) => ({
+    source: "log",
+    actionKind: actionKindOf(e.event_type, e.content),
+    actorId: e.created_by ?? null,
+    actorName: e.profiles?.full_name ?? null,
+    date: e.created_at ?? e.entry_date ?? "",
+    text: `${e.content ?? ""} ${e.profiles?.full_name ?? ""}`,
+  }));
+
   const selection = useLogSelection(
     rows.map((e) => ({ table: "logbook_entries" as const, id: e.id as string })),
   );
@@ -692,8 +704,12 @@ function LogbookSection({ propertyId, objectId }: { propertyId: string; objectId
         </button>
       </form>
 
+      <LoggbokFilterBar filters={filters} searchPlaceholder="Sök i objektloggen…" />
+
       {q.isLoading ? <div style={{ color: C.secondary }}>Laddar…</div> : rows.length === 0 ? (
-        <div style={{ padding: 24, textAlign: "center", color: C.secondary, border: `1px solid ${C.border}`, borderRadius: 12 }}>Ingen aktivitet</div>
+        <div style={{ padding: 24, textAlign: "center", color: C.secondary, border: `1px solid ${C.border}`, borderRadius: 12 }}>
+          {loggbokEmptyText(filters.active, "Ingen aktivitet")}
+        </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <LogSelectionBar
