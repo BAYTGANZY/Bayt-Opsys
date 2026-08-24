@@ -12,6 +12,7 @@ export const OBJECT_TYPES = [
   { value: "tvatt", label: "Tvättstuga" },
   { value: "forrad", label: "Förråd" },
   { value: "lokal", label: "Lokal" },
+  { value: "parkering", label: "Parkering" },
 ] as const;
 
 const TYPE_LABEL: Record<string, string> = Object.fromEntries(

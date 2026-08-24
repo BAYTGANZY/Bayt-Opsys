@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { objectTypeLabel } from "@/lib/object-tokens";
+import { ChevronSelect } from "@/components/ChevronSelect";
 
 const C = {
   border: "#E5E7EB",
@@ -16,7 +17,7 @@ const inputStyle: React.CSSProperties = {
   height: 40,
   padding: "0 12px",
   border: `1px solid ${C.border}`,
-  borderRadius: 6,
+  borderRadius: 8,
   fontSize: 14,
   color: C.text,
   background: C.card,
@@ -76,17 +77,17 @@ export function ObjectDropdown({
   return (
     <div style={{ minWidth: 0 }}>
       <label style={labelStyle}>Objekt</label>
-      <select
-        style={{ ...inputStyle, opacity: propertyId && !disabled ? 1 : 0.6, cursor: propertyId && !disabled ? "pointer" : "not-allowed" }}
+      <ChevronSelect
+        style={inputStyle}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value || null)}
         disabled={!propertyId || disabled}
       >
-        <option value="">— Inget objekt —</option>
+        <option value="">{propertyId ? "Inget objekt" : "Välj fastighet först"}</option>
         {objects.map((o) => (
           <option key={o.id} value={o.id}>{objectOptionLabel(o)}</option>
         ))}
-      </select>
+      </ChevronSelect>
     </div>
   );
 }

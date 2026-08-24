@@ -21,6 +21,7 @@ import { useAuth } from "@/lib/auth";
 import { useMyContactId } from "@/hooks/useMyContactId";
 import { canEdit } from "@/lib/permissions";
 import { EditableSelect } from "@/components/EditableSelect";
+import { ChevronSelect } from "@/components/ChevronSelect";
 import { useObjectTypeOptions } from "@/hooks/useObjectTypeOptions";
 import { deriveProjectStatus } from "@/lib/issue-tokens";
 
@@ -37,7 +38,7 @@ const labelStyle: React.CSSProperties = {
 };
 const inputStyle: React.CSSProperties = {
   width: "100%", height: 40, padding: "0 12px",
-  border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 14,
+  border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14,
   color: C.text, background: C.card, outline: "none", boxSizing: "border-box",
 };
 const textareaStyle: React.CSSProperties = {
@@ -257,10 +258,10 @@ function InfoSection({
       </div>
       <div>
         <label style={labelStyle}>Lägenhet</label>
-        <select style={inputStyle} value={apartmentId} onChange={(e) => setApartmentId(e.target.value)}>
+        <ChevronSelect style={inputStyle} value={apartmentId} onChange={(e) => setApartmentId(e.target.value)}>
           <option value="">— Ingen —</option>
           {(aptsQ.data ?? []).map((a) => <option key={a.id} value={a.id}>Lgh {a.apartment_number} · Trappa {a.trappa}</option>)}
-        </select>
+        </ChevronSelect>
         <div style={{ fontSize: 12, color: C.secondary, marginTop: 6 }}>
           Kopplar objektet som en relaterad post på lägenhetens sida. Välj "— Ingen —" för att koppla bort.
         </div>
@@ -380,10 +381,10 @@ function IssuesSection({ propertyId, objectId, apartmentId, mayEdit }: { propert
           <div><label style={labelStyle}>Beskrivning / fritext</label><textarea style={textareaStyle} value={description} onChange={(e) => setDescription(e.target.value)} /></div>
           <div>
             <label style={labelStyle}>Kategori</label>
-            <select style={inputStyle} value={category} onChange={(e) => setCategory(e.target.value)}>
+            <ChevronSelect style={inputStyle} value={category} onChange={(e) => setCategory(e.target.value)}>
               <option value="">— Välj kategori —</option>
               {ISSUE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+            </ChevronSelect>
           </div>
           <div><label style={labelStyle}>Deadline</label><input type="date" style={inputStyle} value={deadline} onChange={(e) => setDeadline(e.target.value)} /></div>
           <DerivedPriorityField priority={derivedPriority} labelStyle={labelStyle} reasonColor={C.secondary} />
@@ -506,9 +507,9 @@ function InspectionsSection({ propertyId, objectId, apartmentId, mayEdit }: { pr
         <form onSubmit={onSubmit} style={{ display: "grid", gap: 12, padding: 16, border: `1px solid ${C.border}`, borderRadius: 8, background: "#fafbfc" }}>
           <div>
             <label style={labelStyle}>Typ</label>
-            <select style={inputStyle} value={type} onChange={(e) => setType(e.target.value)}>
+            <ChevronSelect style={inputStyle} value={type} onChange={(e) => setType(e.target.value)}>
               {INSPECTION_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
+            </ChevronSelect>
           </div>
           <div><label style={labelStyle}>Besiktningsman</label><input style={inputStyle} value={inspector} onChange={(e) => setInspector(e.target.value)} /></div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>

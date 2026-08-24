@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Chatting01Icon, Add01Icon, ArrowLeft01Icon, CheckmarkCircle01Icon, SentIcon, Delete02Icon, MessageCircleReplyIcon, Cancel01Icon, Image02Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
@@ -74,6 +74,54 @@ function isNewerMessage(candidate: Message, current: Message | null | undefined)
   if (!current) return true;
   if (candidate.created_at !== current.created_at) return candidate.created_at > current.created_at;
   return candidate.id > current.id;
+}
+
+/**
+ * Dagsavdelare i tråden. Nyckeln är den lokala kalenderdagen (inte UTC och inte
+ * hela ISO-strängen) — ett meddelande skickat 01:30 svensk tid tillhör den dag
+ * läsaren ser på klockan, inte gårdagen i UTC.
+ */
+function dayKey(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+function dayLabel(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const today = new Date();
+  if (dayKey(iso) === dayKey(today.toISOString())) return "Idag";
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (dayKey(iso) === dayKey(yesterday.toISOString())) return "Igår";
+  // Året tas bara med när det inte är innevarande år — "12 augusti 2025" när det
+  // behövs, annars "måndag 12 augusti".
+  const sameYear = d.getFullYear() === today.getFullYear();
+  return d.toLocaleDateString("sv-SE", {
+    weekday: sameYear ? "long" : undefined,
+    day: "numeric",
+    month: "long",
+    year: sameYear ? undefined : "numeric",
+  });
+}
+
+function DaySeparator({ iso }: { iso: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "6px 0 2px" }}>
+      <div style={{ flex: 1, height: 1, background: C.border }} />
+      <div
+        style={{
+          flexShrink: 0, padding: "3px 12px", borderRadius: 999, background: "#EFF1EF",
+          border: `1px solid ${C.border}`, fontSize: 11, fontWeight: 600, color: C.secondary,
+          fontFamily: bodyFont, textTransform: "capitalize", whiteSpace: "nowrap",
+        }}
+      >
+        {dayLabel(iso)}
+      </div>
+      <div style={{ flex: 1, height: 1, background: C.border }} />
+    </div>
+  );
 }
 
 function initials(name: string | null | undefined): string {
@@ -859,8 +907,11 @@ function ConversationView({
         {!messagesFailed && !messagesPending && messages.length === 0 && (
           <div style={{ margin: "auto", fontSize: 13, color: C.muted }}>Inga meddelanden än</div>
         )}
-        {messages.map((m) => {
+        {messages.map((m, i) => {
           const mine = m.sender_id === selfId;
+          // Dagsavdelare framför första meddelandet och varje gång kalenderdagen
+          // byts — utan den läses en tråd som en enda lång dag.
+          const startsNewDay = i === 0 || dayKey(messages[i - 1].created_at) !== dayKey(m.created_at);
           const removed = !!m.deleted_at;
           const seen = mine && !removed && seenByAllOthers(m.created_at);
           // Nobody deletes someone else's message, admin included — the other
@@ -871,8 +922,9 @@ function ConversationView({
           const quoted = m.reply_to_id ? messagesById.get(m.reply_to_id) : undefined;
           const highlighted = highlightedId === m.id;
           return (
+            <Fragment key={m.id}>
+            {startsNewDay && <DaySeparator iso={m.created_at} />}
             <div
-              key={m.id}
               onMouseEnter={() => setHoveredId(m.id)}
               onMouseLeave={() => setHoveredId((prev) => (prev === m.id ? null : prev))}
               style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, justifyContent: mine ? "flex-end" : "flex-start" }}
@@ -984,6 +1036,7 @@ function ConversationView({
                 </div>
               )}
             </div>
+            </Fragment>
           );
         })}
       </div>

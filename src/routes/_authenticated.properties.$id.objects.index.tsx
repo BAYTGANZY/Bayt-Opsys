@@ -26,6 +26,18 @@ type Obj = {
 const C = { card: "#fff", border: "#E5E7EB", text: "#1a1a1a", secondary: "#6B7280", primary: "#3D8A30", green: "#5CB84A" };
 const PRIO_WEIGHT: Record<string, number> = { akut: 4, hog: 3, normal: 2, lag: 1 };
 
+// property_objects.type is free text (see useObjectTypeOptions), so a saved
+// value can be the canonical slug, the canonical Swedish label an admin
+// picked from the datalist ("Hiss", "Miljörum", …), or anything they typed.
+// This ranks the 8 canonical types first (matched case-insensitively by
+// either their slug or label) so the type filter still puts them in the
+// documented order, with any custom text sorted alphabetically after.
+const CANONICAL_TYPE_RANK: Record<string, number> = {};
+OBJECT_TYPES.forEach((t, i) => {
+  CANONICAL_TYPE_RANK[t.value.toLowerCase()] = i;
+  CANONICAL_TYPE_RANK[t.label.toLowerCase()] = i;
+});
+
 // Namn-sort: 0 = av (default, prio-baserad ordning), 1 = nummer högst→lägst,
 // 2 = nummer lägst→högst, 3 = alfabetisk. Fjärde tryck loopar tillbaka till 1.
 type NameSortMode = 0 | 1 | 2 | 3;
@@ -214,8 +226,24 @@ function ObjectsIndex() {
   );
 
   const presentTypes = useMemo(() => {
-    const types = new Set((objectsQ.data ?? []).map((o) => o.type));
-    return OBJECT_TYPES.filter((t) => types.has(t.value)).map((t) => t.value as string);
+    // Dedup case-insensitively (raw values can be "Hiss" from one save and
+    // "hiss" from another) but keep the first-seen casing for display.
+    const seen = new Map<string, string>();
+    for (const o of objectsQ.data ?? []) {
+      if (!o.type) continue;
+      const key = o.type.trim().toLowerCase();
+      if (!seen.has(key)) seen.set(key, o.type);
+    }
+    return Array.from(seen.entries())
+      .sort(([aKey, aRaw], [bKey, bRaw]) => {
+        const aRank = CANONICAL_TYPE_RANK[aKey];
+        const bRank = CANONICAL_TYPE_RANK[bKey];
+        if (aRank !== undefined && bRank !== undefined) return aRank - bRank;
+        if (aRank !== undefined) return -1;
+        if (bRank !== undefined) return 1;
+        return aRaw.localeCompare(bRaw, "sv");
+      })
+      .map(([, raw]) => raw);
   }, [objectsQ.data]);
 
   const cycleTypeFilter = () => {
@@ -244,15 +272,15 @@ function ObjectsIndex() {
       map.set(i.property_object_id, cur);
     }
 
-    const list = (objectsQ.data ?? [])
-      .filter((o) => !typeFilter || o.type === typeFilter)
-      .map((o) => {
+    const typeFilterKey = typeFilter?.trim().toLowerCase() ?? null;
+    const list = (objectsQ.data ?? []).map((o) => {
       const health = deriveObjectStatus({
         issues: issuesByObj.get(o.id) ?? [],
         inspections: inspectionsByObj.get(o.id) ?? [],
         projects: projectsByObj.get(o.id) ?? [],
       });
-      return { ...o, ...(map.get(o.id) ?? { issues: 0, worst: null }), health };
+      const matchesTypeFilter = !typeFilterKey || o.type?.trim().toLowerCase() === typeFilterKey;
+      return { ...o, ...(map.get(o.id) ?? { issues: 0, worst: null }), health, matchesTypeFilter };
     });
 
     if (statusSortMode === 1 || statusSortMode === 2) {
@@ -283,6 +311,13 @@ function ObjectsIndex() {
         if (aw !== bw) return bw - aw;
         return b.issues - a.issues;
       });
+    }
+
+    // Typ-filtret döljer inte längre resten av objekten — det bara flyttar
+    // den valda typen överst. Array.sort är stabil, så allt som redan var
+    // sorterat ovan behåller sin inbördes ordning inom respektive grupp.
+    if (typeFilterKey) {
+      list.sort((a, b) => Number(!a.matchesTypeFilter) - Number(!b.matchesTypeFilter));
     }
     return list;
   }, [objectsQ.data, issuesQ.data, inspectionsQ.data, projectsQ.data, nameSortMode, statusSortMode, issuesSortMode, typeFilter]);
@@ -513,7 +548,7 @@ function ObjectsIndex() {
                     key={o.id}
                     type="button"
                     onClick={() => navigate({ to: "/properties/$id/objects/$objectId", params: { id: propertyId, objectId: o.id } })}
-                    style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 16px", border: "none", background: "transparent", borderBottom: `1px solid #F3F4F6`, cursor: "pointer", textAlign: "left" }}
+                    style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 16px", border: "none", background: "transparent", borderBottom: `1px solid #F3F4F6`, cursor: "pointer", textAlign: "left", opacity: o.matchesTypeFilter ? 1 : 0.5 }}
                   >
                     <span title={sm.reason} style={{ width: 12, height: 12, borderRadius: "50%", background: sm.color, flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -540,6 +575,7 @@ function ObjectsIndex() {
                     gridTemplateColumns: "20px minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1fr) 130px",
                     gap: 12, alignItems: "center", width: "100%", padding: "14px 16px",
                     border: "none", background: "transparent", borderBottom: `1px solid #F3F4F6`, cursor: "pointer", textAlign: "left",
+                    opacity: o.matchesTypeFilter ? 1 : 0.5,
                   }}
                 >
                   <span title={sm.reason} style={{ width: 12, height: 12, borderRadius: "50%", background: sm.color, flexShrink: 0 }} />

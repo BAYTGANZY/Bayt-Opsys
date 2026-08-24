@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { objectTypeLabel } from "@/lib/object-tokens";
 import { logEvent } from "@/lib/logbook";
 import { EditableSelect } from "@/components/EditableSelect";
+import { ChevronSelect } from "@/components/ChevronSelect";
 import { useObjectTypeOptions } from "@/hooks/useObjectTypeOptions";
 
 export const Route = createFileRoute("/_authenticated/properties/$id/objects/new")({
@@ -16,7 +17,7 @@ export const Route = createFileRoute("/_authenticated/properties/$id/objects/new
 
 const C = { border: "#E5E7EB", text: "#1a1a1a", primary: "#3D8A30", secondary: "#6B7280" };
 const label: React.CSSProperties = { display: "block", fontSize: 12, fontWeight: 500, color: C.secondary, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 };
-const input: React.CSSProperties = { width: "100%", height: 40, padding: "0 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 14, outline: "none", background: "#fff", boxSizing: "border-box" };
+const input: React.CSSProperties = { width: "100%", height: 40, padding: "0 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, outline: "none", background: "#fff", boxSizing: "border-box" };
 const textarea: React.CSSProperties = { ...input, height: "auto", minHeight: 80, padding: 12, resize: "vertical", fontFamily: "inherit" };
 
 function NewObjectRoute() {
@@ -96,10 +97,10 @@ function NewObjectRoute() {
         </div>
         <div>
           <label style={label}>Koppla till lägenhet</label>
-          <select style={input} value={apartmentId} onChange={(e) => setApartmentId(e.target.value)}>
+          <ChevronSelect style={input} value={apartmentId} onChange={(e) => setApartmentId(e.target.value)}>
             <option value="">— Ingen —</option>
             {(aptsQ.data ?? []).map((a) => <option key={a.id} value={a.id}>Lgh {a.apartment_number} · Trappa {a.trappa}</option>)}
-          </select>
+          </ChevronSelect>
         </div>
         {error && <div style={{ color: "#DC2626", fontSize: 13 }}>{error}</div>}
         <div style={{ display: "flex", gap: 10 }}>

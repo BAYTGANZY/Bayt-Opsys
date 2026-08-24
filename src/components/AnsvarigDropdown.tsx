@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { ChevronSelect } from "@/components/ChevronSelect";
 
 const C = {
   border: "#E5E7EB",
@@ -18,7 +19,7 @@ const inputStyle: React.CSSProperties = {
   height: 40,
   padding: "0 12px",
   border: `1px solid ${C.border}`,
-  borderRadius: 6,
+  borderRadius: 8,
   fontSize: 14,
   color: C.text,
   background: C.card,
@@ -182,7 +183,7 @@ export function AnsvarigDropdown({
         </div>
       ) : (
         <>
-          <select
+          <ChevronSelect
             style={inputStyle}
             value={value ?? ""}
             onChange={(e) => handleSelectChange(e.target.value)}
@@ -194,7 +195,7 @@ export function AnsvarigDropdown({
               </option>
             ))}
             {isAdmin && <option value={ADD_NEW}>+ Lägg till entreprenör</option>}
-          </select>
+          </ChevronSelect>
           {selected?.active === false && (
             <div style={{ fontSize: 13, color: "#B45309", marginTop: 6 }}>
               Den här entreprenören finns inte kvar i systemet — namnet står kvar för historiken.

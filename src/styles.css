@@ -242,6 +242,46 @@
   outline: none;
 }
 
+/* --- Dropdowns: <ChevronSelect> -------------------------------------------
+   The field is styled inline by src/components/ChevronSelect.tsx; these are
+   the states an inline style cannot express. `!important` is required for the
+   same reason the input-focus rule above needs it: an inline `border`/`color`
+   always outranks a class selector.
+
+   `.bayt-select` is a <select> on touch and a <button role="combobox"> on
+   pointer devices — both wear the class, so the field looks and reacts the
+   same either way. */
+.bayt-select:hover:not(:disabled) {
+  border-color: #D3D7D3 !important;
+}
+.bayt-select:focus-visible,
+.bayt-select[data-open="true"] {
+  border-color: #5CB84A !important;
+  box-shadow: 0 0 0 3px rgba(92, 184, 74, 0.15);
+  outline: none;
+}
+/* The value stops being muted while the field is open or focused, so an
+   engaged dropdown reads as active rather than empty. */
+.bayt-select:focus-visible:not(:disabled),
+.bayt-select[data-open="true"] {
+  color: #1a1a1a !important;
+}
+/* The chevron is the field's next sibling, so it can follow its state. */
+.bayt-select:focus-visible + .bayt-select-chevron {
+  color: #3D8A30;
+}
+.bayt-select[data-open="true"] + .bayt-select-chevron {
+  color: #3D8A30;
+  transform: translateY(-50%) rotate(180deg);
+}
+/* Touch keeps the native popup, whose options would otherwise inherit the
+   field's muted placeholder colour. */
+.bayt-select option {
+  color: #1a1a1a;
+  background: #FFFFFF;
+  font-weight: 500;
+}
+
 /* --- Inputs: containment -------------------------------------------------
    Every form on this app is a CSS grid of `auto` / `1fr` tracks holding
    <select>s whose widest <option> ("Normal — Åtgärdas inom 5 arbetsdagar",
@@ -358,6 +398,38 @@
 @keyframes bayt-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+/* Combobox dropdown (EditableSelect) — a custom-rendered panel, not native
+   <datalist>. Deliberately close to .bayt-avatar-menu below: same rounded
+   card + shadow language as every other floating panel in the app. */
+.bayt-combobox-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  padding: 6px;
+  z-index: 100;
+}
+.bayt-combobox-option {
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #1a1a1a;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bayt-combobox-option--active {
+  background: #F0F7EE;
+  color: #3D8A30;
 }
 
 /* Avatar dropdown */

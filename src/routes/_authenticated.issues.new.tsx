@@ -10,6 +10,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { ISSUE_CATEGORIES, derivePriority } from "@/lib/issue-tokens";
 import { AnsvarigDropdown } from "@/components/AnsvarigDropdown";
 import { ObjectDropdown } from "@/components/ObjectDropdown";
+import { ChevronSelect } from "@/components/ChevronSelect";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
 import { sanitizeStorageName } from "@/lib/storage";
 
@@ -44,7 +45,7 @@ const inputStyle: React.CSSProperties = {
   height: 40,
   padding: "0 12px",
   border: `1px solid ${C.border}`,
-  borderRadius: 6,
+  borderRadius: 8,
   fontSize: 14,
   color: C.text,
   background: C.card,
@@ -219,28 +220,28 @@ export function NewIssuePage({ initialPropertyId, lockProperty }: { initialPrope
       >
         <div style={{ minWidth: 0 }}>
           <label style={labelStyle}>Fastighet *</label>
-          <select style={inputStyle} value={propertyId} onChange={(e) => { setPropertyId(e.target.value); setApartmentId(""); setPropertyObjectId(null); }} required>
+          <ChevronSelect style={inputStyle} value={propertyId} onChange={(e) => { setPropertyId(e.target.value); setApartmentId(""); setPropertyObjectId(null); }} required>
             <option value="">Välj fastighet</option>
             {properties.map((p) => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
-          </select>
+          </ChevronSelect>
         </div>
         <ObjectDropdown propertyId={propertyId} value={propertyObjectId} onChange={setPropertyObjectId} />
         <div style={{ minWidth: 0 }}>
           <label style={labelStyle}>Lägenhet</label>
           <div onMouseDown={() => { if (!propertyId) setApartmentWarn(true); }}>
-            <select
-              style={{ ...inputStyle, opacity: propertyId ? 1 : 0.6, cursor: propertyId ? "pointer" : "not-allowed" }}
+            <ChevronSelect
+              style={inputStyle}
               value={apartmentId}
               onChange={(e) => setApartmentId(e.target.value)}
               disabled={!propertyId}
             >
-              <option value="">—</option>
+              <option value="">{propertyId ? "Välj lägenhet" : "Välj fastighet först"}</option>
               {apartments.map((a) => (
                 <option key={a.id} value={a.id}>Lgh {a.apartment_number}</option>
               ))}
-            </select>
+            </ChevronSelect>
           </div>
           {!propertyId && apartmentWarn && (
             <div style={{ color: "#DC2626", fontSize: 13, marginTop: 6 }}>Välj en fastighet först</div>
@@ -260,10 +261,10 @@ export function NewIssuePage({ initialPropertyId, lockProperty }: { initialPrope
         </div>
         <div style={{ minWidth: 0 }}>
           <label style={labelStyle}>Kategori</label>
-          <select style={inputStyle} value={category} onChange={(e) => setCategory(e.target.value)}>
+          <ChevronSelect style={inputStyle} value={category} onChange={(e) => setCategory(e.target.value)}>
             <option value="">Välj kategori</option>
             {ISSUE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          </ChevronSelect>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16, minWidth: 0 }}>
           <div style={{ minWidth: 0 }}>
