@@ -43,15 +43,26 @@ DECLARE
   old_step int;
   new_step int;
   shared_secret text;
+  should_notify boolean;
 BEGIN
-  old_step := issue_progress_step(OLD.viewed_at, OLD.assigned_contact_id, OLD.deadline, OLD.status::text);
-  new_step := issue_progress_step(NEW.viewed_at, NEW.assigned_contact_id, NEW.deadline, NEW.status::text);
+  IF TG_OP = 'INSERT' THEN
+    -- A brand new felanmälan has nothing reached yet (viewed_at etc. are all
+    -- still null) — this is the one-time "we got it, waiting for someone to
+    -- look" confirmation, not a milestone crossing, so there's no OLD row to
+    -- compare against. notify-progress recomputes the step itself either
+    -- way and will correctly get -1 here, which is exactly this email.
+    should_notify := NEW.reporter_email IS NOT NULL AND btrim(NEW.reporter_email) <> '';
+  ELSE
+    old_step := issue_progress_step(OLD.viewed_at, OLD.assigned_contact_id, OLD.deadline, OLD.status::text);
+    new_step := issue_progress_step(NEW.viewed_at, NEW.assigned_contact_id, NEW.deadline, NEW.status::text);
+    -- Only a forward crossing fires an email. An unrelated edit (title,
+    -- description) leaves both steps equal and sends nothing; a same-update
+    -- double-advance (rare — e.g. deadline and status both set at once)
+    -- still sends exactly one email, for the higher step reached.
+    should_notify := new_step > old_step AND NEW.reporter_email IS NOT NULL AND btrim(NEW.reporter_email) <> '';
+  END IF;
 
-  -- Only a forward crossing fires an email. An unrelated edit (title,
-  -- description) leaves both steps equal and sends nothing; a same-update
-  -- double-advance (rare — e.g. deadline and status both set at once) still
-  -- sends exactly one email, for the higher step reached.
-  IF new_step > old_step AND NEW.reporter_email IS NOT NULL AND btrim(NEW.reporter_email) <> '' THEN
+  IF should_notify THEN
     SELECT decrypted_secret INTO shared_secret
     FROM vault.decrypted_secrets WHERE name = 'notify_progress_trigger_secret';
 
@@ -71,6 +82,6 @@ $$;
 
 DROP TRIGGER IF EXISTS issues_progress_notify_trigger ON issues;
 CREATE TRIGGER issues_progress_notify_trigger
-  AFTER UPDATE ON issues
+  AFTER INSERT OR UPDATE ON issues
   FOR EACH ROW
   EXECUTE FUNCTION issue_progress_notify();

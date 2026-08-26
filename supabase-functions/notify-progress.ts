@@ -1,7 +1,9 @@
 // Deploy this as a Supabase Edge Function named "notify-progress".
 // NOT called by the browser — only by the `issues_progress_notify_trigger`
-// DB trigger (supabase-functions/issue-progress-notify.sql) via pg_net,
-// whenever a felanmälan crosses one of the four /arendestatus milestones.
+// DB trigger (supabase-functions/issue-progress-notify.sql) via pg_net: once
+// right when a felanmälan is submitted (step -1, "we got it, waiting for
+// review" — none of the four /arendestatus dots lit yet), then again each
+// time it crosses one of the four real milestones.
 // Sends the resident a fresh email for that milestone via direct SMTP to
 // bayt.se's own mailbox — deliberately NOT a third-party email API (Resend
 // etc.): the point is to use a mailbox already owned, not sign up for a new
@@ -61,6 +63,7 @@ function computeStep(issue: {
 
 function subjectForStep(step: number, title: string): string {
   switch (step) {
+    case -1: return `Vi har tagit emot din felanmälan "${title}"`;
     case 0: return `Din felanmälan "${title}" är mottagen`;
     case 1: return `En entreprenör är tilldelad ditt ärende`;
     case 2: return `Ditt ärende har fått en tidsplan`;
@@ -70,6 +73,7 @@ function subjectForStep(step: number, title: string): string {
 
 function bodyTextForStep(step: number, dateLabel: string | null): string {
   switch (step) {
+    case -1: return "Din felanmälan väntar på att en ansvarig person granskar den.";
     case 0: return "Din felanmälan är mottagen och granskad av förvaltningen.";
     case 1: return "En entreprenör är nu tilldelad ditt ärende.";
     case 2: return dateLabel ? `Felanmälan förväntas vara klar senast ${dateLabel}.` : "Åtgärden pågår.";
@@ -113,7 +117,7 @@ function emailHtml(opts: {
 <tr><td align="center" style="padding:32px 16px;">
 <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px;width:100%;background-color:#ffffff;border-radius:12px;font-family:Arial,Helvetica,sans-serif;">
   <tr><td style="padding:28px 24px 4px;text-align:center;">
-    <div style="font-size:18px;font-weight:700;color:#0D2B1E;">BAYT</div>
+    <img src="https://app.bayt.se/assets/bayt-logo-green.png" alt="BAYT" width="119" height="30" style="display:inline-block;width:119px;height:30px;border:0;" />
   </td></tr>
   <tr><td style="padding:12px 24px 4px;text-align:center;">
     <div style="font-size:16px;font-weight:600;color:#1a1a1a;">${opts.title}</div>
@@ -177,13 +181,10 @@ Deno.serve(async (req) => {
       });
     }
 
+    // -1 ("nothing reached yet") IS sent — it's the submission confirmation
+    // fired straight from the INSERT trigger, worded as "waiting for review"
+    // rather than skipped like an unrelated no-op update would be.
     const step = computeStep(issue as never);
-    if (step < 0) {
-      return new Response(JSON.stringify({ success: true, skipped: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      });
-    }
 
     const smtpHost = Deno.env.get("SMTP_HOST");
     const smtpUser = Deno.env.get("SMTP_USER");
