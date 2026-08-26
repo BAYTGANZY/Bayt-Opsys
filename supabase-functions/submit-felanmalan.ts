@@ -56,9 +56,9 @@ Deno.serve(async (req) => {
     // submissions and every felanmälan silently creates a duplicate unit.
     const trappaNormalized = (trappa ?? "").toString().replace(/\D/g, "");
 
-    if (!property_id || !aptNum || !trappaNormalized || !reporterName || !reporterPhone) {
+    if (!property_id || !aptNum || !trappaNormalized || !reporterName || !reporterPhone || !reporterEmail) {
       return new Response(
-        JSON.stringify({ error: "Fastighet, lägenhetsnummer, trappa, namn och telefonnummer krävs." }),
+        JSON.stringify({ error: "E-post, fastighet, lägenhetsnummer, trappa, namn och telefonnummer krävs." }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: 400,

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -49,6 +49,10 @@ const ADDRESS_MATCH_THRESHOLD = 0.3;
 const MAX_ADDRESS_MATCHES = 3;
 
 const baytLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
+// Shared with the confirmation screen below — the resident's one way back in
+// to check status is this path, keyed on the e-post they just typed above.
+const TRACK_PAGE_PATH = "/arendestatus";
+const TRACK_PAGE_LABEL = "arendestatus";
 
 export const Route = createFileRoute("/felanmalan")({
   ssr: false,
@@ -216,9 +220,10 @@ function FelanmalanPage() {
       !apartmentNumber.trim() ||
       !trappa.trim() ||
       !reporterName.trim() ||
-      !reporterPhone.trim()
+      !reporterPhone.trim() ||
+      !reporterEmail.trim()
     ) {
-      return "Adress, fastighet, lägenhetsnummer, trappa, namn och telefonnummer krävs.";
+      return "E-post, adress, fastighet, lägenhetsnummer, trappa, namn och telefonnummer krävs.";
     }
     return null;
   }
@@ -293,6 +298,19 @@ function FelanmalanPage() {
             <p style={{ fontSize: 15, color: C.secondary, lineHeight: 1.5, margin: 0 }}>
               Din felanmälan har tagits emot. Vi återkommer så snart som möjligt.
             </p>
+            <Link
+              to={TRACK_PAGE_PATH}
+              style={{
+                display: "inline-block",
+                marginTop: 20,
+                fontSize: 14,
+                fontWeight: 600,
+                color: C.primary,
+                textDecoration: "none",
+              }}
+            >
+              Följ ditt ärende på {TRACK_PAGE_LABEL} →
+            </Link>
           </div>
         </div>
       </div>
@@ -443,8 +461,17 @@ function FelanmalanPage() {
           <div style={{ display: "grid", gap: 16, minWidth: 0 }}>
             <div style={sectionHeadingStyle}>Dina kontaktuppgifter</div>
             <div style={{ minWidth: 0 }}>
-              <label style={labelStyle}>E-post</label>
-              <input type="email" style={inputStyle} value={reporterEmail} onChange={(e) => setReporterEmail(e.target.value)} />
+              <label style={labelStyle}>E-post *</label>
+              <input
+                type="email"
+                style={inputStyle}
+                value={reporterEmail}
+                onChange={(e) => setReporterEmail(e.target.value)}
+                required
+              />
+              <p style={{ fontSize: 12, color: C.secondary, margin: "6px 0 0" }}>
+                Används för att du ska kunna följa ditt ärende på sidan {TRACK_PAGE_PATH}.
+              </p>
             </div>
             <div style={{ minWidth: 0 }}>
               <label style={labelStyle}>Namn *</label>

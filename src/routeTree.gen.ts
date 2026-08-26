@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as FelanmalanRouteImport } from './routes/felanmalan'
 import { Route as DemoRouteImport } from './routes/demo'
 import { Route as BoendeRouteImport } from './routes/boende'
+import { Route as ArendestatusRouteImport } from './routes/arendestatus'
 import { Route as AcceptInviteRouteImport } from './routes/accept-invite'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
@@ -99,6 +100,11 @@ const DemoRoute = DemoRouteImport.update({
 const BoendeRoute = BoendeRouteImport.update({
   id: '/boende',
   path: '/boende',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ArendestatusRoute = ArendestatusRouteImport.update({
+  id: '/arendestatus',
+  path: '/arendestatus',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AcceptInviteRoute = AcceptInviteRouteImport.update({
@@ -421,6 +427,7 @@ const AuthenticatedPropertiesIdActionsActionIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/accept-invite': typeof AcceptInviteRoute
+  '/arendestatus': typeof ArendestatusRoute
   '/boende': typeof BoendeRoute
   '/demo': typeof DemoRoute
   '/felanmalan': typeof FelanmalanRoute
@@ -483,6 +490,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/accept-invite': typeof AcceptInviteRoute
+  '/arendestatus': typeof ArendestatusRoute
   '/boende': typeof BoendeRoute
   '/demo': typeof DemoRoute
   '/felanmalan': typeof FelanmalanRoute
@@ -546,6 +554,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/accept-invite': typeof AcceptInviteRoute
+  '/arendestatus': typeof ArendestatusRoute
   '/boende': typeof BoendeRoute
   '/demo': typeof DemoRoute
   '/felanmalan': typeof FelanmalanRoute
@@ -610,6 +619,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/accept-invite'
+    | '/arendestatus'
     | '/boende'
     | '/demo'
     | '/felanmalan'
@@ -672,6 +682,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/accept-invite'
+    | '/arendestatus'
     | '/boende'
     | '/demo'
     | '/felanmalan'
@@ -734,6 +745,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/accept-invite'
+    | '/arendestatus'
     | '/boende'
     | '/demo'
     | '/felanmalan'
@@ -798,6 +810,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   AcceptInviteRoute: typeof AcceptInviteRoute
+  ArendestatusRoute: typeof ArendestatusRoute
   BoendeRoute: typeof BoendeRoute
   DemoRoute: typeof DemoRoute
   FelanmalanRoute: typeof FelanmalanRoute
@@ -848,6 +861,13 @@ declare module '@tanstack/react-router' {
       path: '/boende'
       fullPath: '/boende'
       preLoaderRoute: typeof BoendeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/arendestatus': {
+      id: '/arendestatus'
+      path: '/arendestatus'
+      fullPath: '/arendestatus'
+      preLoaderRoute: typeof ArendestatusRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/accept-invite': {
@@ -1390,6 +1410,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   AcceptInviteRoute: AcceptInviteRoute,
+  ArendestatusRoute: ArendestatusRoute,
   BoendeRoute: BoendeRoute,
   DemoRoute: DemoRoute,
   FelanmalanRoute: FelanmalanRoute,
