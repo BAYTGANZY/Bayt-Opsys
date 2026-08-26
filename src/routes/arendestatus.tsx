@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -201,9 +201,8 @@ function ArendeStatusPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function onSearch(e: React.FormEvent) {
-    e.preventDefault();
-    const trimmed = email.trim();
+  async function runSearch(rawEmail: string) {
+    const trimmed = rawEmail.trim();
     if (!trimmed) {
       setError("Ange din e-postadress.");
       return;
@@ -226,6 +225,23 @@ function ArendeStatusPage() {
       setLoading(false);
     }
   }
+
+  function onSearch(e: React.FormEvent) {
+    e.preventDefault();
+    void runSearch(email);
+  }
+
+  // Deep link from the progress-update emails: /arendestatus?email=... lands
+  // here pre-filled and auto-searched, so "Visa ärendestatus" in the email is
+  // a single click instead of retyping the address.
+  useEffect(() => {
+    const fromQuery = new URLSearchParams(window.location.search).get("email");
+    if (fromQuery) {
+      setEmail(fromQuery);
+      void runSearch(fromQuery);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div style={shellStyle}>

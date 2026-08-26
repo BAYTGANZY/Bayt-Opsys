@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -298,8 +298,8 @@ function FelanmalanPage() {
             <p style={{ fontSize: 15, color: C.secondary, lineHeight: 1.5, margin: 0 }}>
               Din felanmälan har tagits emot. Vi återkommer så snart som möjligt.
             </p>
-            <Link
-              to={TRACK_PAGE_PATH}
+            <a
+              href={`${TRACK_PAGE_PATH}?email=${encodeURIComponent(reporterEmail.trim())}`}
               style={{
                 display: "inline-block",
                 marginTop: 20,
@@ -310,7 +310,7 @@ function FelanmalanPage() {
               }}
             >
               Följ ditt ärende på {TRACK_PAGE_LABEL} →
-            </Link>
+            </a>
           </div>
         </div>
       </div>
