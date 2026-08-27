@@ -42,14 +42,21 @@ const corsHeaders = {
 const TRACK_URL = "https://app.bayt.se/arendestatus";
 
 // Mirrors issue_progress_step() in issue-progress-notify.sql and
-// computeStepIndex()/CLOSED_STATUSES in src/routes/arendestatus.tsx — all
-// three must stay in sync, same reasoning as normalizeTrappa()'s duplicate.
+// computeStepIndex()/CLOSED_STATUSES/OPENED_STATUSES in
+// src/routes/arendestatus.tsx and track-felanmalan.ts — all must stay in
+// sync, same reasoning as normalizeTrappa()'s duplicate.
 const CLOSED_STATUSES = new Set(["stangd", "avslutat", "klar", "fakturerad"]);
+// Step 0 ("Mottagen") is status leaving vilande/ny — an admin pressing
+// "Öppna ärende" (OppnaArendeButton writes 'oppet') or the Dag Rapport
+// quick-action equivalent ('pagande'), NOT merely opening the detail page.
+// Loading the page sets viewed_at passively on every visit, which is too
+// weak a signal for "someone actually looked at this" — an explicit button
+// press is a real decision, so that's what this milestone is keyed on.
+const OPENED_STATUSES = new Set(["oppet", "pagande", "vantar"]);
 
 const STEP_LABELS = ["Mottagen", "Påbörjad", "Åtgärdad", "Avslutad"];
 
 function computeStep(issue: {
-  viewed_at: string | null;
   assigned_contact_id: string | null;
   deadline: string | null;
   status: string | null;
@@ -57,7 +64,7 @@ function computeStep(issue: {
   if (CLOSED_STATUSES.has(issue.status ?? "")) return 3;
   if (issue.deadline) return 2;
   if (issue.assigned_contact_id) return 1;
-  if (issue.viewed_at) return 0;
+  if (OPENED_STATUSES.has(issue.status ?? "")) return 0;
   return -1;
 }
 
@@ -167,7 +174,7 @@ Deno.serve(async (req) => {
 
     const { data: issue, error } = await supabase
       .from("issues")
-      .select("id, title, category, reporter_email, viewed_at, assigned_contact_id, deadline, status, properties(name)")
+      .select("id, title, category, reporter_email, assigned_contact_id, deadline, status, properties(name)")
       .eq("id", issue_id)
       .maybeSingle();
 

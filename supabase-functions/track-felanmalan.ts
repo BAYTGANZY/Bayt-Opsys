@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
     // so "Anna@Example.se" finds a row saved as "anna@example.se".
     const { data, error } = await supabase
       .from("issues")
-      .select("id, title, category, created_at, viewed_at, assigned_contact_id, deadline, status, properties(name)")
+      .select("id, title, category, created_at, assigned_contact_id, deadline, status, properties(name)")
       .ilike("reporter_email", normalizedEmail)
       .order("created_at", { ascending: false });
 
@@ -60,6 +60,10 @@ Deno.serve(async (req) => {
     // Mirrors the "avslutat" bucket of LIFECYCLE_OF in src/lib/issue-tokens.ts
     // — must stay in sync, same reasoning as normalizeTrappa's duplicate here.
     const CLOSED_STATUSES = new Set(["stangd", "avslutat", "klar", "fakturerad"]);
+    // "opened" = status left vilande/ny — an admin pressed "Öppna ärende"
+    // (or the Dag Rapport quick-action equivalent), not merely viewed the
+    // page. Mirrors OPENED_STATUSES in notify-progress.ts.
+    const OPENED_STATUSES = new Set(["oppet", "pagande", "vantar"]);
 
     // Never return assigned_contact_id itself (an internal contacts FK) or the
     // raw status value — the tracker only needs to know THAT each milestone
@@ -70,7 +74,7 @@ Deno.serve(async (req) => {
       category: row.category,
       created_at: row.created_at,
       property_name: (row.properties as { name?: string } | null)?.name ?? null,
-      viewed: row.viewed_at != null,
+      opened: OPENED_STATUSES.has((row.status as string) ?? ""),
       assigned: row.assigned_contact_id != null,
       deadline: row.deadline ?? null,
       closed: CLOSED_STATUSES.has((row.status as string) ?? ""),

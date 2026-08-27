@@ -12,12 +12,19 @@
 -- checks the request against, so nobody but this trigger can invoke it.
 
 -- Mirrors computeStepIndex() in src/routes/arendestatus.tsx and the CLOSED_
--- STATUSES set in supabase-functions/track-felanmalan.ts — all three must
--- stay in sync, same reasoning as normalizeTrappa()'s duplicate. -1 means
--- "nothing has happened yet", distinct from the frontend's display default
--- of 0, so that a first viewed_at write is still detected as forward progress.
+-- STATUSES/OPENED_STATUSES sets in supabase-functions/track-felanmalan.ts —
+-- all three must stay in sync, same reasoning as normalizeTrappa()'s
+-- duplicate. -1 means "nothing has happened yet", distinct from the
+-- frontend's display default of 0, so that a first real crossing is still
+-- detected as forward progress.
+--
+-- Step 0 ("Mottagen") is deliberately keyed on status leaving vilande/ny —
+-- i.e. an admin pressing "Öppna ärende" (OppnaArendeButton, status='oppet')
+-- or the Dag Rapport quick-action equivalent (status='pagande') — NOT on
+-- merely opening the detail page. Loading the page sets viewed_at
+-- passively on every visit, which is too weak a signal for "someone
+-- actually looked at this"; an explicit button press is a real decision.
 CREATE OR REPLACE FUNCTION issue_progress_step(
-  p_viewed_at timestamptz,
   p_assigned_contact_id uuid,
   p_deadline date,
   p_status text
@@ -29,7 +36,7 @@ AS $$
     WHEN p_status IN ('stangd', 'avslutat', 'klar', 'fakturerad') THEN 3
     WHEN p_deadline IS NOT NULL THEN 2
     WHEN p_assigned_contact_id IS NOT NULL THEN 1
-    WHEN p_viewed_at IS NOT NULL THEN 0
+    WHEN p_status IN ('oppet', 'pagande', 'vantar') THEN 0
     ELSE -1
   END;
 $$;
@@ -46,15 +53,15 @@ DECLARE
   should_notify boolean;
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    -- A brand new felanmälan has nothing reached yet (viewed_at etc. are all
-    -- still null) — this is the one-time "we got it, waiting for someone to
-    -- look" confirmation, not a milestone crossing, so there's no OLD row to
-    -- compare against. notify-progress recomputes the step itself either
-    -- way and will correctly get -1 here, which is exactly this email.
+    -- A brand new felanmälan has nothing reached yet (status is 'ny') — this
+    -- is the one-time "we got it, waiting for someone to look" confirmation,
+    -- not a milestone crossing, so there's no OLD row to compare against.
+    -- notify-progress recomputes the step itself either way and will
+    -- correctly get -1 here, which is exactly this email.
     should_notify := NEW.reporter_email IS NOT NULL AND btrim(NEW.reporter_email) <> '';
   ELSE
-    old_step := issue_progress_step(OLD.viewed_at, OLD.assigned_contact_id, OLD.deadline, OLD.status::text);
-    new_step := issue_progress_step(NEW.viewed_at, NEW.assigned_contact_id, NEW.deadline, NEW.status::text);
+    old_step := issue_progress_step(OLD.assigned_contact_id, OLD.deadline, OLD.status::text);
+    new_step := issue_progress_step(NEW.assigned_contact_id, NEW.deadline, NEW.status::text);
     -- Only a forward crossing fires an email. An unrelated edit (title,
     -- description) leaves both steps equal and sends nothing; a same-update
     -- double-advance (rare — e.g. deadline and status both set at once)

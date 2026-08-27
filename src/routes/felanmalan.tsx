@@ -298,6 +298,10 @@ function FelanmalanPage() {
             <p style={{ fontSize: 15, color: C.secondary, lineHeight: 1.5, margin: 0 }}>
               Din felanmälan har tagits emot. Vi återkommer så snart som möjligt.
             </p>
+            <p style={{ fontSize: 15, color: C.secondary, lineHeight: 1.5, margin: "10px 0 0" }}>
+              Vi har skickat ditt ärende till din e-post{" "}
+              <strong style={{ color: C.text, fontWeight: 700, overflowWrap: "anywhere" }}>{reporterEmail.trim()}</strong>.
+            </p>
             <a
               href={`${TRACK_PAGE_PATH}?email=${encodeURIComponent(reporterEmail.trim())}`}
               style={{

@@ -60,8 +60,8 @@ type TrackedIssue = {
   category: string | null;
   created_at: string | null;
   property_name: string | null;
-  /** viewed_at IS NOT NULL — someone with access opened the ärende's detail page. */
-  viewed: boolean;
+  /** status left vilande/ny — admin pressed "Öppna ärende" (or the Dag Rapport quick-action equivalent). */
+  opened: boolean;
   /** assigned_contact_id IS NOT NULL — an entreprenör has been picked. */
   assigned: boolean;
   /** deadline column, ISO date or null. */
@@ -72,7 +72,9 @@ type TrackedIssue = {
 
 // Four resident-facing milestones, each keyed to one concrete admin/
 // entreprenör action rather than the messy `issue_status` enum:
-//   Mottagen  — admin has opened and viewed the ärende (viewed_at)
+//   Mottagen  — admin pressed "Öppna ärende" (status leaves vilande/ny) —
+//               NOT merely opening the detail page, which sets viewed_at
+//               passively on every visit and is too weak a signal on its own
 //   Påbörjad  — admin has assigned an entreprenör (assigned_contact_id)
 //   Åtgärdad  — a deadline has been set (deadline)
 //   Avslutad  — "Avsluta ärende" was pressed, by either role (status closed)
@@ -87,14 +89,14 @@ function computeStepIndex(issue: TrackedIssue): number {
   if (issue.closed) return 3;
   if (issue.deadline) return 2;
   if (issue.assigned) return 1;
-  if (issue.viewed) return 0;
+  if (issue.opened) return 0;
   return 0; // nothing has happened yet — shown as the active, not-yet-done first step
 }
 
 function stepDescription(issue: TrackedIssue, current: number): string {
   switch (current) {
     case 0:
-      return issue.viewed
+      return issue.opened
         ? "Din felanmälan är mottagen och granskad av förvaltningen."
         : "Din felanmälan är mottagen och väntar på att granskas.";
     case 1:
