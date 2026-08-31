@@ -110,6 +110,34 @@ function progressBarHtml(step: number): string {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>${cells}</tr></table>`;
 }
 
+// A plain-text alternative isn't just a nicety — an HTML-only message with
+// no text/plain part is a well-known spam heuristic on its own (Gmail,
+// Outlook and most spam filters expect a proper multipart/alternative).
+// Mirrors emailHtml()'s content exactly, just unstyled.
+function emailText(opts: {
+  title: string;
+  category: string | null;
+  propertyName: string | null;
+  step: number;
+  dateLabel: string | null;
+  trackUrl: string;
+}): string {
+  const metaLine = [opts.propertyName, opts.category].filter(Boolean).join(" · ");
+  const stepLine = STEP_LABELS.map((label, i) => (i <= opts.step ? `[x] ${label}` : `[ ] ${label}`)).join("  ");
+  return [
+    "BAYT",
+    "",
+    opts.title,
+    metaLine || null,
+    "",
+    stepLine,
+    "",
+    bodyTextForStep(opts.step, opts.dateLabel),
+    "",
+    `Visa ärendestatus: ${opts.trackUrl}`,
+  ].filter((line) => line !== null).join("\n");
+}
+
 function emailHtml(opts: {
   title: string;
   category: string | null;
@@ -225,18 +253,24 @@ Deno.serve(async (req) => {
     });
 
     try {
+      const bodyOpts = {
+        title: (issue.title as string) || "Felanmälan",
+        category: issue.category as string | null,
+        propertyName,
+        step,
+        dateLabel,
+        trackUrl,
+      };
       await client.send({
         from: fromAddr,
         to: issue.reporter_email as string,
         subject: subjectForStep(step, (issue.title as string) || "Felanmälan"),
-        html: emailHtml({
-          title: (issue.title as string) || "Felanmälan",
-          category: issue.category as string | null,
-          propertyName,
-          step,
-          dateLabel,
-          trackUrl,
-        }),
+        content: emailText(bodyOpts),
+        html: emailHtml(bodyOpts),
+        // Without this, Inleed's Exim stamps a self-generated Message-ID on
+        // @ns15.inleed.net — a From/Message-ID domain mismatch is a minor
+        // spam signal on its own. Explicit here so it matches the From domain.
+        headers: { "Message-ID": `<${crypto.randomUUID()}@bayt.se>` },
       });
     } catch (smtpErr) {
       console.error("notify-progress: SMTP send failed", (smtpErr as Error)?.message ?? smtpErr);
