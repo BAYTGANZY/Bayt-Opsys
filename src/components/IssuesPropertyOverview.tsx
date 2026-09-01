@@ -14,7 +14,7 @@ type Property = { id: string; name: string; address: string | null; image_url: s
 const PROPERTY_COLUMNS = "id, name, address, image_url";
 
 /**
- * `filterContactId` (useMyArendeScope): an entreprenör's badge counts their own
+ * `filterContactIds` (useMyArendeScope): an entreprenör's badge counts their own
  * felanmälningar, not the building's.
  *
  * The status filter is "everything not avslutat", NOT the lifecycle-oppet set
@@ -24,12 +24,12 @@ const PROPERTY_COLUMNS = "id, name, address, image_url";
  * containing it — which reads as "there is nothing here". Same rule as
  * loadStats() in SectionOverviewPage, so every building card counts alike.
  */
-async function loadOpenIssueBadges(filterContactId: string | null): Promise<Record<string, PropertyCardBadge>> {
+async function loadOpenIssueBadges(filterContactIds: string[] | null): Promise<Record<string, PropertyCardBadge>> {
   let q = supabase
     .from("issues")
     .select("property_id, priority")
     .not("status", "in", "(klar,fakturerad,stangd,avslutat)");
-  if (filterContactId) q = q.eq("assigned_contact_id", filterContactId);
+  if (filterContactIds) q = q.in("assigned_contact_id", filterContactIds);
   const { data, error } = await q;
   if (error) throw error;
 
@@ -51,11 +51,11 @@ export function IssuesPropertyOverview() {
   const isMobile = useIsMobile();
   const [q, setQ] = useState("");
   const { properties, allowedIds, isLoading: pLoading } = useScopedProperties<Property>(PROPERTY_COLUMNS);
-  const { filterContactId, ready } = useMyArendeScope();
+  const { filterContactIds, ready } = useMyArendeScope();
   const { data: badges = {}, isLoading: bLoading } = useQuery({
-    queryKey: ["issues-open-badges", filterContactId],
+    queryKey: ["issues-open-badges", filterContactIds],
     enabled: ready,
-    queryFn: () => loadOpenIssueBadges(filterContactId),
+    queryFn: () => loadOpenIssueBadges(filterContactIds),
   });
 
   const filtered = useMemo(() => {

@@ -24,6 +24,7 @@ import {
   Home01Icon,
   MinimizeScreenIcon,
   Package01Icon,
+  HardHatIcon,
 } from "@hugeicons/core-free-icons";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -33,6 +34,7 @@ import { PropertyContextNav } from "@/components/ContextNav";
 import { NotificationBell, NotificationToasts } from "@/components/NotificationCenter";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { useMyArendeDots, type ArendeDot } from "@/hooks/useMyArendeDots";
+import { useArendeRealtime } from "@/hooks/useArendeRealtime";
 import { StatusDot } from "@/components/StatusDot";
 import { useBuildingWorld } from "@/lib/building-world";
 
@@ -67,6 +69,9 @@ const SECTIONS: NavSection[] = [
       { to: "/issues", label: "Felanmälningar", icon: AlertCircleIcon },
       { to: "/inspections", label: "Besiktningar", icon: ClipboardCheckIcon },
       { to: "/projects", label: "Projekt", icon: Briefcase01Icon },
+      // Admin-only i praktiken: canAccess släpper bara igenom admin, så posten
+      // filtreras bort ur navigationen för styrelse och entreprenör.
+      { to: "/entreprenorer", label: "Entreprenörer", icon: HardHatIcon },
     ],
   },
   {
@@ -222,6 +227,9 @@ export function AppShell() {
   const sections = sectionsForRole(profile?.role);
   // Tom karta för alla utom entreprenör — ingen extra fråga körs för dem.
   const arendeDots = useMyArendeDots();
+  // Ett ärende som tilldelas mig ska dyka upp utan att jag loggar ut och in.
+  // Monterad här, en gång, eftersom AppShell omsluter varje inloggad sida.
+  useArendeRealtime();
   const bottomNav = BOTTOM_NAV.filter((i) => i.to === "/start" || canAccess(profile?.role, i.to));
 
   // Inside a building's "world" (entered via /fastigheter/$id, the portal home),

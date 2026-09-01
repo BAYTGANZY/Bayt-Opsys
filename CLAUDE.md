@@ -87,14 +87,16 @@ Separate from Tidslinje: a per-apartment **audit trail** rendered at the bottom 
 ## "Bara mina ärenden" — `useMyArendeScope`, and the surfaces that forgot it
 Client spec (2026-07-30): **an entreprenör sees every ärende assigned to them, whatever its status, and nothing else.** Their own avslutade ärenden stay visible (that's their record of work done); other people's ärenden never appear, finished or not. This replaced the earlier "one assignment grants the whole apartment's history" decision — that rule now applies to `audit_events` only.
 
-`useMyArendeScope()` (`src/hooks/useMyContactId.ts`) is the one implementation: `filterContactId` is `null` for admin/styrelse (no narrowing) and the linked contact id — or `"__none__"`, matching nothing — for an entreprenör. Apply it to **every** ärende read that isn't already keyed on assignment, and gate the query on its `ready` flag (an unscoped first fetch flashes everyone's data before the contact link resolves):
+`useMyArendeScope()` (`src/hooks/useMyContactId.ts`) is the one implementation: `filterContactIds` is `null` for admin/styrelse (no narrowing) and a **list** of contact ids — or `[NO_CONTACT]` (`"__none__"`, matching nothing) — for an entreprenör. Apply it to **every** ärende read that isn't already keyed on assignment, and gate the query on its `ready` flag (an unscoped first fetch flashes everyone's data before the contact link resolves):
 
 ```ts
-const { filterContactId, ready } = useMyArendeScope();
-useQuery({ queryKey: [..., filterContactId], enabled: ready, queryFn: async () => {
+const { filterContactIds, ready } = useMyArendeScope();
+useQuery({ queryKey: [..., filterContactIds], enabled: ready, queryFn: async () => {
   let q = supabase.from("issues").select(...).eq("apartment_id", id);
-  if (filterContactId) q = q.eq("assigned_contact_id", filterContactId);
+  if (filterContactIds) q = q.in("assigned_contact_id", filterContactIds);
 ```
+
+**It is a list, not an id (changed 2026-09-01) — `.in`, never `.eq`.** A login can have more than one contact: its own (`contacts.profile_id`, and two rows may point at the same login after a hand-relink) plus any **delegated** to it (`contact_delegations`, see *Delegering* below). Narrowing on a single id would show a delegated account half its ärenden and make the surfaces contradict each other. `useMyContactId()` still exists and returns the **own** contact only — use it where you mean "who am I acting as", never to filter a list.
 
 Wired: the apartment **Tidslinje**, felanmälnings- and besiktningstabellerna (`_authenticated.apartments.$id.tsx`), the akut-klockan incl. its realtime toast (`AkutWatcher.tsx`), `GlobalSearch` (issues + projects), and the **byggnadskortens siffror** (`SectionOverviewPage.loadStats`, `IssuesPropertyOverview.loadOpenIssueBadges`, `OppnaArendenOverview.loadCombinedOppnaStats`). The property-scoped `IssuesTab`/`InspectionsTab`/`ProjectsTab` in `property-tabs.tsx` already did this inline with the same `?? "__none__"` pattern.
 
@@ -102,6 +104,35 @@ Wired: the apartment **Tidslinje**, felanmälnings- and besiktningstabellerna (`
 - **It is UI filtering, not a boundary** — the DB still lets any authenticated user read every ärende (closing that needs RLS on issues/inspections/projects; deferred by decision 2026-07-30). Never describe this as access control.
 - Known remaining leak, deliberate for now: **loggbok**. `logbook_entries` has no ärende link, and lifecycle writes put the ärende's title in the entry text, so an entreprenör can still read loggbok lines about other people's ärenden. Fixing it needs a column on `logbook_entries`, not a filter.
 - If an entreprenör sees *nothing* rather than too much, it is usually not this code: `contacts.profile_id` is filled in **by hand**, so an ärende assigned to an unlinked duplicate contact is invisible everywhere. `supabase-functions/diagnose-entreprenor-scope.sql` (read-only) prints `syns_for_inloggning` per ärende and is the fastest way to tell the two apart.
+
+## Delegering — "samma person, två konton" (`contact_delegations`)
+Client spec (2026-09-01): **plattform@bayt.se and makkin@live.se are one person. Signed in as plattform you reach both; signed in as makkin you see only makkin.** Deliberately *not* a merge — no login is deleted, no ärende is rewritten, and the direction is one-way.
+
+`assigned_contact_id` is history: rewriting old ärenden onto one contact would make loggbok, Historik and every sent e-mail point at someone who never did the job. So the delegation changes who may **see** a post, never who it belonged to.
+
+- **The mechanism is one table and one function** (`supabase-functions/account-delegation.sql`, **run by hand — not applied unless someone ran it**). `contact_delegations (contact_id, profile_id)` means "this login may also act as this contact". `my_contact_ids()` is the union of own + delegated, and the four RLS helpers (`has_apartment_assignment`, `has_property_assignment`, `has_object_assignment`, `is_my_arende`) all swapped their opening `WHERE c.profile_id = auth.uid()` for `WHERE c.id IN (SELECT my_contact_ids())`. Their bodies are otherwise byte-identical to the copies in `audit-events.sql` / `entreprenor-read-scope.sql` / `property-objects-scoped-rls.sql` — same must-not-drift contract as `normalizeTrappa` ↔ `submit-felanmalan.ts`.
+- **The same rule lives in three languages and they change together:** `my_contact_ids()` (SQL) · `useMyContactIds()` (`src/hooks/useMyContactId.ts`) · `contactsForEmail()` + `delegatedContactIds()` (`supabase-functions/entreprenor-portal.ts`, the passwordless `/mina-arenden` portal). Miss the third and the same person sees different ärenden depending on which door they came in.
+- **Every client read of `contact_delegations` swallows its error**, exactly like `active` on `contacts`: the table comes from a hand-run migration, and a missing table must degrade to "no delegations" — never to an empty ärendelista or a broken page.
+- RLS on the new table is safe to enable (it is new; nothing read it before). Read = admin, or your own rows. Write = admin only: handing out someone else's ärenden is an administrative decision.
+- Adding another pair means one `INSERT` into `contact_delegations`, nothing else. Section 5 of the SQL file is the template, and its section 6 verifies the **direction** — the check that matters is that the delegated account got *nothing* back.
+
+## Entreprenörer (admin) — `/entreprenorer`
+Admin-only page (`_authenticated.entreprenorer.tsx`) answering "what have we handed out, to whom, and how is it going". Not a second contact register — `/contacts` is that; this one is grouped by entreprenör with their ärenden and **härledd status** underneath.
+
+- Reads through `useDeladeArenden()` in `useMyArenden.ts`, a third `ArendeScope` (`by: "assigned"` → `assigned_contact_id IS NOT NULL`). It is the only scope that narrows nothing, so it is the only one gated on a role: `canAccess` keeps everyone but admin off the route **and** the page re-checks `profile?.role` before querying.
+- Rows render `<DerivedStatusBadge>` and link through `arendeHref()` — now exported from `useMyArenden.ts` and shared with Dag Rapport's sheet, so **fastighet först** can't drift between the two.
+- The **Konto** column is the point of the page as much as the ärenden are: an entreprenör with no `profile_id` and no delegation sees nothing in the portal however many ärenden are listed here. That is the usual cause of "jag ser inga ärenden".
+- "Senast mejlad" is a **heuristic, and labelled as one**: `logbook_entries` has no ärende or contact column, so it matches the address in the trailing `(...)` that `notifyEntreprenorAboutIssue` writes. It answers "has this address had anything, and when" — never "did *this* ärende go out".
+
+## Ett tilldelat ärende syns utan ominloggning
+`assigned_contact_id` is written by an admin in a different browser, so nothing in the contractor's client knew to refetch — `["mina-arenden"]` was only ever invalidated by the lifecycle buttons, which only they press. The result was that an entreprenör had to sign out and in to see work assigned to them. It was never a permissions problem: the row existed and RLS allowed it, it was simply never fetched again.
+
+**Three layers, deliberately, so nothing hangs on one mechanism:**
+1. `useArendeRealtime()` (`src/hooks/useArendeRealtime.ts`), mounted once in `AppShell` — postgres_changes on issues/inspections/projects, invalidating the `STALE_PREFIXES` list. Unfiltered channel like `AkutWatcher` (Realtime can't filter on a list; RLS limits the stream anyway), so the scope test is redone client-side against `useMyContactIds`.
+2. `refetchOnWindowFocus` on `useMyArenden` / `useMyContactIds` / `useDeladeArenden`.
+3. `refetchInterval` on the first two — the parachute for `inspections`/`projects` possibly not being in the Realtime publication (`issues` is, `AkutWatcher` relies on it).
+
+A green toast fires only for an ärende that was **not already known** to be mine, seeded from the first `useMyArenden` result — otherwise the first load would pop one per existing ärende, and a plain status change would be announced as a new assignment. `useMyContactIds` refetches too, so a contact link created while the user is signed in also lands without a re-login.
 
 ## Dag Rapport — three different pages on one URL
 `/dag-rapport` branches on role in `_authenticated.dag-rapport.tsx`: admin keeps the building-wide day view (`VeckansArendenSection` + today's akuta/förfallna felanmälningar), **entreprenör gets `EntreprenorDagRapport`** (`src/components/EntreprenorDagRapport.tsx`) — their landing page (`HOME_FOR_ROLE`) and whole working surface. Two lists, both fed by `useMyArenden` (`src/hooks/useMyArenden.ts`):
@@ -138,12 +169,25 @@ Section 1 is deliberately a subset of section 2. Avslutade ärenden appear in ne
 `src/hooks/useRecordScopeGuard.ts` guards every detail page (they're all URL-reachable). `assignedContactId` and `propertyId` each carry **three** meanings and collapsing them is a real bug:
 - a string → known, compare it; `null` → genuinely unassigned/no building, deny a non-admin; **`undefined` → not known yet (loading, or the read failed) → decide nothing.**
 - Call sites must write `data ? (data.assigned_contact_id ?? null) : undefined`, **never** `data?.assigned_contact_id ?? null`. The `??` form turned a failed read into "assigned to nobody" and evicted an entreprenör from their own felanmälan.
+- The entreprenör test is `contactIds?.includes(assignedContactId)`, **not `=== contactId`** — a delegated account holds several contacts and an `===` check would evict it from ärenden it is entitled to (see *Delegering*).
 - Denial redirects to the role's own home (`homeForRole` in `src/lib/permissions.ts`, shared with `_authenticated.tsx`'s `beforeLoad`), not to a section grid. Bouncing an entreprenör onto a building picker they can't populate is what read as "the app lost my ärende".
+
+## Tilldelning mejlas ut — felanmälan → entreprenör
+Att välja en entreprenör som ansvarig på en **felanmälan** är också att skicka ärendet till hen. Klientkrav 2026-09-01. Tre delar, och de hänger ihop:
+
+- **Ingen entreprenör utan e-post går att välja.** `AnsvarigDropdown` markerar en kontakt utan adress med "— e-post saknas" redan i listan, och att välja den öppnar ett litet fält i stället för att tilldela: adressen sparas på `contacts` och valet går igenom i samma rörelse (`emailFixFor.assignOnSave`). Snabbformuläret "+ Lägg till entreprenör" kräver e-post av samma skäl — en ny kontakt utan adress hade skapats bara för att omedelbart fastna i spärren. **Icke-admin blockeras inte**: de får ändå inte skriva i `contacts`, så en spärr vore en återvändsgränd; de ser varningen i stället. Spärren gäller hela dropdownen, alltså även besiktning och projekt — kravet sitter på kontakten, inte på ärendetypen.
+- **Bekräftelserutan ställs FÖRE skrivningen till `issues`.** `gateEntreprenorEmail()` (`src/lib/entreprenor-notify.ts`) → `askEntreprenorEmail()` (`src/components/EntreprenorEmailDialog.tsx`, samma imperativa mönster som `confirmDialog`) visar adressen redigerbar: rättas den sparas den nya adressen på entreprenören direkt och används därefter. **Avbryt avbryter hela sparningen** — hade tilldelningen blivit kvar utan utskick skulle nästa sparning inte fråga igen, eftersom grinden bara reagerar på ett *byte* av `assigned_contact_id`. Samma grind i `issues.new` (inget ärende skapas alls) och `issues/$id`.
+- **Utskicket sker EFTER skrivningen**, via edge-funktionen `notify-entreprenor`. Mejlet innehåller ärendets uppgifter och ska spegla det som faktiskt sparades. Ett misslyckat utskick rullar **inte** tillbaka sparningen — det rapporteras i toasten ("Ändringarna sparades, men …"), och en lyckad skrivs till loggboken som `entreprenor_notifierad` (labeln finns i `EVENT_LABEL`).
+- Funktionen tar **bara `issue_id`** och läser mottagaradressen ur `contacts` — aldrig ur anropet. En "skicka till den här adressen"-parameter hade gjort den till en generell mailrelä. Den är admin-only (rollkoll mot `profiles` inuti funktionen, utöver `verify_jwt`), och klienten kör därför hela grinden bara för admin; en entreprenör som byter ansvarig sparar utan utskick.
+- SMTP-hemligheterna är **samma som `notify-progress` redan använder** (`SMTP_HOST/PORT/USER/PASS/FROM`, bayt.se:s egen brevlåda via denomailer). Inga nya secrets behövs om notify-progress fungerar.
+- Det här är skilt från `notify-progress`, som mejlar **boenden**. Den triggern fyrar också när `assigned_contact_id` sätts (steg 1, "En entreprenör är tilldelad ditt ärende") — så en tilldelning skickar två mejl till två olika mottagare, avsiktligt.
 
 ## Edge Functions (NOT in this repo's build — deployed by hand)
 Source kept in `supabase-functions/*.ts` for reference/version-tracking only; Supabase doesn't read from this folder. After editing, the file must be manually copied into the Supabase dashboard and redeployed.
 - `invite-user` — creates an auth user + profile (source not kept locally, only referenced in chat history)
 - `submit-felanmalan` — public felanmälan intake, see above
+- `notify-progress` — mejlar boenden vid varje /arendestatus-milstolpe, anropas bara av `issues_progress_notify_trigger`
+- `notify-entreprenor` — mejlar ärendet till den tilldelade entreprenören, anropas från webben av en admin (se ovan)
 Both need a service role key. Supabase reserves the `SUPABASE_` prefix so you **cannot create** `SUPABASE_SERVICE_ROLE_KEY` yourself — but the platform auto-injects it into every function as a "default secret" (visible under Edge Functions → Secrets → Default secrets, marked deprecated but still working). A custom secret named exactly `SERVICE_ROLE_KEY` also works. `submit-felanmalan` reads `SERVICE_ROLE_KEY` and falls back to `SUPABASE_SERVICE_ROLE_KEY`, returning a 500 with an explicit Swedish message if neither resolves — this had already broken the function twice (missing secret, then name/value swapped in the dashboard form). If `invite-user` returns a non-2xx, check its secret first; it has no such fallback.
 
 ## Notiser (top-bar bell)

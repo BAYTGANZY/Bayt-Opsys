@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as StyrelseRouteImport } from './routes/styrelse'
 import { Route as StartRouteImport } from './routes/start'
+import { Route as MinaArendenRouteImport } from './routes/mina-arenden'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as FelanmalanRouteImport } from './routes/felanmalan'
 import { Route as DemoRouteImport } from './routes/demo'
@@ -23,6 +24,7 @@ import { Route as AuthenticatedOppnaArendenRouteImport } from './routes/_authent
 import { Route as AuthenticatedLoggbokRouteImport } from './routes/_authenticated.loggbok'
 import { Route as AuthenticatedInstallningarRouteImport } from './routes/_authenticated.installningar'
 import { Route as AuthenticatedFelanmalningarRouteImport } from './routes/_authenticated.felanmalningar'
+import { Route as AuthenticatedEntreprenorerRouteImport } from './routes/_authenticated.entreprenorer'
 import { Route as AuthenticatedEkonomiRouteImport } from './routes/_authenticated.ekonomi'
 import { Route as AuthenticatedDokumentRouteImport } from './routes/_authenticated.dokument'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated.dashboard'
@@ -80,6 +82,11 @@ const StyrelseRoute = StyrelseRouteImport.update({
 const StartRoute = StartRouteImport.update({
   id: '/start',
   path: '/start',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MinaArendenRoute = MinaArendenRouteImport.update({
+  id: '/mina-arenden',
+  path: '/mina-arenden',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -142,6 +149,12 @@ const AuthenticatedFelanmalningarRoute =
   AuthenticatedFelanmalningarRouteImport.update({
     id: '/felanmalningar',
     path: '/felanmalningar',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedEntreprenorerRoute =
+  AuthenticatedEntreprenorerRouteImport.update({
+    id: '/entreprenorer',
+    path: '/entreprenorer',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedEkonomiRoute = AuthenticatedEkonomiRouteImport.update({
@@ -432,6 +445,7 @@ export interface FileRoutesByFullPath {
   '/demo': typeof DemoRoute
   '/felanmalan': typeof FelanmalanRoute
   '/login': typeof LoginRoute
+  '/mina-arenden': typeof MinaArendenRoute
   '/start': typeof StartRoute
   '/styrelse': typeof StyrelseRoute
   '/chatt': typeof AuthenticatedChattRoute
@@ -439,6 +453,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/dokument': typeof AuthenticatedDokumentRoute
   '/ekonomi': typeof AuthenticatedEkonomiRoute
+  '/entreprenorer': typeof AuthenticatedEntreprenorerRoute
   '/felanmalningar': typeof AuthenticatedFelanmalningarRoute
   '/installningar': typeof AuthenticatedInstallningarRoute
   '/loggbok': typeof AuthenticatedLoggbokRoute
@@ -495,6 +510,7 @@ export interface FileRoutesByTo {
   '/demo': typeof DemoRoute
   '/felanmalan': typeof FelanmalanRoute
   '/login': typeof LoginRoute
+  '/mina-arenden': typeof MinaArendenRoute
   '/start': typeof StartRoute
   '/styrelse': typeof StyrelseRoute
   '/chatt': typeof AuthenticatedChattRoute
@@ -502,6 +518,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/dokument': typeof AuthenticatedDokumentRoute
   '/ekonomi': typeof AuthenticatedEkonomiRoute
+  '/entreprenorer': typeof AuthenticatedEntreprenorerRoute
   '/felanmalningar': typeof AuthenticatedFelanmalningarRoute
   '/installningar': typeof AuthenticatedInstallningarRoute
   '/loggbok': typeof AuthenticatedLoggbokRoute
@@ -559,6 +576,7 @@ export interface FileRoutesById {
   '/demo': typeof DemoRoute
   '/felanmalan': typeof FelanmalanRoute
   '/login': typeof LoginRoute
+  '/mina-arenden': typeof MinaArendenRoute
   '/start': typeof StartRoute
   '/styrelse': typeof StyrelseRoute
   '/_authenticated/chatt': typeof AuthenticatedChattRoute
@@ -566,6 +584,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/dokument': typeof AuthenticatedDokumentRoute
   '/_authenticated/ekonomi': typeof AuthenticatedEkonomiRoute
+  '/_authenticated/entreprenorer': typeof AuthenticatedEntreprenorerRoute
   '/_authenticated/felanmalningar': typeof AuthenticatedFelanmalningarRoute
   '/_authenticated/installningar': typeof AuthenticatedInstallningarRoute
   '/_authenticated/loggbok': typeof AuthenticatedLoggbokRoute
@@ -624,6 +643,7 @@ export interface FileRouteTypes {
     | '/demo'
     | '/felanmalan'
     | '/login'
+    | '/mina-arenden'
     | '/start'
     | '/styrelse'
     | '/chatt'
@@ -631,6 +651,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/dokument'
     | '/ekonomi'
+    | '/entreprenorer'
     | '/felanmalningar'
     | '/installningar'
     | '/loggbok'
@@ -687,6 +708,7 @@ export interface FileRouteTypes {
     | '/demo'
     | '/felanmalan'
     | '/login'
+    | '/mina-arenden'
     | '/start'
     | '/styrelse'
     | '/chatt'
@@ -694,6 +716,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/dokument'
     | '/ekonomi'
+    | '/entreprenorer'
     | '/felanmalningar'
     | '/installningar'
     | '/loggbok'
@@ -750,6 +773,7 @@ export interface FileRouteTypes {
     | '/demo'
     | '/felanmalan'
     | '/login'
+    | '/mina-arenden'
     | '/start'
     | '/styrelse'
     | '/_authenticated/chatt'
@@ -757,6 +781,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/dokument'
     | '/_authenticated/ekonomi'
+    | '/_authenticated/entreprenorer'
     | '/_authenticated/felanmalningar'
     | '/_authenticated/installningar'
     | '/_authenticated/loggbok'
@@ -815,6 +840,7 @@ export interface RootRouteChildren {
   DemoRoute: typeof DemoRoute
   FelanmalanRoute: typeof FelanmalanRoute
   LoginRoute: typeof LoginRoute
+  MinaArendenRoute: typeof MinaArendenRoute
   StartRoute: typeof StartRoute
   StyrelseRoute: typeof StyrelseRoute
 }
@@ -833,6 +859,13 @@ declare module '@tanstack/react-router' {
       path: '/start'
       fullPath: '/start'
       preLoaderRoute: typeof StartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mina-arenden': {
+      id: '/mina-arenden'
+      path: '/mina-arenden'
+      fullPath: '/mina-arenden'
+      preLoaderRoute: typeof MinaArendenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -917,6 +950,13 @@ declare module '@tanstack/react-router' {
       path: '/felanmalningar'
       fullPath: '/felanmalningar'
       preLoaderRoute: typeof AuthenticatedFelanmalningarRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/entreprenorer': {
+      id: '/_authenticated/entreprenorer'
+      path: '/entreprenorer'
+      fullPath: '/entreprenorer'
+      preLoaderRoute: typeof AuthenticatedEntreprenorerRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/ekonomi': {
@@ -1338,6 +1378,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDokumentRoute: typeof AuthenticatedDokumentRoute
   AuthenticatedEkonomiRoute: typeof AuthenticatedEkonomiRoute
+  AuthenticatedEntreprenorerRoute: typeof AuthenticatedEntreprenorerRoute
   AuthenticatedFelanmalningarRoute: typeof AuthenticatedFelanmalningarRoute
   AuthenticatedInstallningarRoute: typeof AuthenticatedInstallningarRoute
   AuthenticatedLoggbokRoute: typeof AuthenticatedLoggbokRoute
@@ -1372,6 +1413,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDokumentRoute: AuthenticatedDokumentRoute,
   AuthenticatedEkonomiRoute: AuthenticatedEkonomiRoute,
+  AuthenticatedEntreprenorerRoute: AuthenticatedEntreprenorerRoute,
   AuthenticatedFelanmalningarRoute: AuthenticatedFelanmalningarRoute,
   AuthenticatedInstallningarRoute: AuthenticatedInstallningarRoute,
   AuthenticatedLoggbokRoute: AuthenticatedLoggbokRoute,
@@ -1415,6 +1457,7 @@ const rootRouteChildren: RootRouteChildren = {
   DemoRoute: DemoRoute,
   FelanmalanRoute: FelanmalanRoute,
   LoginRoute: LoginRoute,
+  MinaArendenRoute: MinaArendenRoute,
   StartRoute: StartRoute,
   StyrelseRoute: StyrelseRoute,
 }

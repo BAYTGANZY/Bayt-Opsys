@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { useMyContactId } from "@/hooks/useMyContactId";
+import { useMyContactIds } from "@/hooks/useMyContactId";
 
 /**
  * Apartments an entreprenör is allowed to open.
@@ -17,17 +17,19 @@ import { useMyContactId } from "@/hooks/useMyContactId";
  * is UI-level defence only; the database is the real boundary.
  */
 export function useMyAssignedApartmentIds() {
-  const { contactId, isEntreprenor } = useMyContactId();
+  const { contactIds, isEntreprenor } = useMyContactIds();
+  const idsKey = contactIds?.join(",") ?? null;
 
   const q = useQuery({
-    queryKey: ["entreprenor-apartment-ids", contactId],
-    enabled: isEntreprenor && !!contactId,
+    queryKey: ["entreprenor-apartment-ids", idsKey],
+    enabled: isEntreprenor && !!contactIds?.length,
     queryFn: async () => {
+      const myIds = contactIds!;
       const [issues, inspections] = await Promise.all([
         supabase.from("issues").select("apartment_id")
-          .eq("assigned_contact_id", contactId!).not("apartment_id", "is", null),
+          .in("assigned_contact_id", myIds).not("apartment_id", "is", null),
         supabase.from("inspections").select("apartment_id")
-          .eq("assigned_contact_id", contactId!).not("apartment_id", "is", null),
+          .in("assigned_contact_id", myIds).not("apartment_id", "is", null),
       ]);
       const ids = new Set<string>();
       for (const res of [issues, inspections]) {
@@ -41,10 +43,10 @@ export function useMyAssignedApartmentIds() {
 
   return {
     apartmentIds: q.data,
-    // contactId === undefined means "still resolving". Without folding that into
+    // contactIds === undefined means "still resolving". Without folding that into
     // isLoading we would briefly claim a contractor has no apartments and
     // redirect them off a page they are entitled to.
-    isLoading: isEntreprenor && (contactId === undefined || q.isLoading),
+    isLoading: isEntreprenor && (contactIds === undefined || q.isLoading),
     isEntreprenor,
   };
 }

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useMyContactId, useMyArendeScope } from "@/hooks/useMyContactId";
+import { useMyArendeScope } from "@/hooks/useMyContactId";
 import { SectionHeaderRow, SortFilterControls, sortByMode, NEXT_SORT_MODE, type SortMode } from "@/components/SortFilterControls";
 import {
   APARTMENT_STATUSES,
@@ -354,9 +354,9 @@ export function ApartmentsTab({ propertyId }: { propertyId: string }) {
   // "Bara mina ärenden" gäller här också: en entreprenörs ordning ska spegla
   // deras egna ärenden, inte byggnadens. (useMyAssignedApartmentIds ovan avgör
   // vilka *rader* de ser — det här avgör vad som räknas in i angelägenheten.)
-  const { filterContactId, ready: scopeReady } = useMyArendeScope();
+  const { filterContactIds, ready: scopeReady } = useMyArendeScope();
   const urgencyQ = useQuery({
-    queryKey: ["apartments-urgency", propertyId, filterContactId],
+    queryKey: ["apartments-urgency", propertyId, filterContactIds],
     enabled: scopeReady,
     queryFn: async () => {
       let issues = supabase
@@ -364,14 +364,14 @@ export function ApartmentsTab({ propertyId }: { propertyId: string }) {
         .select("apartment_id, status, priority, deadline, created_at")
         .eq("property_id", propertyId)
         .not("apartment_id", "is", null);
-      if (filterContactId) issues = issues.eq("assigned_contact_id", filterContactId);
+      if (filterContactIds) issues = issues.in("assigned_contact_id", filterContactIds);
 
       let inspections = supabase
         .from("inspections")
         .select("apartment_id, arende_status, status, next_due_date, last_completed_date, interval_months")
         .eq("property_id", propertyId)
         .not("apartment_id", "is", null);
-      if (filterContactId) inspections = inspections.eq("assigned_contact_id", filterContactId);
+      if (filterContactIds) inspections = inspections.in("assigned_contact_id", filterContactIds);
 
       const [i, b] = await Promise.all([issues, inspections]);
       if (i.error) throw i.error;
@@ -611,13 +611,13 @@ export function ApartmentsTab({ propertyId }: { propertyId: string }) {
 
 export function usePropertyIssues(propertyId: string) {
   // Entreprenörer only ever see errands assigned to them.
-  const { contactId, isEntreprenor } = useMyContactId();
+  const { filterContactIds, ready } = useMyArendeScope();
   return useQuery({
-    queryKey: ["issues", propertyId, isEntreprenor ? contactId : null],
-    enabled: !isEntreprenor || contactId !== undefined,
+    queryKey: ["issues", propertyId, filterContactIds],
+    enabled: ready,
     queryFn: async () => {
       let q = supabase.from("issues").select("id, title, status, priority, deadline, created_at, created_by").eq("property_id", propertyId);
-      if (isEntreprenor) q = q.eq("assigned_contact_id", contactId ?? "__none__");
+      if (filterContactIds) q = q.in("assigned_contact_id", filterContactIds);
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];
@@ -626,13 +626,13 @@ export function usePropertyIssues(propertyId: string) {
 }
 
 export function usePropertyInspections(propertyId: string) {
-  const { contactId, isEntreprenor } = useMyContactId();
+  const { filterContactIds, ready } = useMyArendeScope();
   return useQuery({
-    queryKey: ["inspections", propertyId, isEntreprenor ? contactId : null],
-    enabled: !isEntreprenor || contactId !== undefined,
+    queryKey: ["inspections", propertyId, filterContactIds],
+    enabled: ready,
     queryFn: async () => {
       let q = supabase.from("inspections").select("id, inspection_type, inspector, last_completed_date, next_due_date, interval_months, status, arende_status, created_at, created_by").eq("property_id", propertyId);
-      if (isEntreprenor) q = q.eq("assigned_contact_id", contactId ?? "__none__");
+      if (filterContactIds) q = q.in("assigned_contact_id", filterContactIds);
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];
@@ -641,13 +641,13 @@ export function usePropertyInspections(propertyId: string) {
 }
 
 export function usePropertyProjects(propertyId: string) {
-  const { contactId, isEntreprenor } = useMyContactId();
+  const { filterContactIds, ready } = useMyArendeScope();
   return useQuery({
-    queryKey: ["projects", propertyId, isEntreprenor ? contactId : null],
-    enabled: !isEntreprenor || contactId !== undefined,
+    queryKey: ["projects", propertyId, filterContactIds],
+    enabled: ready,
     queryFn: async () => {
       let q = supabase.from("projects").select("id, title, status, arende_status, budget, start_date, end_date, created_at, created_by").eq("property_id", propertyId);
-      if (isEntreprenor) q = q.eq("assigned_contact_id", contactId ?? "__none__");
+      if (filterContactIds) q = q.in("assigned_contact_id", filterContactIds);
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];

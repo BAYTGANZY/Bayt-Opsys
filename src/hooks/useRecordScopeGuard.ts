@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth";
 import { homeForRole } from "@/lib/permissions";
 import { useVisibleProperties } from "@/hooks/useVisibleProperties";
-import { useMyContactId } from "@/hooks/useMyContactId";
+import { useMyContactIds } from "@/hooks/useMyContactId";
 import { useMyAssignedApartmentIds } from "@/hooks/useMyAssignedApartmentIds";
 
 /**
@@ -52,18 +52,20 @@ export function useRecordScopeGuard({
   const { profile } = useAuth();
   const role = profile?.role;
   const { allowedIds, isLoading: scopeLoading } = useVisibleProperties();
-  const { contactId, isEntreprenor } = useMyContactId();
+  const { contactIds, isEntreprenor } = useMyContactIds();
   const { apartmentIds, isLoading: aptScopeLoading } = useMyAssignedApartmentIds();
 
   const ready =
     !loading && !scopeLoading && !aptScopeLoading &&
-    (!isEntreprenor || contactId !== undefined);
+    (!isEntreprenor || contactIds !== undefined);
 
   let denied = false;
   if (ready && role !== "admin") {
     if (isEntreprenor && assignedContactId !== undefined) {
-      // Errand-level records: assignment is what grants access.
-      denied = !contactId || assignedContactId !== contactId;
+      // Errand-level records: assignment is what grants access. `includes` and
+      // not `===`: ett konto kan ha delegerats en annan entreprenörs kontakt
+      // och måste då kunna öppna den kontaktens ärenden (useMyContactIds).
+      denied = !assignedContactId || !contactIds?.includes(assignedContactId);
     } else if (isEntreprenor && apartmentId) {
       // Apartments have no assignment column, so entitlement comes from holding
       // an ärende in the unit. Building scope would be far too broad here.

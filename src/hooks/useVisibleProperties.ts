@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
-import { useMyContactId } from "@/hooks/useMyContactId";
+import { useMyContactIds } from "@/hooks/useMyContactId";
 
 /**
  * The set of property ids the signed-in user is allowed to see.
@@ -21,7 +21,10 @@ import { useMyContactId } from "@/hooks/useMyContactId";
 export function useVisibleProperties() {
   const { user, profile } = useAuth();
   const role = profile?.role;
-  const { contactId, isEntreprenor } = useMyContactId();
+  const { contactIds, isEntreprenor } = useMyContactIds();
+  // Sorterad sträng som cachenyckel — en ny array per render skulle annars ge
+  // en ny cachepost per render.
+  const idsKey = contactIds?.join(",") ?? null;
 
   const isStyrelse = role === "styrelse";
 
@@ -39,13 +42,17 @@ export function useVisibleProperties() {
   });
 
   const entreprenorQ = useQuery({
-    queryKey: ["entreprenor-property-ids", contactId],
-    enabled: isEntreprenor && !!contactId,
+    queryKey: ["entreprenor-property-ids", idsKey],
+    enabled: isEntreprenor && !!contactIds?.length,
     queryFn: async () => {
+      // `.in` och inte `.eq`: ett konto kan ha delegerats en annan entreprenörs
+      // kontaktpost, och då hör den kontaktens byggnader också hit. Se
+      // useMyContactIds.
+      const myIds = contactIds!;
       const [issues, inspections, projects] = await Promise.all([
-        supabase.from("issues").select("property_id").eq("assigned_contact_id", contactId!),
-        supabase.from("inspections").select("property_id").eq("assigned_contact_id", contactId!),
-        supabase.from("projects").select("property_id").eq("assigned_contact_id", contactId!),
+        supabase.from("issues").select("property_id").in("assigned_contact_id", myIds),
+        supabase.from("inspections").select("property_id").in("assigned_contact_id", myIds),
+        supabase.from("projects").select("property_id").in("assigned_contact_id", myIds),
       ]);
       const ids = new Set<string>();
       for (const res of [issues, inspections, projects]) {
@@ -66,9 +73,9 @@ export function useVisibleProperties() {
   if (isEntreprenor) {
     return {
       allowedIds: entreprenorQ.data ?? new Set<string>(),
-      // contactId still resolving counts as loading — otherwise we'd briefly claim
+      // contactIds still resolving counts as loading — otherwise we'd briefly claim
       // "no buildings" for a user who actually has several.
-      isLoading: contactId === undefined || entreprenorQ.isLoading,
+      isLoading: contactIds === undefined || entreprenorQ.isLoading,
     };
   }
 

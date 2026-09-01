@@ -46,19 +46,19 @@ function escapeLike(s: string) {
 }
 
 /**
- * `filterContactId` (from useMyArendeScope) narrows the ärende hits to the
+ * `filterContactIds` (from useMyArendeScope) narrows the ärende hits to the
  * signed-in entreprenör's own felanmälningar and projekt. The search box is in
  * the top bar for every role, so without this an entreprenör could find any
  * ärende in the system by typing a word from its title.
  */
-async function runSearch(term: string, filterContactId: string | null): Promise<Section[]> {
+async function runSearch(term: string, filterContactIds: string[] | null): Promise<Section[]> {
   const q = `%${escapeLike(term)}%`;
   // Plain <T> on purpose: an F-bounded constraint (T extends { eq(...): T })
   // makes tsc recursively instantiate supabase's builder generics and die with
   // TS2589. The cast is runtime-identical — eq() returns the same builder.
   const scoped = <T,>(builder: T): T =>
-    filterContactId
-      ? ((builder as { eq(col: string, val: string): unknown }).eq("assigned_contact_id", filterContactId) as T)
+    filterContactIds
+      ? ((builder as { in(col: string, val: string[]): unknown }).in("assigned_contact_id", filterContactIds) as T)
       : builder;
 
   const [propsR, docsR, issuesR, contactsR, projectsR] = await Promise.all([
@@ -167,7 +167,7 @@ async function runSearch(term: string, filterContactId: string | null): Promise<
 
 export function GlobalSearch() {
   const navigate = useNavigate();
-  const { filterContactId, ready } = useMyArendeScope();
+  const { filterContactIds, ready } = useMyArendeScope();
   const [term, setTerm] = useState("");
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -190,7 +190,7 @@ export function GlobalSearch() {
     if (!ready) return;
     const handle = setTimeout(() => {
       let cancelled = false;
-      runSearch(trimmed, filterContactId)
+      runSearch(trimmed, filterContactIds)
         .then((r) => {
           if (!cancelled) setSections(r);
         })
@@ -205,7 +205,7 @@ export function GlobalSearch() {
       };
     }, 300);
     return () => clearTimeout(handle);
-  }, [trimmed, isSearching, ready, filterContactId]);
+  }, [trimmed, isSearching, ready, filterContactIds]);
 
   // Close on outside click
   useEffect(() => {

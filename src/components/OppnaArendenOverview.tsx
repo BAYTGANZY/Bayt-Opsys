@@ -18,14 +18,14 @@ const PROPERTY_COLUMNS = "id, name, address, image_url";
 
 // Combines only genuinely "oppet" errands (issues + inspections + projects) per
 // building — vilande (not-yet-opened) and avslutade errands are excluded.
-async function loadCombinedOppnaStats(filterContactId: string | null): Promise<Record<string, CombinedStat>> {
+async function loadCombinedOppnaStats(filterContactIds: string[] | null): Promise<Record<string, CombinedStat>> {
   // Same scope rule as everywhere else: an entreprenör counts only their own.
   // Plain <T> on purpose: an F-bounded constraint (T extends { eq(...): T })
   // makes tsc recursively instantiate supabase's builder generics and die with
   // TS2589. The cast is runtime-identical — eq() returns the same builder.
   const scoped = <T,>(builder: T): T =>
-    filterContactId
-      ? ((builder as { eq(col: string, val: string): unknown }).eq("assigned_contact_id", filterContactId) as T)
+    filterContactIds
+      ? ((builder as { in(col: string, val: string[]): unknown }).in("assigned_contact_id", filterContactIds) as T)
       : builder;
   const [issues, inspections, projects] = await Promise.all([
     scoped(supabase.from("issues").select("property_id, deadline, viewed_at").in("status", ["pagande", "oppet", "vantar"])),
@@ -65,11 +65,11 @@ export function OppnaArendenOverview() {
   const isMobile = useIsMobile();
   const [q, setQ] = useState("");
   const { properties, allowedIds, isLoading: pLoading } = useScopedProperties<Property>(PROPERTY_COLUMNS);
-  const { filterContactId, ready } = useMyArendeScope();
+  const { filterContactIds, ready } = useMyArendeScope();
   const { data: stats = {}, isLoading: sLoading } = useQuery({
-    queryKey: ["oppna-arenden-combined-stats", filterContactId],
+    queryKey: ["oppna-arenden-combined-stats", filterContactIds],
     enabled: ready,
-    queryFn: () => loadCombinedOppnaStats(filterContactId),
+    queryFn: () => loadCombinedOppnaStats(filterContactIds),
   });
 
   const filtered = useMemo(() => {

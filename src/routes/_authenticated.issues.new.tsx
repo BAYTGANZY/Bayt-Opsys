@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { FileDropzone } from "@/components/FileDropzone";
@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ISSUE_CATEGORIES, derivePriority } from "@/lib/issue-tokens";
 import { AnsvarigDropdown } from "@/components/AnsvarigDropdown";
+import { gateEntreprenorEmail, notifyEntreprenorAboutIssue } from "@/lib/entreprenor-notify";
 import { ObjectDropdown } from "@/components/ObjectDropdown";
 import { ChevronSelect } from "@/components/ChevronSelect";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
@@ -64,7 +65,8 @@ const textareaStyle: React.CSSProperties = {
 export function NewIssuePage({ initialPropertyId, lockProperty }: { initialPropertyId?: string; lockProperty?: boolean } = {}) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const qc = useQueryClient();
   const [propertyId, setPropertyId] = useState(initialPropertyId ?? "");
   const [apartmentId, setApartmentId] = useState("");
   const [propertyObjectId, setPropertyObjectId] = useState<string | null>(null);
@@ -121,6 +123,32 @@ export function NewIssuePage({ initialPropertyId, lockProperty }: { initialPrope
     if (!propertyId || !title.trim() || !user) {
       setError("Fastighet och rubrik krävs");
       return;
+    }
+    // Tilldelas en entreprenör redan här mejlas ärendet ut till hen så fort
+    // det är skapat — så adressen bekräftas innan något skrivs. Backar admin
+    // ur rutan skapas ingen felanmälan alls: hade den skapats tilldelad utan
+    // utskick hade nästa sparning inte frågat igen (grinden i issues/$id
+    // reagerar bara på ett *byte* av entreprenör).
+    let gateEmail: string | null = null;
+    let gateName: string | null = null;
+    if (profile?.role === "admin" && assignedContactId) {
+      try {
+        const gate = await gateEntreprenorEmail({
+          contactId: assignedContactId,
+          qc,
+          arendeTitle: title.trim(),
+          confirmLabel: "Skicka och spara",
+        });
+        if (!gate.ok) {
+          setError("Ingenting sparades — entreprenören tilldelades inte.");
+          return;
+        }
+        gateEmail = gate.email;
+        gateName = gate.name;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Kunde inte spara e-postadressen.");
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -181,8 +209,37 @@ export function NewIssuePage({ initialPropertyId, lockProperty }: { initialPrope
         if (imgErr) fileFailures.push(`${file.name}: ${imgErr.message}`);
       }
 
+      // Ärendet finns nu — utskicket speglar det som faktiskt sparades. Ett
+      // misslyckat mejl ångrar inte felanmälan; det rapporteras.
+      let mailedTo: string | null = null;
+      let mailError: string | null = null;
+      if (gateEmail) {
+        try {
+          await notifyEntreprenorAboutIssue({
+            issueId,
+            propertyId,
+            apartmentId: apartmentId || null,
+            propertyObjectId,
+            title: title.trim(),
+            contactName: gateName ?? "entreprenören",
+            email: gateEmail,
+            createdBy: user.id,
+          });
+          mailedTo = gateEmail;
+        } catch (err) {
+          mailError = err instanceof Error ? err.message : "E-posten kunde inte skickas.";
+        }
+      }
+
+      const problems: string[] = [];
       if (fileFailures.length) {
-        toast.error(`Felanmälan skapades, men ${fileFailures.length === 1 ? "en fil" : `${fileFailures.length} filer`} kunde inte laddas upp: ${fileFailures.join("; ")}`);
+        problems.push(`${fileFailures.length === 1 ? "en fil" : `${fileFailures.length} filer`} kunde inte laddas upp: ${fileFailures.join("; ")}`);
+      }
+      if (mailError) problems.push(mailError);
+      if (problems.length) {
+        toast.error(`Felanmälan skapades, men ${problems.join(" ")}`);
+      } else if (mailedTo) {
+        toast.success(`Sparat! Ärendet skickades till ${mailedTo}.`, { style: { background: "#3D8A30", color: "#fff" } });
       } else {
         toast.success("Sparat!", { style: { background: "#3D8A30", color: "#fff" } });
       }

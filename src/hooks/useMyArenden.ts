@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { useMyContactId } from "@/hooks/useMyContactId";
+import { useMyContactIds } from "@/hooks/useMyContactId";
 import { useVisibleProperties } from "@/hooks/useVisibleProperties";
 import {
   LIFECYCLE_OF,
@@ -70,6 +70,12 @@ export type MyArende = {
    * läser listan för att se vad som kommer göras och av vem.
    */
   assignedName: string | null;
+  /**
+   * Rå `assigned_contact_id`. Behövs bara av admins entreprenörssida, som
+   * grupperar ärenden per entreprenör och därför måste kunna jämföra på id och
+   * inte på ett namn (två kontakter kan heta likadant).
+   */
+  assignedContactId: string | null;
   description: string | null;
   createdAt: string | null;
   /** Per-ärendetyp extras for the detail sheet, in display order. */
@@ -183,17 +189,24 @@ type ObjectMap = Map<string, ObjectRow>;
  * utan att vara tilldelad någonting. Samma rader, olika urval.
  */
 type ArendeScope =
-  | { by: "contact"; contactId: string }
-  | { by: "properties"; propertyIds: string[] };
+  | { by: "contact"; contactIds: string[] }
+  | { by: "properties"; propertyIds: string[] }
+  /**
+   * "Allt som är utdelat till någon" — admins entreprenörsvy. Enda urvalet som
+   * inte är en inskränkning, och därför enda som bara admin får ställa: sidan
+   * som använder det ligger bakom canAccess + en egen rollkontroll.
+   */
+  | { by: "assigned" };
 
 async function loadArenden(scope: ArendeScope) {
   // PostgREST-byggarna är generiska på ett sätt som inte överlever en
   // hjälpfunktion; urvalet är ett `.eq`/`.in` och inget mer, så `any` här är
   // billigare än att typa om tre frågekedjor.
-  const scoped = (q: any) =>
-    scope.by === "contact"
-      ? q.eq("assigned_contact_id", scope.contactId)
-      : q.in("property_id", scope.propertyIds);
+  const scoped = (q: any) => {
+    if (scope.by === "contact") return q.in("assigned_contact_id", scope.contactIds);
+    if (scope.by === "properties") return q.in("property_id", scope.propertyIds);
+    return q.not("assigned_contact_id", "is", null);
+  };
 
   const [issues, inspections, projects] = await Promise.all([
     scoped(
@@ -387,6 +400,7 @@ function mapIssue(r: IssueRow, places: PlaceMap, names: NameMap, objects: Object
     apartmentId: r.apartment_id ?? obj.apartmentId,
     placeLabel: (r.apartment_id && places.get(r.apartment_id)) || obj.placeLabel,
     assignedName,
+    assignedContactId: r.assigned_contact_id ?? null,
     description: r.description,
     createdAt: r.created_at,
     meta,
@@ -432,6 +446,7 @@ function mapInspection(r: InspectionRow, places: PlaceMap, names: NameMap, objec
     apartmentId: r.apartment_id ?? obj.apartmentId,
     placeLabel: (r.apartment_id && places.get(r.apartment_id)) || obj.placeLabel,
     assignedName,
+    assignedContactId: r.assigned_contact_id ?? null,
     description: r.notes,
     createdAt: r.created_at,
     meta,
@@ -474,6 +489,7 @@ function mapProject(r: ProjectRow, names: NameMap, objects: ObjectMap, places: P
     apartmentId: obj.apartmentId,
     placeLabel: obj.placeLabel,
     assignedName,
+    assignedContactId: r.assigned_contact_id ?? null,
     description: r.description,
     createdAt: r.created_at,
     meta,
@@ -498,23 +514,30 @@ function toArenden(data: LoadedArenden | undefined): MyArende[] {
 }
 
 export function useMyArenden() {
-  const { contactId, isEntreprenor, isLoading: contactLoading } = useMyContactId();
+  const { contactIds, isEntreprenor, isLoading: contactLoading } = useMyContactIds();
+  const idsKey = contactIds?.join(",") ?? null;
 
   const q = useQuery({
     // Prefix "mina-arenden" — the lifecycle buttons invalidate on that prefix,
     // so öppna/avsluta refreshes this list wherever it is rendered.
-    queryKey: ["mina-arenden", contactId],
-    enabled: !!contactId,
-    queryFn: () => loadArenden({ by: "contact", contactId: contactId! }),
+    queryKey: ["mina-arenden", idsKey],
+    enabled: !!contactIds?.length,
+    queryFn: () => loadArenden({ by: "contact", contactIds: contactIds! }),
+    // Ett ärende kan tilldelas mig medan jag redan står på sidan. Utan de här
+    // två märks det inte förrän nästa inloggning — precis det problemet
+    // useArendeRealtime finns för att lösa, och de här är fallskärmen för när
+    // Realtime inte är påslaget på tabellen.
+    refetchOnWindowFocus: true,
+    refetchInterval: 2 * 60_000,
   });
 
   const arenden = useMemo(() => toArenden(q.data), [q.data]);
 
   return {
     arenden,
-    // contactId === undefined means "still resolving the contact link" — folding
+    // contactIds === undefined means "still resolving the contact link" — folding
     // it in stops the page flashing "inga ärenden" before the first fetch.
-    isLoading: contactLoading || (!!contactId && q.isLoading),
+    isLoading: contactLoading || (!!contactIds?.length && q.isLoading),
     error: q.error as Error | null,
     isEntreprenor,
   };
@@ -559,4 +582,58 @@ export function useByggnadensArenden() {
     /** Inga kopplade fastigheter alls — annat än "inga ärenden just nu". */
     noProperties: !scopeLoading && propertyIds !== null && propertyIds.length === 0,
   };
+}
+/**
+ * Varje ärende som är utdelat till en entreprenör — admins entreprenörsvy.
+ *
+ * Skild från de två ovan för att den ställer en tredje fråga: inte "vad är mitt"
+ * och inte "vad händer i mina hus", utan "vad har vi lämnat ifrån oss, till vem,
+ * och hur står det till med det". Ett ärende utan `assigned_contact_id` är per
+ * definition inte utdelat och hör inte hit.
+ *
+ * Avslutade ärenden hämtas med — sidan filtrerar dem i gränssnittet i stället,
+ * eftersom "vad blev gjort" är halva frågan sidan finns för.
+ *
+ * ADMIN ONLY. Urvalet är inte inskränkt av något, så anroparen måste vara det:
+ * rutten ligger bakom canAccess (bara admin) och sidan kontrollerar rollen igen
+ * innan den renderar.
+ */
+export function useDeladeArenden(enabled: boolean) {
+  const q = useQuery({
+    queryKey: ["entreprenorer-delade"],
+    enabled,
+    queryFn: () => loadArenden({ by: "assigned" }),
+    // Samma skäl som useMyArenden: en tilldelning sker i ett annat fönster.
+    refetchOnWindowFocus: true,
+  });
+
+  const arenden = useMemo(() => toArenden(q.data), [q.data]);
+
+  return {
+    arenden,
+    isLoading: enabled && q.isLoading,
+    error: q.error as Error | null,
+  };
+}
+
+const KIND_SECTION: Record<MyArendeKind, string> = {
+  issue: "issues",
+  inspection: "inspections",
+  project: "projects",
+};
+
+/**
+ * Vart ett ärende länkar — genom fastigheten, precis som varje annan
+ * ärendelänk i portalen (se IssuesTab i property-tabs.tsx). "Fastighet först"
+ * är navigationsmodellen och ingen vy får genvägen förbi den.
+ *
+ * Den flata `/issues/:id`-formen är bara fallback för ett ärende utan fastighet.
+ *
+ * Bor här, hos typen den läser, för att Dag Rapports sheet och admins
+ * entreprenörssida ska länka likadant. Två kopior hade drivit isär.
+ */
+export function arendeHref(a: Pick<MyArende, "kind" | "id" | "propertyId">): string {
+  const section = KIND_SECTION[a.kind];
+  if (a.propertyId) return `/properties/${a.propertyId}/${section}/${a.id}`;
+  return `/${section}/${a.id}`;
 }

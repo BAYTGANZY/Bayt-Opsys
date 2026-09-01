@@ -74,18 +74,18 @@ function groupByPropertyId<T extends { property_id: string | null }>(rows: T[]):
  * Per-building ärende data for the status-sort, batched in one round for every
  * visible fastighet — same shape as loadOpenIssueBadges (IssuesPropertyOverview)
  * / loadCombinedOppnaStats (OppnaArendenOverview), not one query per card.
- * `filterContactId` (useMyArendeScope) scopes an entreprenör to only their own
+ * `filterContactIds` (useMyArendeScope) scopes an entreprenör to only their own
  * assigned ärenden — PropertySectionButtons.loadUrgency does not do this, don't
  * copy that gap here.
  */
-async function loadPropertyArenden(filterContactId: string | null): Promise<PropertyArenden> {
+async function loadPropertyArenden(filterContactIds: string[] | null): Promise<PropertyArenden> {
   // Plain <T> on purpose: an F-bounded constraint makes tsc recursively
   // instantiate supabase's builder generics and die with TS2589. The cast is
   // runtime-identical — eq() returns the same builder. (Same pattern as
   // loadCombinedOppnaStats in OppnaArendenOverview.tsx.)
   const scoped = <T,>(builder: T): T =>
-    filterContactId
-      ? ((builder as { eq(col: string, val: string): unknown }).eq("assigned_contact_id", filterContactId) as T)
+    filterContactIds
+      ? ((builder as { in(col: string, val: string[]): unknown }).in("assigned_contact_id", filterContactIds) as T)
       : builder;
 
   const [issues, inspections, projects] = await Promise.all([
@@ -204,11 +204,11 @@ function PropertiesPage() {
   };
   const dateSortActive = nameSortMode === 0 && statusSortMode === 0;
 
-  const { filterContactId, ready } = useMyArendeScope();
+  const { filterContactIds, ready } = useMyArendeScope();
   const arendeQ = useQuery({
-    queryKey: ["properties-arende-status", filterContactId],
+    queryKey: ["properties-arende-status", filterContactIds],
     enabled: ready,
-    queryFn: () => loadPropertyArenden(filterContactId),
+    queryFn: () => loadPropertyArenden(filterContactIds),
   });
 
   const visibleProperties = useMemo(

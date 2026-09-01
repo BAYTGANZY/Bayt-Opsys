@@ -17,6 +17,7 @@ import { sanitizeStorageName, useSignedFileUrls } from "@/lib/storage";
 import { OppnaArendeButton } from "@/components/OppnaArendeButton";
 import { AvslutaArendeButton } from "@/components/AvslutaArendeButton";
 import { AnsvarigDropdown } from "@/components/AnsvarigDropdown";
+import { gateEntreprenorEmail, notifyEntreprenorAboutIssue } from "@/lib/entreprenor-notify";
 import { ObjectDropdown } from "@/components/ObjectDropdown";
 import { ObjectInfoCard } from "@/components/ObjectInfoCard";
 import { DeleteButton } from "@/components/DeleteButton";
@@ -92,6 +93,19 @@ type Issue = {
   properties: { name: string | null } | null;
 };
 
+/**
+ * Vad en sparning slutade med. `cancelled` är inte ett fel: admin backade ur
+ * bekräftelserutan för utskicket, och då skrivs ingenting alls — tilldelning
+ * och utskick hör ihop.
+ */
+type SaveOutcome = {
+  failures: string[];
+  cancelled: boolean;
+  /** Adressen ärendet mejlades till, om en entreprenör tilldelades i denna sparning. */
+  mailedTo: string | null;
+  mailError: string | null;
+};
+
 export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
   const params = useParams({ strict: false }) as { id?: string };
   const id = idOverride ?? params.id!;
@@ -102,7 +116,7 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   const issueQ = useQuery({
     queryKey: ["issue", id],
@@ -265,8 +279,34 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
   };
 
   const save = useMutation({
-    mutationFn: async () => {
-      if (!issueQ.data || !user) return { uploaded: 0, failures: [] as string[] };
+    mutationFn: async (): Promise<SaveOutcome> => {
+      const idle: SaveOutcome = { failures: [], cancelled: false, mailedTo: null, mailError: null };
+      if (!issueQ.data || !user) return idle;
+
+      // Att tilldela en entreprenör är också att mejla ut ärendet till hen.
+      // Frågan om adressen ställs FÖRE skrivningen: säger admin nej ska ingen
+      // tilldelning bli kvar heller, annars hade ärendet stått som tilldelat
+      // utan att någon fått veta det — och nästa sparning hade inte frågat
+      // igen, eftersom grinden bara reagerar på ett byte av entreprenör.
+      const previousContactId = issueQ.data.assigned_contact_id ?? null;
+      const notifyContactId =
+        profile?.role === "admin" && assignedContactId && assignedContactId !== previousContactId
+          ? assignedContactId
+          : null;
+      let gateEmail: string | null = null;
+      let gateName: string | null = null;
+      if (notifyContactId) {
+        const gate = await gateEntreprenorEmail({
+          contactId: notifyContactId,
+          qc,
+          arendeTitle: title || issueQ.data.title,
+          confirmLabel: "Skicka och spara",
+        });
+        if (!gate.ok) return { ...idle, cancelled: true };
+        gateEmail = gate.email;
+        gateName = gate.name;
+      }
+
       // Picked-but-not-uploaded files ride along with the save — before this,
       // "Spara ändringar" silently ignored them.
       const upload = files.length
@@ -296,11 +336,45 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
       // An UPDATE that RLS filters away is a 200 with zero rows — without this
       // check the toast says "Sparat!" over an untouched row.
       if (!updated?.length) throw new Error("Du saknar behörighet att ändra denna felanmälan.");
-      return upload;
+
+      // Utskicket sker efter skrivningen — mejlet innehåller ärendets
+      // uppgifter och ska spegla det som faktiskt sparades. Ett misslyckat
+      // utskick rullar inte tillbaka sparningen; det rapporteras i toasten.
+      let mailedTo: string | null = null;
+      let mailError: string | null = null;
+      if (notifyContactId && gateEmail) {
+        try {
+          await notifyEntreprenorAboutIssue({
+            issueId: id,
+            propertyId: propertyId || null,
+            apartmentId: apartmentId || null,
+            propertyObjectId,
+            title: title || issueQ.data.title,
+            contactName: gateName ?? "entreprenören",
+            email: gateEmail,
+            createdBy: user.id,
+          });
+          mailedTo = gateEmail;
+        } catch (e) {
+          mailError = e instanceof Error ? e.message : "E-posten kunde inte skickas.";
+        }
+      }
+      return { failures: upload.failures, cancelled: false, mailedTo, mailError };
     },
-    onSuccess: ({ failures }) => {
+    onSuccess: ({ failures, cancelled, mailedTo, mailError }) => {
+      if (cancelled) {
+        toast.error("Ingenting sparades — entreprenören tilldelades inte.");
+        return;
+      }
+      const problems: string[] = [];
       if (failures.length) {
-        toast.error(`Ändringarna sparades, men ${failures.length === 1 ? "en fil" : `${failures.length} filer`} kunde inte laddas upp: ${failures.join("; ")}`);
+        problems.push(`${failures.length === 1 ? "en fil" : `${failures.length} filer`} kunde inte laddas upp: ${failures.join("; ")}`);
+      }
+      if (mailError) problems.push(mailError);
+      if (problems.length) {
+        toast.error(`Ändringarna sparades, men ${problems.join(" ")}`);
+      } else if (mailedTo) {
+        toast.success(`Sparat! Ärendet skickades till ${mailedTo}.`, { style: { background: "#3D8A30", color: "#fff" } });
       } else {
         toast.success("Sparat!", { style: { background: "#3D8A30", color: "#fff" } });
       }

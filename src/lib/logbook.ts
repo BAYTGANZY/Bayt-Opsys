@@ -8,6 +8,7 @@ export const EVENT_LABEL: Record<string, string> = {
   objekt_kopplad: "Objekt kopplad",
   objekt_frankopplad: "Objekt frånkopplad",
   dokument_uppladdat: "Dokument uppladdat",
+  entreprenor_notifierad: "Entreprenör notifierad",
   manuell: "Manuell anteckning",
 };
 

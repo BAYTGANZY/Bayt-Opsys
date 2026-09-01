@@ -37,7 +37,7 @@ const PROPERTY_COLUMNS = "id, name, address, image_url";
 /**
  * Per-building counts for the cards.
  *
- * `filterContactId` (useMyArendeScope) narrows every ärendetyp to the signed-in
+ * `filterContactIds` (useMyArendeScope) narrows every ärendetyp to the signed-in
  * entreprenör's own assignments. Without it a card counted every ärende in the
  * building while the list inside showed only theirs — the number contradicted
  * the page and leaked how much other work exists there.
@@ -47,7 +47,7 @@ const PROPERTY_COLUMNS = "id, name, address, image_url";
  */
 async function loadStats(
   section: SectionKey,
-  filterContactId: string | null,
+  filterContactIds: string[] | null,
 ): Promise<Record<string, BuildingStat>> {
   const stats: Record<string, BuildingStat> = {};
   const bump = (id: string) => {
@@ -58,8 +58,8 @@ async function loadStats(
   // makes tsc recursively instantiate supabase's builder generics and die with
   // TS2589. The cast is runtime-identical — eq() returns the same builder.
   const scoped = <T,>(builder: T): T =>
-    filterContactId
-      ? ((builder as { eq(col: string, val: string): unknown }).eq("assigned_contact_id", filterContactId) as T)
+    filterContactIds
+      ? ((builder as { in(col: string, val: string[]): unknown }).in("assigned_contact_id", filterContactIds) as T)
       : builder;
 
   if (section === "issues") {
@@ -236,11 +236,11 @@ export function SectionOverviewPage({ section, title }: { section: SectionKey; t
   // Scope buildings to the role — styrelse sees only attached buildings, an
   // entreprenör only buildings where they have work, admin sees everything.
   const { properties, allowedIds, isLoading: pLoading } = useScopedProperties<PropertyRow>(PROPERTY_COLUMNS);
-  const { filterContactId, ready } = useMyArendeScope();
+  const { filterContactIds, ready } = useMyArendeScope();
   const { data: stats = {}, isLoading: sLoading } = useQuery({
-    queryKey: ["section-overview-stats", section, filterContactId],
+    queryKey: ["section-overview-stats", section, filterContactIds],
     enabled: ready,
-    queryFn: () => loadStats(section, filterContactId),
+    queryFn: () => loadStats(section, filterContactIds),
   });
 
   const filtered = useMemo(() => {

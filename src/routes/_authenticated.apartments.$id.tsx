@@ -281,10 +281,10 @@ function TimelineTab({ apartmentId }: { apartmentId: string }) {
   const sort = useListSort(TIMELINE_SORT_AXES, TIMELINE_SORT_INITIAL);
   // An entreprenör's feed is their own ärenden only — one assignment must not
   // hand them the unit's whole felanmälningshistorik (see useMyArendeScope).
-  const { filterContactId, ready } = useMyArendeScope();
+  const { filterContactIds, ready } = useMyArendeScope();
 
   const { data: events = [], isLoading } = useQuery({
-    queryKey: ["timeline", "apartment", apartmentId, filterContactId],
+    queryKey: ["timeline", "apartment", apartmentId, filterContactIds],
     enabled: ready,
     queryFn: async () => {
       let issuesQ = supabase
@@ -295,9 +295,9 @@ function TimelineTab({ apartmentId }: { apartmentId: string }) {
         .from("inspections")
         .select("id, inspection_type, status, arende_status, inspector, last_completed_date, next_due_date, interval_months, created_at")
         .eq("apartment_id", apartmentId);
-      if (filterContactId) {
-        issuesQ = issuesQ.eq("assigned_contact_id", filterContactId);
-        inspectionsQ = inspectionsQ.eq("assigned_contact_id", filterContactId);
+      if (filterContactIds) {
+        issuesQ = issuesQ.in("assigned_contact_id", filterContactIds);
+        inspectionsQ = inspectionsQ.in("assigned_contact_id", filterContactIds);
       }
 
       const [issuesRes, inspectionsRes, logbookRes] = await Promise.all([
@@ -688,7 +688,7 @@ function LinkedObjects({ apartmentId, propertyId, readOnly }: { apartmentId: str
   const qc = useQueryClient();
   // Bara mina ärenden: an entreprenör's view of each linked objekt's health
   // must only reflect ärenden they can see, same scoping as everywhere else.
-  const { contactId, isEntreprenor } = useMyContactId();
+  const { filterContactIds, ready: scopeReady } = useMyArendeScope();
 
   const q = useQuery({
     queryKey: ["apartment-linked-objects", apartmentId],
@@ -705,16 +705,16 @@ function LinkedObjects({ apartmentId, propertyId, readOnly }: { apartmentId: str
   const objectIds = (q.data ?? []).map((o) => o.id);
 
   const healthQ = useQuery({
-    queryKey: ["apartment-linked-objects-health", apartmentId, objectIds.join(","), isEntreprenor ? contactId : null],
-    enabled: objectIds.length > 0 && (!isEntreprenor || contactId !== undefined),
+    queryKey: ["apartment-linked-objects-health", apartmentId, objectIds.join(","), filterContactIds],
+    enabled: objectIds.length > 0 && scopeReady,
     queryFn: async () => {
       let issuesQuery = supabase.from("issues").select("status, priority, deadline, created_at, property_object_id").in("property_object_id", objectIds);
       let inspectionsQuery = supabase.from("inspections").select("arende_status, status, next_due_date, last_completed_date, interval_months, property_object_id").in("property_object_id", objectIds);
       let projectsQuery = supabase.from("projects").select("arende_status, status, end_date, property_object_id").in("property_object_id", objectIds);
-      if (isEntreprenor) {
-        issuesQuery = issuesQuery.eq("assigned_contact_id", contactId ?? "__none__");
-        inspectionsQuery = inspectionsQuery.eq("assigned_contact_id", contactId ?? "__none__");
-        projectsQuery = projectsQuery.eq("assigned_contact_id", contactId ?? "__none__");
+      if (filterContactIds) {
+        issuesQuery = issuesQuery.in("assigned_contact_id", filterContactIds);
+        inspectionsQuery = inspectionsQuery.in("assigned_contact_id", filterContactIds);
+        projectsQuery = projectsQuery.in("assigned_contact_id", filterContactIds);
       }
       const [{ data: issues }, { data: inspections }, { data: projects }] = await Promise.all([issuesQuery, inspectionsQuery, projectsQuery]);
       return {
@@ -792,7 +792,7 @@ function IssuesTab({ apartmentId, propertyId }: { apartmentId: string; propertyI
   const qc = useQueryClient();
   const { user } = useAuth();
   // Entreprenör: only felanmälningar assigned to them, whatever the status.
-  const { filterContactId, ready } = useMyArendeScope();
+  const { filterContactIds, ready } = useMyArendeScope();
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [cause, setCause] = useState("");
@@ -804,7 +804,7 @@ function IssuesTab({ apartmentId, propertyId }: { apartmentId: string; propertyI
   const [saving, setSaving] = useState(false);
 
   const { data = [], isLoading } = useQuery({
-    queryKey: ["issues", "apartment", apartmentId, filterContactId],
+    queryKey: ["issues", "apartment", apartmentId, filterContactIds],
     enabled: ready,
     queryFn: async () => {
       let q = supabase
@@ -812,7 +812,7 @@ function IssuesTab({ apartmentId, propertyId }: { apartmentId: string; propertyI
         .select("id, title, status, priority, category, deadline, created_at")
         .eq("apartment_id", apartmentId)
         .order("created_at", { ascending: false });
-      if (filterContactId) q = q.eq("assigned_contact_id", filterContactId);
+      if (filterContactIds) q = q.in("assigned_contact_id", filterContactIds);
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];
@@ -947,7 +947,7 @@ function InspectionsTab({ apartmentId, propertyId }: { apartmentId: string; prop
   const qc = useQueryClient();
   const { user } = useAuth();
   // Entreprenör: only besiktningar assigned to them, whatever the status.
-  const { filterContactId, ready } = useMyArendeScope();
+  const { filterContactIds, ready } = useMyArendeScope();
   const [showForm, setShowForm] = useState(false);
   const [type, setType] = useState("sba");
   const [inspector, setInspector] = useState("");
@@ -958,7 +958,7 @@ function InspectionsTab({ apartmentId, propertyId }: { apartmentId: string; prop
   const [saving, setSaving] = useState(false);
 
   const { data = [], isLoading } = useQuery({
-    queryKey: ["inspections", "apartment", apartmentId, filterContactId],
+    queryKey: ["inspections", "apartment", apartmentId, filterContactIds],
     enabled: ready,
     queryFn: async () => {
       let q = supabase
@@ -966,7 +966,7 @@ function InspectionsTab({ apartmentId, propertyId }: { apartmentId: string; prop
         .select("id, inspection_type, inspector, last_completed_date, next_due_date, status, arende_status, interval_months")
         .eq("apartment_id", apartmentId)
         .order("next_due_date", { ascending: true, nullsFirst: false });
-      if (filterContactId) q = q.eq("assigned_contact_id", filterContactId);
+      if (filterContactIds) q = q.in("assigned_contact_id", filterContactIds);
       const { data, error } = await q;
       if (error) throw error;
       return data ?? [];

@@ -22,6 +22,7 @@ import {
   useByggnadensArenden,
   arendeKindColor,
   arendeKindLabel,
+  arendeHref,
   type MyArende,
   type MyArendeKind,
 } from "@/hooks/useMyArenden";
@@ -265,24 +266,6 @@ function Section({
 }
 
 /** Section slug per ärendetyp, for the building-scoped detail URL. */
-const KIND_SECTION: Record<MyArendeKind, string> = {
-  issue: "issues",
-  inspection: "inspections",
-  project: "projects",
-};
-
-/**
- * Where "Öppna ärendet" goes — through the fastighet, exactly like every other
- * ärende link in the portal (see IssuesTab in property-tabs.tsx). Building först
- * is the navigation model, so the sheet must not shortcut past it.
- * The flat `/issues/:id` form is only a fallback for an ärende with no fastighet.
- */
-function arendeHref(a: MyArende): string {
-  const section = KIND_SECTION[a.kind];
-  if (a.propertyId) return `/properties/${a.propertyId}/${section}/${a.id}`;
-  return `/${section}/${a.id}`;
-}
-
 function SheetRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div style={{ minWidth: 0 }}>

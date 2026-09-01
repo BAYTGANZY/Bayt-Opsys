@@ -13,7 +13,7 @@ export type AkutRow = {
   assigned_contact_id?: string | null;
 };
 
-async function fetchUnresolvedAkut(filterContactId: string | null): Promise<AkutRow[]> {
+async function fetchUnresolvedAkut(filterContactIds: string[] | null): Promise<AkutRow[]> {
   let q = supabase
     .from("issues")
     .select("id, title, status, priority")
@@ -21,7 +21,7 @@ async function fetchUnresolvedAkut(filterContactId: string | null): Promise<Akut
     .not("status", "in", "(klar,fakturerad,stangd,avslutat)");
   // An entreprenör must only be alerted about their own ärenden — the bell used
   // to list every akut felanmälan in the system for them (see useMyArendeScope).
-  if (filterContactId) q = q.eq("assigned_contact_id", filterContactId);
+  if (filterContactIds) q = q.in("assigned_contact_id", filterContactIds);
   const { data } = await q;
   return (data ?? []) as AkutRow[];
 }
@@ -33,7 +33,7 @@ async function fetchUnresolvedAkut(filterContactId: string | null): Promise<Akut
  */
 export function useAkutIssues(): AkutRow[] {
   const navigate = useNavigate();
-  const { filterContactId, ready } = useMyArendeScope();
+  const { filterContactIds, ready } = useMyArendeScope();
   const [items, setItems] = useState<AkutRow[]>([]);
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export function useAkutIssues(): AkutRow[] {
     // unscoped first fetch would flash every akut ärende in the system.
     if (!ready) return;
     let mounted = true;
-    fetchUnresolvedAkut(filterContactId).then((r) => mounted && setItems(r));
+    fetchUnresolvedAkut(filterContactIds).then((r) => mounted && setItems(r));
     const seen = new Set<string>();
     const ch = supabase
       .channel("akut-issues")
@@ -53,27 +53,27 @@ export function useAkutIssues(): AkutRow[] {
           // Realtime is unfiltered, so the same scope rule has to be applied to
           // the toast: an entreprenör must not be alarmed by someone else's akut
           // ärende. `assigned_contact_id` rides along in the INSERT payload.
-          if (filterContactId && row?.assigned_contact_id !== filterContactId) return;
+          if (filterContactIds && !filterContactIds.includes(row?.assigned_contact_id ?? "")) return;
           if (row && row.priority === "akut" && !seen.has(row.id)) {
             seen.add(row.id);
             toast.error(`AKUT: ${row.title}`, {
               action: { label: "Visa", onClick: () => navigate({ to: "/issues/$id", params: { id: row.id } }) },
             });
-            fetchUnresolvedAkut(filterContactId).then((r) => mounted && setItems(r));
+            fetchUnresolvedAkut(filterContactIds).then((r) => mounted && setItems(r));
           }
         },
       )
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "issues" },
-        () => fetchUnresolvedAkut(filterContactId).then((r) => mounted && setItems(r)),
+        () => fetchUnresolvedAkut(filterContactIds).then((r) => mounted && setItems(r)),
       )
       .subscribe();
     return () => {
       mounted = false;
       supabase.removeChannel(ch);
     };
-  }, [navigate, filterContactId, ready]);
+  }, [navigate, filterContactIds, ready]);
 
   return items;
 }
