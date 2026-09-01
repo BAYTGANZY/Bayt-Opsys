@@ -156,12 +156,7 @@ function emailHtml(opts: {
   }
   <tr><td style="padding:24px 24px 28px;text-align:center;">
     <a href="${esc(opts.link)}" style="display:inline-block;background-color:#3D8A30;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px;padding:12px 22px;border-radius:6px;font-family:Arial,Helvetica,sans-serif;">Öppna ärendet i BAYT</a>
-    <div style="font-size:11px;color:#9AA0A6;margin-top:12px;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">
-      Knappen kräver en inloggning i portalen.<br />
-      Har du ingen? Se och hantera dina ärenden på
-      <a href="${PORTAL_URL}" style="color:#3D8A30;font-weight:600;text-decoration:underline;">mina ärenden</a>
-      — du loggar in med den här e-postadressen och en kod vi mejlar dig.
-    </div>
+    <div style="font-size:11px;color:#9AA0A6;margin-top:12px;font-family:Arial,Helvetica,sans-serif;">Du behöver vara inloggad för att se hela ärendet.</div>
   </td></tr>
 </table>
 </td></tr>
