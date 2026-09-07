@@ -18,6 +18,7 @@ import { ProjektStatusButtons } from "@/components/ProjektStatusButtons";
 import { DerivedStatusField } from "@/components/DerivedStatusBadge";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
 import { deriveProjectStatus, derivePriorityFromStatus } from "@/lib/issue-tokens";
+import { gateEntreprenorEmail, notifyEntreprenorAboutArende } from "@/lib/entreprenor-notify";
 import { useRecordScopeGuard } from "@/hooks/useRecordScopeGuard";
 import { isStyrelse } from "@/lib/permissions";
 import { sanitizeStorageName, useSignedFileUrls } from "@/lib/storage";
@@ -184,7 +185,31 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
 
   const save = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
+      // Att välja en entreprenör som ansvarig är också att skicka projektet
+      // till hen — samma regel som på felanmälan och besiktning. Grinden
+      // ställs FÖRE skrivningen: säger admin nej ska ingen tilldelning bli
+      // kvar heller, eftersom grinden bara reagerar på ett *byte* av
+      // entreprenör och nästa sparning därför inte skulle fråga igen.
+      const previousContactId = projectQ.data?.assigned_contact_id ?? null;
+      const notifyContactId =
+        profile?.role === "admin" && assignedContactId && assignedContactId !== previousContactId
+          ? assignedContactId
+          : null;
+      let gateEmail: string | null = null;
+      let gateName: string | null = null;
+      if (notifyContactId) {
+        const gate = await gateEntreprenorEmail({
+          contactId: notifyContactId,
+          qc,
+          arendeTitle: title,
+          confirmLabel: "Skicka och spara",
+        });
+        if (!gate.ok) return { cancelled: true, mailedTo: null, mailError: null };
+        gateEmail = gate.email;
+        gateName = gate.name;
+      }
+
+      const { data: updated, error } = await supabase
         .from("projects")
         .update({
           property_id: propertyId || null,
@@ -199,14 +224,52 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
           end_date: endDate || null,
           assigned_contact_id: assignedContactId,
         })
-        .eq("id", id);
+        .eq("id", id)
+        .select("id");
       if (error) throw error;
+      // En UPDATE som RLS filtrerar bort är 200 med noll rader. Utan den här
+      // kontrollen hade mejlet gått iväg om en sparning som aldrig skedde.
+      if (!updated?.length) throw new Error("Du saknar behörighet att ändra det här projektet.");
+
+      // Utskicket sker efter skrivningen — mejlet ska spegla det som faktiskt
+      // sparades. Ett misslyckat utskick rullar inte tillbaka sparningen.
+      let mailedTo: string | null = null;
+      let mailError: string | null = null;
+      if (notifyContactId && gateEmail) {
+        try {
+          await notifyEntreprenorAboutArende({
+            kind: "project",
+            id,
+            propertyId: propertyId || null,
+            // projects har ingen apartment_id — projekt är byggnadsnivå.
+            propertyObjectId,
+            title,
+            contactName: gateName ?? "entreprenören",
+            email: gateEmail,
+            createdBy: user?.id ?? null,
+          });
+          mailedTo = gateEmail;
+        } catch (e) {
+          mailError = e instanceof Error ? e.message : "E-posten kunde inte skickas.";
+        }
+      }
+      return { cancelled: false, mailedTo, mailError };
     },
-    onSuccess: () => {
+    onSuccess: ({ cancelled, mailedTo, mailError }) => {
+      if (cancelled) {
+        toast.error("Ingenting sparades — entreprenören tilldelades inte.");
+        return;
+      }
       qc.invalidateQueries({ queryKey: ["project", id] });
       qc.invalidateQueries({ queryKey: ["projects"] });
       setError(null);
-      toast.success("Sparat!", { style: { background: "#3D8A30", color: "#fff" } });
+      if (mailError) {
+        toast.error(`Ändringarna sparades, men ${mailError}`);
+      } else if (mailedTo) {
+        toast.success(`Sparat! Projektet skickades till ${mailedTo}.`, { style: { background: "#3D8A30", color: "#fff" } });
+      } else {
+        toast.success("Sparat!", { style: { background: "#3D8A30", color: "#fff" } });
+      }
     },
     onError: (e: any) => setError(e.message ?? "Kunde inte spara"),
   });

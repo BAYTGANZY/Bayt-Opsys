@@ -190,6 +190,77 @@ const HOME_URL = `${APP_URL}/dag-rapport`;
 // skapat dem av sig själv innan mottagaren ens öppnat mejlet.
 const SIGNUP_URL = `${APP_URL}/skapa-konto`;
 
+// ---------------------------------------------------------------------------
+// De tre ärendetyperna
+//
+// Tilldelning fungerar likadant för felanmälan, besiktning och projekt:
+// assigned_contact_id pekar på en kontakt, och den som pekas ut ska få
+// ärendet mejlat till sig. Mejlets ram är därför gemensam — samma logotyp,
+// samma detaljtabell, samma knapprad — och bara innehållet skiljer.
+//
+// Anropet tar { kind, id }. Det äldre { issue_id } tolkas som kind "issue" och
+// finns kvar därför att klienten kan ligga en deploy efter funktionen.
+// ---------------------------------------------------------------------------
+type ArendeKind = "issue" | "inspection" | "project";
+
+const KIND_TABLE: Record<ArendeKind, string> = {
+  issue: "issues",
+  inspection: "inspections",
+  project: "projects",
+};
+
+/** Obestämd form, för meningar som "Du har tilldelats en ny felanmälan". */
+const KIND_NOUN: Record<ArendeKind, string> = {
+  issue: "en ny felanmälan",
+  inspection: "en ny besiktning",
+  project: "ett nytt projekt",
+};
+
+/** Rubrikord i ämnesraden. */
+const KIND_SUBJECT: Record<ArendeKind, string> = {
+  issue: "Ny felanmälan",
+  inspection: "Ny besiktning",
+  project: "Nytt projekt",
+};
+
+const KIND_NOT_FOUND: Record<ArendeKind, string> = {
+  issue: "Felanmälan hittades inte.",
+  inspection: "Besiktningen hittades inte.",
+  project: "Projektet hittades inte.",
+};
+
+// Speglar INSPECTION_TYPES i src/lib/inspection-tokens.ts och ska hållas
+// synkad med den — samma sorts kontrakt som normalizeTrappa ↔
+// submit-felanmalan. En okänd nyckel faller tillbaka på råvärdet i stället för
+// att tappa fältet.
+const INSPECTION_TYPE_LABEL: Record<string, string> = {
+  ovk: "OVK (ventilationskontroll)",
+  sba: "Systematiskt brandskyddsarbete (SBA)",
+  hiss: "Hiss",
+  el: "El",
+  tak: "Tak",
+  fasad: "Fasad",
+  ventilation: "Ventilation",
+  radon: "Radon",
+  fukt: "Fukt",
+  ovrigt: "Övrigt",
+};
+
+function intervalLabel(months: unknown): string | null {
+  const n = Number(months);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  if (n === 12) return "Varje år";
+  if (n === 24) return "Vartannat år";
+  if (n % 12 === 0) return `Vart ${n / 12}:e år`;
+  return n === 1 ? "Varje månad" : `Var ${n}:e månad`;
+}
+
+function moneyLabel(value: unknown): string | null {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n === 0) return null;
+  return `${n.toLocaleString("sv-SE")} kr`;
+}
+
 const PRIORITY_LABEL: Record<string, string> = {
   akut: "Akut",
   hog: "Hög",
@@ -298,13 +369,14 @@ function emailText(opts: {
   description: string | null;
   cta: Cta;
   contactName: string;
+  arendeNoun: string;
 }): string {
   return [
     "BAYT",
     "",
     opts.contactName ? `Hej ${opts.contactName},` : "Hej,",
     "",
-    "Du har tilldelats ett ärende i BAYT.",
+    `Du har tilldelats ${opts.arendeNoun} i BAYT.`,
     "",
     opts.title,
     "",
@@ -329,6 +401,7 @@ function emailHtml(opts: {
   description: string | null;
   cta: Cta;
   contactName: string;
+  arendeNoun: string;
 }): string {
   return `
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f5f7;">
@@ -339,7 +412,7 @@ function emailHtml(opts: {
   </td></tr>
   <tr><td style="padding:16px 24px 0;text-align:center;">
     <div style="font-size:13px;color:#6B7280;">${opts.contactName ? `Hej ${esc(opts.contactName)},` : "Hej,"}</div>
-    <div style="font-size:17px;font-weight:700;color:#1a1a1a;margin-top:6px;">Du har tilldelats ett ärende</div>
+    <div style="font-size:17px;font-weight:700;color:#1a1a1a;margin-top:6px;">Du har tilldelats ${esc(opts.arendeNoun)}</div>
   </td></tr>
   <tr><td style="padding:18px 24px 0;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F0F7EE;border-radius:8px;">
@@ -403,32 +476,36 @@ Deno.serve(async (req) => {
       return json({ error: "Endast administratörer kan skicka ut ärenden till entreprenörer." }, 403);
     }
 
-    const { issue_id } = await req.json();
-    if (!issue_id) return json({ error: "issue_id krävs." }, 400);
+    const body = await req.json().catch(() => ({}));
+    // issue_id är den gamla formen och betyder felanmälan.
+    const kind: ArendeKind = body?.issue_id ? "issue" : (body?.kind as ArendeKind);
+    const arendeId = body?.issue_id ?? body?.id;
+    if (!arendeId) return json({ error: "id krävs." }, 400);
+    if (!KIND_TABLE[kind]) return json({ error: `Okänd ärendetyp: ${String(body?.kind)}` }, 400);
 
     // ---- ärendet -----------------------------------------------------------
-    // properties(name) är den enda embedden — den FK:n är deklarerad och
-    // används redan av notify-progress. apartments/property_objects/contacts
-    // hämtas som separata uppslag: en saknad FK-deklaration 400:ar hela
-    // queryn i stället för att bara tappa ett fält (samma skäl som
-    // lägenhetslabeln i useMyArenden).
-    const { data: issue, error: issueErr } = await supabase
-      .from("issues")
-      .select(
-        "id, title, description, category, priority, deadline, created_at, trappa, property_id, apartment_id, property_object_id, assigned_contact_id, reporter_name, reporter_phone, reporter_email, properties(name)",
-      )
-      .eq("id", issue_id)
+    // select("*") med flit, och inga embeds alls. Kolumnuppsättningen skiljer
+    // mellan de tre tabellerna, och flera av dem kommer från handkörda
+    // migrationer (inspections.trappa, inspections.deadline) — att namna
+    // kolumnerna explicit 400:ar hela queryn om en enda saknas. Fastighet,
+    // lägenhet och objekt hämtas som separata uppslag av samma skäl som i
+    // useMyArenden: en odeklarerad FK tar annars ner allt i stället för att
+    // bara tappa ett fält.
+    const { data: arende, error: arendeErr } = await supabase
+      .from(KIND_TABLE[kind])
+      .select("*")
+      .eq("id", arendeId)
       .maybeSingle();
-    if (issueErr) throw issueErr;
-    if (!issue) return json({ error: "Felanmälan hittades inte." }, 404);
-    if (!issue.assigned_contact_id) {
+    if (arendeErr) throw arendeErr;
+    if (!arende) return json({ error: KIND_NOT_FOUND[kind] }, 404);
+    if (!arende.assigned_contact_id) {
       return json({ error: "Ärendet har ingen tilldelad entreprenör." }, 400);
     }
 
     const { data: contact } = await supabase
       .from("contacts")
       .select("id, full_name, company, email")
-      .eq("id", issue.assigned_contact_id)
+      .eq("id", arende.assigned_contact_id)
       .maybeSingle();
     if (!contact) return json({ error: "Entreprenörens kontaktpost hittades inte." }, 404);
 
@@ -443,12 +520,23 @@ Deno.serve(async (req) => {
       );
     }
 
+    let propertyName: string | null = null;
+    if (arende.property_id) {
+      const { data: prop } = await supabase
+        .from("properties")
+        .select("name")
+        .eq("id", arende.property_id)
+        .maybeSingle();
+      propertyName = (prop?.name as string) ?? null;
+    }
+
+    // projects saknar apartment_id — projekt är byggnadsnivå per design.
     let apartmentLabel: string | null = null;
-    if (issue.apartment_id) {
+    if (arende.apartment_id) {
       const { data: apt } = await supabase
         .from("apartments")
         .select("apartment_number, trappa")
-        .eq("id", issue.apartment_id)
+        .eq("id", arende.apartment_id)
         .maybeSingle();
       if (apt) {
         apartmentLabel = [`Lgh ${apt.apartment_number}`, apt.trappa ? `Trappa ${apt.trappa}` : null]
@@ -458,34 +546,94 @@ Deno.serve(async (req) => {
     }
 
     let objectLabel: string | null = null;
-    if (issue.property_object_id) {
+    if (arende.property_object_id) {
       const { data: obj } = await supabase
         .from("property_objects")
         .select("name, type")
-        .eq("id", issue.property_object_id)
+        .eq("id", arende.property_object_id)
         .maybeSingle();
       if (obj) objectLabel = (obj.name || obj.type) ?? null;
     }
 
-    const propertyName = (issue.properties as { name?: string } | null)?.name ?? null;
-    const reporter = [issue.reporter_name, issue.reporter_phone, issue.reporter_email]
-      .filter((v) => v && String(v).trim())
-      .join(" · ");
+    // Rubriken. Besiktningar har ingen title-kolumn — typen ÄR namnet, precis
+    // som useMyArenden gör det (inspectionTypeLabel).
+    const arendeTitle =
+      kind === "inspection"
+        ? INSPECTION_TYPE_LABEL[(arende.inspection_type as string) ?? ""] ??
+          ((arende.inspection_type as string) || "Besiktning")
+        : (arende.title as string) || KIND_SUBJECT[kind];
 
-    const rows: Row[] = [
+    // Gemensamma rader först, sedan de typspecifika. Ordningen är densamma i
+    // alla tre mejlen så att den som får många känner igen sig.
+    const platsRader: Row[] = [
       { label: "Fastighet", value: propertyName ?? "—" },
       ...(apartmentLabel ? [{ label: "Lägenhet", value: apartmentLabel }] : []),
-      ...(!apartmentLabel && issue.trappa ? [{ label: "Trappa", value: issue.trappa as string }] : []),
+      ...(!apartmentLabel && arende.trappa
+        ? [{ label: "Trappa", value: String(arende.trappa) }]
+        : []),
       ...(objectLabel ? [{ label: "Objekt", value: objectLabel }] : []),
-      ...(issue.category ? [{ label: "Kategori", value: issue.category as string }] : []),
-      {
-        label: "Prioritet",
-        value: PRIORITY_LABEL[(issue.priority as string) ?? ""] ?? ((issue.priority as string) || "—"),
-      },
-      { label: "Tidsgräns", value: fmtDate(issue.deadline as string | null) ?? "Ingen satt" },
-      { label: "Anmäld", value: fmtDate(issue.created_at as string) ?? "—" },
-      ...(reporter ? [{ label: "Anmälare", value: reporter }] : []),
     ];
+
+    let rows: Row[];
+    let description: string | null;
+
+    if (kind === "issue") {
+      const reporter = [arende.reporter_name, arende.reporter_phone, arende.reporter_email]
+        .filter((v) => v && String(v).trim())
+        .join(" · ");
+      rows = [
+        ...platsRader,
+        ...(arende.category ? [{ label: "Kategori", value: String(arende.category) }] : []),
+        {
+          label: "Prioritet",
+          value:
+            PRIORITY_LABEL[(arende.priority as string) ?? ""] ?? ((arende.priority as string) || "—"),
+        },
+        { label: "Tidsgräns", value: fmtDate(arende.deadline as string | null) ?? "Ingen satt" },
+        { label: "Anmäld", value: fmtDate(arende.created_at as string) ?? "—" },
+        ...(reporter ? [{ label: "Anmälare", value: reporter }] : []),
+      ];
+      description = (arende.description as string | null)?.trim() || null;
+    } else if (kind === "inspection") {
+      const interval = intervalLabel(arende.interval_months);
+      rows = [
+        ...platsRader,
+        { label: "Typ", value: arendeTitle },
+        ...(interval ? [{ label: "Intervall", value: interval }] : []),
+        ...(arende.last_completed_date
+          ? [{ label: "Senast utförd", value: fmtDate(arende.last_completed_date as string) ?? "—" }]
+          : []),
+        {
+          label: "Nästa besiktning",
+          value: fmtDate(arende.next_due_date as string | null) ?? "Inget datum satt",
+        },
+        ...(arende.deadline
+          ? [{ label: "Tidsgräns", value: fmtDate(arende.deadline as string) ?? "—" }]
+          : []),
+        ...(arende.inspector ? [{ label: "Besiktningsman", value: String(arende.inspector) }] : []),
+        { label: "Registrerad", value: fmtDate(arende.created_at as string) ?? "—" },
+      ];
+      // Besiktningens fritext heter notes, inte description.
+      description = (arende.notes as string | null)?.trim() || null;
+    } else {
+      const budget = moneyLabel(arende.budget);
+      rows = [
+        ...platsRader,
+        ...(arende.start_date
+          ? [{ label: "Startdatum", value: fmtDate(arende.start_date as string) ?? "—" }]
+          : []),
+        {
+          label: "Slutdatum",
+          value: fmtDate(arende.end_date as string | null) ?? "Inget datum satt",
+        },
+        ...(arende.deadline
+          ? [{ label: "Tidsgräns", value: fmtDate(arende.deadline as string) ?? "—" }]
+          : []),
+        ...(budget ? [{ label: "Budget", value: budget }] : []),
+        { label: "Registrerad", value: fmtDate(arende.created_at as string) ?? "—" },
+      ];
+      description = (arende.description as string | null)?.trim() || null;
+    }
 
     // Har adressen en inloggning avgör hela knappraden — se kommentaren vid Cta.
     // Uppslaget görs på den adress mejlet faktiskt går till, inte på kontaktens
@@ -518,11 +666,12 @@ Deno.serve(async (req) => {
     const fromAddr = Deno.env.get("SMTP_FROM") || smtpUser;
 
     const bodyOpts = {
-      title: (issue.title as string) || "Felanmälan",
+      title: arendeTitle,
       rows,
-      description: (issue.description as string | null)?.trim() || null,
+      description,
       cta,
       contactName: (contact.full_name as string) || "",
+      arendeNoun: KIND_NOUN[kind],
     };
 
     const client = new SMTPClient({
@@ -540,7 +689,9 @@ Deno.serve(async (req) => {
       await client.send({
         from: fromAddr,
         to: toAddress,
-        subject: encodeMailSubject(`Nytt ärende: ${bodyOpts.title}${propertyName ? ` — ${propertyName}` : ""}`),
+        subject: encodeMailSubject(
+          `${KIND_SUBJECT[kind]}: ${bodyOpts.title}${propertyName ? ` — ${propertyName}` : ""}`,
+        ),
         content: emailText(bodyOpts),
         html: emailHtml(bodyOpts),
         // Utan detta stämplar mailservern ett eget Message-ID på sin egen

@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ISSUE_CATEGORIES, derivePriority } from "@/lib/issue-tokens";
 import { AnsvarigDropdown } from "@/components/AnsvarigDropdown";
-import { gateEntreprenorEmail, notifyEntreprenorAboutIssue } from "@/lib/entreprenor-notify";
+import { gateEntreprenorEmail, notifyEntreprenorAboutArende } from "@/lib/entreprenor-notify";
 import { ObjectDropdown } from "@/components/ObjectDropdown";
 import { ChevronSelect } from "@/components/ChevronSelect";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
@@ -215,8 +215,9 @@ export function NewIssuePage({ initialPropertyId, lockProperty }: { initialPrope
       let mailError: string | null = null;
       if (gateEmail) {
         try {
-          await notifyEntreprenorAboutIssue({
-            issueId,
+          await notifyEntreprenorAboutArende({
+            kind: "issue",
+            id: issueId,
             propertyId,
             apartmentId: apartmentId || null,
             propertyObjectId,

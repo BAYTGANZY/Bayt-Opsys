@@ -231,6 +231,102 @@ function canClose(status: unknown): boolean {
   return lifecycleOf(status) !== "avslutat";
 }
 
+// ---------------------------------------------------------------------------
+// De tre ärendetyperna
+//
+// Portalen visade länge bara felanmälningar, men besiktningar och projekt
+// tilldelas på exakt samma sätt (assigned_contact_id) och är lika mycket
+// entreprenörens jobb. Skillnaden som gör dem besvärliga är att tabellerna
+// inte är överens om någonting: felanmälan bär sin livscykel i `status`
+// (issue_status-enumet), besiktning och projekt i `arende_status` (fri TEXT).
+// Normaliseringen sker här och ingen annanstans.
+// ---------------------------------------------------------------------------
+type ArendeKind = "issue" | "inspection" | "project";
+
+const ARENDE_TABLE: Record<ArendeKind, string> = {
+  issue: "issues",
+  inspection: "inspections",
+  project: "projects",
+};
+
+/** Kolumnen som bär livscykeln. Felanmälan är undantaget. */
+const LIFECYCLE_COLUMN: Record<ArendeKind, string> = {
+  issue: "status",
+  inspection: "arende_status",
+  project: "arende_status",
+};
+
+const ARENDE_NOT_FOUND: Record<ArendeKind, string> = {
+  issue: "Felanmälan hittades inte.",
+  inspection: "Besiktningen hittades inte.",
+  project: "Projektet hittades inte.",
+};
+
+/** Vad OppnaArendeButton/AvslutaArendeButton skriver för respektive typ. */
+const OPEN_VALUE: Record<ArendeKind, string> = {
+  issue: STATUS_OPEN,
+  inspection: "oppet",
+  project: "oppet",
+};
+const CLOSE_VALUE: Record<ArendeKind, string> = {
+  issue: STATUS_CLOSED,
+  inspection: "avslutat",
+  project: "avslutat",
+};
+
+/**
+ * Livscykeln för vilken ärendetyp som helst.
+ *
+ * Reglerna är desamma som deriveInspectionStatus/deriveProjectStatus i
+ * src/lib/issue-tokens.ts, inklusive fallbacken för rader som är äldre än
+ * `arende_status` — de får sin livscykel ur den gamla status-kolumnen, där
+ * bara `klar` (och för projekt även `avbruten`) betydde avslutat.
+ */
+function arendeLifecycle(kind: ArendeKind, row: Record<string, unknown>): "vilande" | "oppet" | "avslutat" {
+  if (kind === "issue") return lifecycleOf(row.status);
+  const arende = row.arende_status as string | null;
+  if (arende) return LIFECYCLE_OF[arende] ?? "vilande";
+  const legacy = String(row.status ?? "");
+  if (kind === "inspection") return legacy === "klar" ? "avslutat" : "oppet";
+  return legacy === "klar" || legacy === "avbruten" ? "avslutat" : "oppet";
+}
+
+/**
+ * Ett avbrutet projekt har ingen livscykel kvar att flytta — samma regel som
+ * canOppnaArende/canAvslutaArende, som båda returnerar false för det.
+ */
+function arendeCanOpen(kind: ArendeKind, row: Record<string, unknown>): boolean {
+  if (kind === "project" && row.status === "avbruten") return false;
+  return arendeLifecycle(kind, row) === "vilande";
+}
+function arendeCanClose(kind: ArendeKind, row: Record<string, unknown>): boolean {
+  if (kind === "project" && row.status === "avbruten") return false;
+  return arendeLifecycle(kind, row) !== "avslutat";
+}
+
+// Speglar INSPECTION_TYPES i src/lib/inspection-tokens.ts, och ska hållas
+// synkad med den. En besiktning har ingen title-kolumn — typen är namnet.
+const INSPECTION_TYPE_LABEL: Record<string, string> = {
+  ovk: "OVK (ventilationskontroll)",
+  sba: "Systematiskt brandskyddsarbete (SBA)",
+  hiss: "Hiss",
+  el: "El",
+  tak: "Tak",
+  fasad: "Fasad",
+  ventilation: "Ventilation",
+  radon: "Radon",
+  fukt: "Fukt",
+  ovrigt: "Övrigt",
+};
+
+function arendeTitle(kind: ArendeKind, row: Record<string, unknown>): string {
+  if (kind === "inspection") {
+    const t = String(row.inspection_type ?? "");
+    return INSPECTION_TYPE_LABEL[t] ?? t ?? "Besiktning";
+  }
+  return (row.title as string) || (kind === "project" ? "Projekt" : "Felanmälan");
+}
+
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -493,10 +589,7 @@ async function resolveSession(supabase: Db, token: unknown): Promise<Session | n
 // property_objects hämtas separat: en odeklarerad FK 400:ar hela queryn i
 // stället för att bara tappa ett fält (samma skäl som lägenhetslabeln i
 // useMyArenden).
-const ISSUE_COLUMNS =
-  "id, title, description, category, priority, status, deadline, created_at, trappa, property_id, apartment_id, property_object_id, assigned_contact_id, reporter_name, reporter_phone, reporter_email, properties(name)";
-
-async function decorateIssues(supabase: Db, rows: Record<string, unknown>[]) {
+async function decorateArenden(supabase: Db, kind: ArendeKind, rows: Record<string, unknown>[]) {
   const apartmentIds = [...new Set(rows.map((r) => r.apartment_id).filter(Boolean))] as string[];
   const objectIds = [...new Set(rows.map((r) => r.property_object_id).filter(Boolean))] as string[];
 
@@ -522,28 +615,61 @@ async function decorateIssues(supabase: Db, rows: Record<string, unknown>[]) {
     }
   }
 
+  // Fastighetsnamnet hämtas separat i stället för med properties(name).
+  // Embedden är deklarerad för issues men inte nödvändigtvis för de andra
+  // två, och en odeklarerad FK 400:ar hela queryn i stället för att bara
+  // tappa ett fält.
+  const propertyIds = [...new Set(rows.map((r) => r.property_id).filter(Boolean))] as string[];
+  const properties = new Map<string, string>();
+  if (propertyIds.length > 0) {
+    const { data } = await supabase.from("properties").select("id, name").in("id", propertyIds);
+    for (const p of (data ?? []) as Record<string, unknown>[]) {
+      properties.set(String(p.id), String(p.name ?? ""));
+    }
+  }
+
   return rows.map((row) => ({
+    kind,
     id: row.id,
-    title: row.title,
-    description: row.description ?? null,
-    category: row.category ?? null,
-    priority: row.priority ?? null,
-    status: row.status ?? null,
-    lifecycle: lifecycleOf(row.status),
-    deadline: row.deadline ?? null,
+    title: arendeTitle(kind, row),
+    description: (kind === "inspection" ? row.notes : row.description) ?? null,
+    lifecycle: arendeLifecycle(kind, row),
     created_at: row.created_at ?? null,
     trappa: row.trappa ?? null,
     property_id: row.property_id ?? null,
-    property_name: (row.properties as { name?: string } | null)?.name ?? null,
+    property_name: row.property_id ? properties.get(String(row.property_id)) ?? null : null,
     apartment_label: row.apartment_id ? apartments.get(String(row.apartment_id)) ?? null : null,
     object_label: row.property_object_id ? objects.get(String(row.property_object_id)) ?? null : null,
+
+    // Rådata för den härledda statusen. Klienten kör samma deriveXStatus som
+    // resten av appen — badgen får aldrig räknas ut på två ställen med två
+    // regler, då börjar portalen och portalen inne i appen säga emot varandra.
+    status: row.status ?? null,
+    arende_status: row.arende_status ?? null,
+
+    // Felanmälan
+    category: row.category ?? null,
+    priority: row.priority ?? null,
+    deadline: row.deadline ?? null,
     // Anmälarens kontaktuppgifter är hela poängen för den som ska åka dit och
     // ringa på. Det är också därför sidan kräver en kod och inte bara adressen.
     reporter_name: row.reporter_name ?? null,
     reporter_phone: row.reporter_phone ?? null,
     reporter_email: row.reporter_email ?? null,
-    can_open: canOpen(row.status),
-    can_close: canClose(row.status),
+
+    // Besiktning
+    next_due_date: row.next_due_date ?? null,
+    last_completed_date: row.last_completed_date ?? null,
+    interval_months: row.interval_months ?? null,
+    inspector: row.inspector ?? null,
+
+    // Projekt
+    start_date: row.start_date ?? null,
+    end_date: row.end_date ?? null,
+    budget: row.budget ?? null,
+
+    can_open: arendeCanOpen(kind, row),
+    can_close: arendeCanClose(kind, row),
   }));
 }
 
@@ -563,19 +689,27 @@ async function decorateIssues(supabase: Db, rows: Record<string, unknown>[]) {
 async function writeStatus(
   supabase: Db,
   session: Session,
+  kind: ArendeKind,
   issue: Record<string, unknown>,
   nextStatus: string,
   lifecycleLabel: string,
 ): Promise<void> {
-  const currentStatus = (issue.status as string | null) ?? null;
+  // Felanmälan bär livscykeln i `status`, besiktning och projekt i
+  // `arende_status`. Att skriva fel kolumn hade sett ut att fungera —
+  // uppdateringen går igenom — men ärendet hade inte flyttat sig.
+  const column = LIFECYCLE_COLUMN[kind];
+  const currentStatus = (issue[column] as string | null) ?? null;
 
   // Villkorat på nuvarande status: två snabba tryck, eller en admin som avslutar
   // ärendet i samma sekund, ska inte kunna skriva över varandra. Träffar noll
   // rader om någon hann före, och då säger vi det i klartext i stället för att
   // rapportera en lyckad ändring som inte skedde — samma resonemang som
   // assertWritten() i OppnaArendeButton.
-  let update = supabase.from("issues").update({ status: nextStatus }).eq("id", issue.id as string);
-  if (currentStatus !== null) update = update.eq("status", currentStatus);
+  let update = supabase
+    .from(ARENDE_TABLE[kind])
+    .update({ [column]: nextStatus })
+    .eq("id", issue.id as string);
+  if (currentStatus !== null) update = update.eq(column, currentStatus);
   const { data: written, error: updateError } = await update.select("id");
   if (updateError) throw updateError;
   if (!written || written.length === 0) {
@@ -584,6 +718,10 @@ async function writeStatus(
 
   // Bäst-möjliga-fall härifrån och ner: statusändringen är gjord, och en
   // misslyckad historikrad får inte få anropet att se ut att ha misslyckats.
+  // issue_status_history finns bara för felanmälan. Besiktning och projekt
+  // har ingen motsvarande tabell — deras spår är loggboksposten nedan, precis
+  // som när OppnaArendeButton skriver dem inne i appen.
+  if (kind === "issue") {
   try {
     await supabase.from("issue_status_history").insert({
       issue_id: issue.id,
@@ -597,6 +735,7 @@ async function writeStatus(
   } catch (e) {
     console.error("entreprenor-portal: issue_status_history misslyckades", (e as Error)?.message);
   }
+  }
 
   try {
     await supabase.from("logbook_entries").insert({
@@ -606,7 +745,9 @@ async function writeStatus(
       apartment_id: issue.apartment_id ?? null,
       property_object_id: issue.property_object_id ?? null,
       event_type: "arende_status_andring",
-      content: `${issue.title ?? "Felanmälan"} (${currentStatus ?? "?"} → ${lifecycleLabel})`,
+      // Formatet "<titel> (<från> → <till>)" är ett kontrakt — actionKindOf i
+      // src/lib/logbook.ts läser målstatusen ur den avslutande pilen.
+      content: `${arendeTitle(kind, issue)} (${currentStatus ?? "?"} → ${lifecycleLabel})`,
       entry_date: new Date().toISOString().slice(0, 10),
       created_by: session.profileId,
     });
@@ -862,19 +1003,41 @@ Deno.serve(async (req) => {
 
     // ======================= list ==========================================
     if (action === "list") {
-      const { data, error } = await supabase
-        .from("issues")
-        .select(ISSUE_COLUMNS)
-        .in("assigned_contact_id", session.contactIds)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
+      // select("*") för alla tre: kolumnuppsättningen skiljer mellan
+      // tabellerna och flera kolumner kommer från handkörda migrationer
+      // (inspections.trappa, inspections.deadline). Att namna dem explicit
+      // 400:ar hela queryn om en enda saknas.
+      const kinds: ArendeKind[] = ["issue", "inspection", "project"];
+      const perKind = await Promise.all(
+        kinds.map(async (k) => {
+          const { data, error } = await supabase
+            .from(ARENDE_TABLE[k])
+            .select("*")
+            .in("assigned_contact_id", session.contactIds)
+            .order("created_at", { ascending: false });
+          if (error) throw error;
+          return decorateArenden(supabase, k, (data ?? []) as Record<string, unknown>[]);
+        }),
+      );
+
+      // En lista, nyast först, oavsett typ. Att dela upp den i tre sektioner
+      // hade tvingat entreprenören att leta på tre ställen efter dagens jobb —
+      // typen syns på varje rad i stället.
+      const arenden = perKind.flat().sort((a, b) => {
+        const at = a.created_at ? String(a.created_at) : "";
+        const bt = b.created_at ? String(b.created_at) : "";
+        return bt.localeCompare(at);
+      });
 
       return json(
         {
           success: true,
           name: session.displayName,
           email: session.email,
-          issues: await decorateIssues(supabase, (data ?? []) as Record<string, unknown>[]),
+          arenden,
+          // Kvar för en klient som ännu inte deployats om: den läser `issues`
+          // och ska då fortsätta se precis det den alltid sett.
+          issues: arenden.filter((a) => a.kind === "issue"),
         },
         200,
       );
@@ -882,16 +1045,19 @@ Deno.serve(async (req) => {
 
     // ======================= open / close ==================================
     if (action === "open" || action === "close") {
-      const issueId = String(body?.issue_id ?? "");
-      if (!issueId) return json({ error: "issue_id krävs." }, 400);
+      // issue_id är den gamla formen och betyder felanmälan.
+      const kind: ArendeKind = body?.issue_id ? "issue" : (body?.kind as ArendeKind);
+      const arendeId = String(body?.issue_id ?? body?.id ?? "");
+      if (!arendeId) return json({ error: "id krävs." }, 400);
+      if (!ARENDE_TABLE[kind]) return json({ error: `Okänd ärendetyp: ${String(body?.kind)}` }, 400);
 
       const { data: issue, error: issueError } = await supabase
-        .from("issues")
-        .select("id, title, status, property_id, apartment_id, property_object_id, assigned_contact_id")
-        .eq("id", issueId)
+        .from(ARENDE_TABLE[kind])
+        .select("*")
+        .eq("id", arendeId)
         .maybeSingle();
       if (issueError) throw issueError;
-      if (!issue) return json({ error: "Felanmälan hittades inte." }, 404);
+      if (!issue) return json({ error: ARENDE_NOT_FOUND[kind] }, 404);
 
       // Kärnkontrollen: sessionen ger ingen rätt till ett ärende som inte är
       // tilldelat den. Utan den här raden vore ett giltigt token en nyckel till
@@ -900,15 +1066,16 @@ Deno.serve(async (req) => {
         return json({ error: "Ärendet är inte tilldelat dig." }, 403);
       }
 
+      const row = issue as Record<string, unknown>;
       if (action === "open") {
-        if (!canOpen(issue.status)) return json({ error: "Ärendet är redan öppnat." }, 409);
-        await writeStatus(supabase, session, issue as Record<string, unknown>, STATUS_OPEN, "oppet");
-        return json({ success: true, status: STATUS_OPEN, lifecycle: "oppet" }, 200);
+        if (!arendeCanOpen(kind, row)) return json({ error: "Ärendet går inte att öppna." }, 409);
+        await writeStatus(supabase, session, kind, row, OPEN_VALUE[kind], "oppet");
+        return json({ success: true, status: OPEN_VALUE[kind], lifecycle: "oppet" }, 200);
       }
 
-      if (!canClose(issue.status)) return json({ error: "Ärendet är redan avslutat." }, 409);
-      await writeStatus(supabase, session, issue as Record<string, unknown>, STATUS_CLOSED, "avslutat");
-      return json({ success: true, status: STATUS_CLOSED, lifecycle: "avslutat" }, 200);
+      if (!arendeCanClose(kind, row)) return json({ error: "Ärendet går inte att avsluta." }, 409);
+      await writeStatus(supabase, session, kind, row, CLOSE_VALUE[kind], "avslutat");
+      return json({ success: true, status: CLOSE_VALUE[kind], lifecycle: "avslutat" }, 200);
     }
 
     return json({ error: `Okänd action: ${action}` }, 400);

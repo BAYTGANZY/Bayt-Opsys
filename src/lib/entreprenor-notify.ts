@@ -108,15 +108,28 @@ async function functionErrorMessage(err: unknown, fallback: string): Promise<str
 }
 
 /**
+ * De tre ärendetyper som går att tilldela. Alla tre har `assigned_contact_id`,
+ * och alla tre mejlas på exakt samma sätt — bara innehållet i mejlet skiljer,
+ * och det avgörs av edge-funktionen, inte här.
+ */
+export type ArendeKind = "issue" | "inspection" | "project";
+
+/**
  * Mejlar ärendet till den tilldelade entreprenören och skriver en rad i
  * loggboken om att det gick iväg.
  *
  * Kastar med ett svenskt meddelande om utskicket misslyckas — ärendet är
  * redan sparat vid det laget, så anroparen ska rapportera felet, inte ångra
  * sparningen.
+ *
+ * Funktionen skickar bara `kind` och `id`. Alla uppgifter i mejlet läses av
+ * edge-funktionen ur databasen, aldrig ur anropet: dels ska mejlet spegla det
+ * som faktiskt sparades, dels hade en funktion som tar emot innehåll utifrån
+ * varit en generell mailrelä. Fälten nedan används enbart till loggboksraden.
  */
-export async function notifyEntreprenorAboutIssue(opts: {
-  issueId: string;
+export async function notifyEntreprenorAboutArende(opts: {
+  kind: ArendeKind;
+  id: string;
   propertyId: string | null;
   apartmentId?: string | null;
   propertyObjectId?: string | null;
@@ -126,7 +139,7 @@ export async function notifyEntreprenorAboutIssue(opts: {
   createdBy?: string | null;
 }): Promise<void> {
   const { data, error } = await supabase.functions.invoke("notify-entreprenor", {
-    body: { issue_id: opts.issueId },
+    body: { kind: opts.kind, id: opts.id },
   });
   if (error) {
     throw new Error(await functionErrorMessage(error, `E-posten till ${opts.contactName} kunde inte skickas.`));

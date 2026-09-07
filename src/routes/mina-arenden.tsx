@@ -4,7 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ChevronDown } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { deriveIssueStatus, PRIORITY_DISPLAY_LABEL } from "@/lib/issue-tokens";
+import {
+  deriveIssueStatus,
+  deriveInspectionStatus,
+  deriveProjectStatus,
+  PRIORITY_DISPLAY_LABEL,
+  type DerivedStatus,
+} from "@/lib/issue-tokens";
 import { DerivedStatusBadge } from "@/components/DerivedStatusBadge";
 import { LOGO_ON_DARK } from "@/lib/logo";
 
@@ -147,29 +153,98 @@ async function callPortal<T>(payload: Record<string, unknown>): Promise<T> {
 // ---------------------------------------------------------------------------
 // Typer
 // ---------------------------------------------------------------------------
-type PortalIssue = {
+/**
+ * Ett ärende i portalen — felanmälan, besiktning eller projekt.
+ *
+ * De tre tabellerna är oense om nästan varje kolumnnamn, och normaliseringen
+ * sker i edge-funktionen. Det som kommer hit är därför en gemensam form där
+ * de typspecifika fälten helt enkelt är null för de typer som saknar dem.
+ * Råfälten följer med av en anledning: den härledda statusen räknas ut med
+ * samma deriveXStatus som resten av appen använder, aldrig med en egen regel.
+ */
+type PortalArende = {
+  kind: ArendeKind;
   id: string;
   title: string | null;
   description: string | null;
-  category: string | null;
-  priority: string | null;
-  status: string | null;
   lifecycle: "vilande" | "oppet" | "avslutat";
-  deadline: string | null;
   created_at: string | null;
   trappa: string | null;
   property_id: string | null;
   property_name: string | null;
   apartment_label: string | null;
   object_label: string | null;
+  status: string | null;
+  arende_status: string | null;
+  // Felanmälan
+  category: string | null;
+  priority: string | null;
+  deadline: string | null;
   reporter_name: string | null;
   reporter_phone: string | null;
   reporter_email: string | null;
+  // Besiktning
+  next_due_date: string | null;
+  last_completed_date: string | null;
+  interval_months: number | null;
+  inspector: string | null;
+  // Projekt
+  start_date: string | null;
+  end_date: string | null;
+  budget: number | null;
   can_open: boolean;
   can_close: boolean;
 };
 
-type ListResponse = { issues: PortalIssue[]; name: string | null; email: string };
+type ArendeKind = "issue" | "inspection" | "project";
+
+const KIND_LABEL: Record<ArendeKind, string> = {
+  issue: "Felanmälan",
+  inspection: "Besiktning",
+  project: "Projekt",
+};
+
+/** Härledd status via appens egna regler — en badge, en regel, hela vägen. */
+function deriveArende(a: PortalArende): DerivedStatus {
+  if (a.kind === "inspection") {
+    return deriveInspectionStatus({
+      status: a.status,
+      arende_status: a.arende_status,
+      next_due_date: a.next_due_date,
+      last_completed_date: a.last_completed_date,
+      interval_months: a.interval_months,
+    });
+  }
+  if (a.kind === "project") {
+    return deriveProjectStatus({
+      status: a.status,
+      arende_status: a.arende_status,
+      end_date: a.end_date,
+    });
+  }
+  return deriveIssueStatus({
+    status: a.status,
+    priority: a.priority,
+    created_at: a.created_at,
+    deadline: a.deadline,
+  });
+}
+
+function intervalLabel(months: number | null): string | null {
+  if (!months || months <= 0) return null;
+  if (months === 12) return "Varje år";
+  if (months === 24) return "Vartannat år";
+  if (months % 12 === 0) return `Vart ${months / 12}:e år`;
+  return months === 1 ? "Varje månad" : `Var ${months}:e månad`;
+}
+
+type ListResponse = {
+  /** Nya svaret. `issues` finns kvar i funktionen för en klient som ligger efter. */
+  arenden?: PortalArende[];
+  issues: PortalArende[];
+  name: string | null;
+  email: string;
+};
 
 // ---------------------------------------------------------------------------
 // Formatering
@@ -435,32 +510,28 @@ function IssueRow({
   onAct,
   actingKind,
 }: {
-  issue: PortalIssue;
+  issue: PortalArende;
   expanded: boolean;
   onToggle: () => void;
-  onAct: (kind: "open" | "close") => void;
+  onAct: (action: "open" | "close") => void;
   /** Vilken av de två knapparna som just nu väntar på svar, om någon. */
   actingKind: "open" | "close" | null;
 }) {
   // Samma härledda status som resten av appen visar för ett ärende, genom
   // samma badge — en "Försenad" måste se likadan ut och betyda samma sak här
   // som inne i portalen, annars börjar de två ytorna säga emot varandra.
-  const derived = deriveIssueStatus({
-    status: issue.status,
-    priority: issue.priority,
-    created_at: issue.created_at,
-    deadline: issue.deadline,
-  });
+  const derived = deriveArende(issue);
 
   const metaParts = [issue.property_name, issue.apartment_label ?? issue.object_label, formatShort(issue.created_at)]
     .filter(Boolean)
     .join(" · ");
 
-  const reporterBits = [
-    issue.reporter_name,
-    issue.reporter_phone,
-    issue.reporter_email,
-  ].filter((v) => v && String(v).trim());
+  const reporterBits =
+    issue.kind === "issue"
+      ? [issue.reporter_name, issue.reporter_phone, issue.reporter_email].filter(
+          (v) => v && String(v).trim(),
+        )
+      : [];
 
   return (
     <div
@@ -490,16 +561,33 @@ function IssueRow({
         }}
       >
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontFamily: HEADING_FONT,
-              fontSize: 15,
-              fontWeight: 600,
-              color: C.text,
-              overflowWrap: "anywhere",
-            }}
-          >
-            {issue.title || "Felanmälan"}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: 0.2,
+                color: C.secondary,
+                background: C.wash,
+                border: `1px solid ${C.border}`,
+                borderRadius: 5,
+                padding: "2px 7px",
+                flexShrink: 0,
+              }}
+            >
+              {KIND_LABEL[issue.kind]}
+            </span>
+            <div
+              style={{
+                fontFamily: HEADING_FONT,
+                fontSize: 15,
+                fontWeight: 600,
+                color: C.text,
+                overflowWrap: "anywhere",
+              }}
+            >
+              {issue.title || KIND_LABEL[issue.kind]}
+            </div>
           </div>
           {metaParts && (
             <div style={{ fontSize: 13, color: C.secondary, marginTop: 3, overflowWrap: "anywhere" }}>
@@ -583,12 +671,43 @@ function IssueRow({
             {issue.apartment_label && <Detail label="Lägenhet">{issue.apartment_label}</Detail>}
             {!issue.apartment_label && issue.trappa && <Detail label="Trappa">{issue.trappa}</Detail>}
             {issue.object_label && <Detail label="Objekt">{issue.object_label}</Detail>}
-            {issue.category && <Detail label="Kategori">{issue.category}</Detail>}
-            <Detail label="Prioritet">
-              {PRIORITY_DISPLAY_LABEL[issue.priority ?? ""] ?? issue.priority ?? "—"}
+            {/* Härifrån och ner är raderna typspecifika. Ordningen speglar
+                tilldelningsmejlet, så den som fått mejlet känner igen sig. */}
+            {issue.kind === "issue" && (
+              <>
+                {issue.category && <Detail label="Kategori">{issue.category}</Detail>}
+                <Detail label="Prioritet">
+                  {PRIORITY_DISPLAY_LABEL[issue.priority ?? ""] ?? issue.priority ?? "—"}
+                </Detail>
+                <Detail label="Tidsgräns">{formatDay(issue.deadline) ?? "Ingen satt"}</Detail>
+              </>
+            )}
+            {issue.kind === "inspection" && (
+              <>
+                {intervalLabel(issue.interval_months) && (
+                  <Detail label="Intervall">{intervalLabel(issue.interval_months)}</Detail>
+                )}
+                {issue.last_completed_date && (
+                  <Detail label="Senast utförd">{formatDay(issue.last_completed_date)}</Detail>
+                )}
+                <Detail label="Nästa besiktning">
+                  {formatDay(issue.next_due_date) ?? "Inget datum satt"}
+                </Detail>
+                {issue.inspector && <Detail label="Besiktningsman">{issue.inspector}</Detail>}
+              </>
+            )}
+            {issue.kind === "project" && (
+              <>
+                {issue.start_date && <Detail label="Startdatum">{formatDay(issue.start_date)}</Detail>}
+                <Detail label="Slutdatum">{formatDay(issue.end_date) ?? "Inget datum satt"}</Detail>
+                {issue.budget ? (
+                  <Detail label="Budget">{`${Number(issue.budget).toLocaleString("sv-SE")} kr`}</Detail>
+                ) : null}
+              </>
+            )}
+            <Detail label={issue.kind === "issue" ? "Anmäld" : "Registrerad"}>
+              {formatDay(issue.created_at) ?? "—"}
             </Detail>
-            <Detail label="Tidsgräns">{formatDay(issue.deadline) ?? "Ingen satt"}</Detail>
-            <Detail label="Anmäld">{formatDay(issue.created_at) ?? "—"}</Detail>
             {reporterBits.length > 0 && (
               <Detail label="Anmälare">
                 <div style={{ display: "grid", gap: 2 }}>
@@ -656,10 +775,12 @@ function ArendeList({ session, onSignOut }: { session: StoredSession; onSignOut:
   }, [listQuery.error, onSignOut]);
 
   const act = useMutation({
-    mutationFn: (vars: { id: string; kind: "open" | "close" }) =>
-      callPortal({ action: vars.kind, token: session.token, issue_id: vars.id }),
+    // `action` är vad som ska göras, `kind` vilken sorts ärende det gäller.
+    // Funktionen behöver båda: den avgör tabell och statuskolumn ur kind.
+    mutationFn: (vars: { id: string; action: "open" | "close"; kind: ArendeKind }) =>
+      callPortal({ action: vars.action, token: session.token, kind: vars.kind, id: vars.id }),
     onSuccess: (_data, vars) => {
-      toast.success(vars.kind === "open" ? "Ärendet är öppet" : "Ärendet är avslutat");
+      toast.success(vars.action === "open" ? "Ärendet är öppet" : "Ärendet är avslutat");
       qc.invalidateQueries({ queryKey: ["entreprenor-portal", session.token] });
     },
     onError: (err: Error) => {
@@ -674,7 +795,9 @@ function ArendeList({ session, onSignOut }: { session: StoredSession; onSignOut:
     },
   });
 
-  const issues = listQuery.data?.issues ?? [];
+  // `arenden` är det nya svaret med alla tre typerna. Fallbacken finns för
+  // det korta glapp där en klient kan hinna före funktionsdeployen.
+  const issues = listQuery.data?.arenden ?? listQuery.data?.issues ?? [];
 
   const counts = useMemo(
     () => ({
@@ -769,8 +892,8 @@ function ArendeList({ session, onSignOut }: { session: StoredSession; onSignOut:
           issue={issue}
           expanded={expandedId === issue.id}
           onToggle={() => setExpandedId((prev) => (prev === issue.id ? null : issue.id))}
-          onAct={(kind) => act.mutate({ id: issue.id, kind })}
-          actingKind={act.isPending && act.variables?.id === issue.id ? act.variables.kind : null}
+          onAct={(action) => act.mutate({ id: issue.id, action, kind: issue.kind })}
+          actingKind={act.isPending && act.variables?.id === issue.id ? act.variables.action : null}
         />
       ))}
     </div>

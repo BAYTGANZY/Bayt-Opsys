@@ -1,10 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { gateEntreprenorEmail, notifyEntreprenorAboutArende } from "@/lib/entreprenor-notify";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AnsvarigDropdown } from "@/components/AnsvarigDropdown";
 import { ObjectDropdown } from "@/components/ObjectDropdown";
@@ -62,7 +63,10 @@ const textareaStyle: React.CSSProperties = {
 export function NewProjectPage({ initialPropertyId }: { initialPropertyId?: string } = {}) {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  // Grinden kan spara en rättad e-postadress på kontakten, och då måste både
+  // dropdownens och listornas cache släppas — gateEntreprenorEmail gör det.
+  const qc = useQueryClient();
 
   const [propertyId, setPropertyId] = useState(initialPropertyId ?? "");
   const [propertyObjectId, setPropertyObjectId] = useState<string | null>(null);
@@ -86,6 +90,24 @@ export function NewProjectPage({ initialPropertyId }: { initialPropertyId?: stri
   const create = useMutation({
     mutationFn: async () => {
       if (!propertyId || !title) throw new Error("Fyll i obligatoriska fält");
+      // Grinden ställs innan raden skapas, inte efter. Backar admin ur rutan
+      // skapas ingenting alls: hade ärendet skapats tilldelat men utan utskick
+      // hade nästa sparning inte frågat igen, eftersom grinden på detaljsidan
+      // bara reagerar på ett *byte* av entreprenör.
+      let gateEmail: string | null = null;
+      let gateName: string | null = null;
+      if (profile?.role === "admin" && assignedContactId) {
+        const gate = await gateEntreprenorEmail({
+          contactId: assignedContactId,
+          qc,
+          arendeTitle: title,
+          confirmLabel: "Skicka och spara",
+        });
+        if (!gate.ok) return { id: null as string | null, mailedTo: null, mailError: null };
+        gateEmail = gate.email;
+        gateName = gate.name;
+      }
+
       const { data, error } = await supabase
         .from("projects")
         .insert({
@@ -106,10 +128,44 @@ export function NewProjectPage({ initialPropertyId }: { initialPropertyId?: stri
         .select("id")
         .single();
       if (error) throw error;
-      return data.id as string;
+      const newId = data.id as string;
+
+      // Utskicket sker efter skrivningen — mejlet ska spegla det som faktiskt
+      // sparades. Misslyckas det är projektet ändå skapat.
+      let mailedTo: string | null = null;
+      let mailError: string | null = null;
+      if (gateEmail) {
+        try {
+          await notifyEntreprenorAboutArende({
+            kind: "project",
+            id: newId,
+            propertyId,
+            // projects har ingen apartment_id — projekt är byggnadsnivå.
+            propertyObjectId,
+            title,
+            contactName: gateName ?? "entreprenören",
+            email: gateEmail,
+            createdBy: user?.id ?? null,
+          });
+          mailedTo = gateEmail;
+        } catch (e) {
+          mailError = e instanceof Error ? e.message : "E-posten kunde inte skickas.";
+        }
+      }
+      return { id: newId, mailedTo, mailError };
     },
-    onSuccess: (id) => {
-      toast.success("Sparat!", { style: { background: "#3D8A30", color: "#fff" } });
+    onSuccess: ({ id, mailedTo, mailError }) => {
+      if (!id) {
+        setError("Ingenting sparades — entreprenören tilldelades inte.");
+        return;
+      }
+      if (mailError) {
+        toast.error(`Projektet sparades, men ${mailError}`);
+      } else if (mailedTo) {
+        toast.success(`Sparat! Projektet skickades till ${mailedTo}.`, { style: { background: "#3D8A30", color: "#fff" } });
+      } else {
+        toast.success("Sparat!", { style: { background: "#3D8A30", color: "#fff" } });
+      }
       navigate({ to: "/projects/$id", params: { id } });
     },
     onError: (e: any) => setError(e.message ?? "Kunde inte spara"),

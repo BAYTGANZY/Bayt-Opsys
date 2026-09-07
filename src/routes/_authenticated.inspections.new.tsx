@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { FileDropzone } from "@/components/FileDropzone";
@@ -12,7 +12,8 @@ import { ObjectDropdown } from "@/components/ObjectDropdown";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
 import { derivePriority } from "@/lib/issue-tokens";
 import { sanitizeStorageName } from "@/lib/storage";
-import { INSPECTION_TYPES } from "@/lib/inspection-tokens";
+import { INSPECTION_TYPES, inspectionTypeLabel } from "@/lib/inspection-tokens";
+import { gateEntreprenorEmail, notifyEntreprenorAboutArende } from "@/lib/entreprenor-notify";
 
 export const Route = createFileRoute("/_authenticated/inspections/new")({
   head: () => ({ meta: [{ title: "Ny besiktning — BAYT" }] }),
@@ -46,7 +47,10 @@ function addMonths(iso: string, months: number): string {
 export function NewInspectionPage({ initialPropertyId }: { initialPropertyId?: string } = {}) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  // Grinden kan spara en rättad e-postadress på kontakten, och då måste både
+  // dropdownens och listornas cache släppas — gateEntreprenorEmail gör det.
+  const qc = useQueryClient();
 
   const [propertyId, setPropertyId] = useState(initialPropertyId ?? "");
   const [apartmentId, setApartmentId] = useState("");
@@ -104,6 +108,28 @@ export function NewInspectionPage({ initialPropertyId }: { initialPropertyId?: s
     e.preventDefault();
     if (!user) return;
     if (!propertyId) { setError("Välj fastighet"); return; }
+      // Grinden ställs innan raden skapas, inte efter. Backar admin ur rutan
+      // skapas ingenting alls: hade ärendet skapats tilldelat men utan utskick
+      // hade nästa sparning inte frågat igen, eftersom grinden på detaljsidan
+      // bara reagerar på ett *byte* av entreprenör.
+    let gateEmail: string | null = null;
+    let gateName: string | null = null;
+    if (profile?.role === "admin" && assignedContactId) {
+      try {
+        const gate = await gateEntreprenorEmail({
+          contactId: assignedContactId,
+          qc,
+          arendeTitle: inspectionTypeLabel(type),
+          confirmLabel: "Skicka och spara",
+        });
+        if (!gate.ok) { setError("Ingenting sparades — entreprenören tilldelades inte."); return; }
+        gateEmail = gate.email;
+        gateName = gate.name;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Kunde inte spara e-postadressen.");
+        return;
+      }
+    }
     setSaving(true); setError(null);
     try {
       const { data: ins, error: insErr } = await supabase.from("inspections").insert({
@@ -127,6 +153,30 @@ export function NewInspectionPage({ initialPropertyId }: { initialPropertyId?: s
         created_by: user.id,
       }).select("id").single();
       if (insErr) throw insErr;
+
+      // Utskicket sker efter skrivningen — mejlet ska spegla det som faktiskt
+      // sparades. Misslyckas det är besiktningen ändå skapad, så felet
+      // rapporteras men avbryter inget.
+      if (gateEmail && ins) {
+        try {
+          await notifyEntreprenorAboutArende({
+            kind: "inspection",
+            id: ins.id as string,
+            propertyId,
+            apartmentId: apartmentId || null,
+            propertyObjectId,
+            title: inspectionTypeLabel(type),
+            contactName: gateName ?? "entreprenören",
+            email: gateEmail,
+            createdBy: user.id,
+          });
+          toast.success(`Besiktningen skickades till ${gateEmail}.`, { style: { background: "#3D8A30", color: "#fff" } });
+        } catch (err) {
+          toast.error(
+            `Besiktningen sparades, men ${err instanceof Error ? err.message : "e-posten kunde inte skickas."}`,
+          );
+        }
+      }
 
       // First file is the protocol (a failure aborts the save), the rest are
       // best-effort extras — same split the old file/extraFiles states carried.

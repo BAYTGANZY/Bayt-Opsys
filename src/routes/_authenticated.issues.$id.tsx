@@ -17,7 +17,7 @@ import { sanitizeStorageName, useSignedFileUrls } from "@/lib/storage";
 import { OppnaArendeButton } from "@/components/OppnaArendeButton";
 import { AvslutaArendeButton } from "@/components/AvslutaArendeButton";
 import { AnsvarigDropdown } from "@/components/AnsvarigDropdown";
-import { gateEntreprenorEmail, notifyEntreprenorAboutIssue } from "@/lib/entreprenor-notify";
+import { gateEntreprenorEmail, notifyEntreprenorAboutArende } from "@/lib/entreprenor-notify";
 import { ObjectDropdown } from "@/components/ObjectDropdown";
 import { ObjectInfoCard } from "@/components/ObjectInfoCard";
 import { DeleteButton } from "@/components/DeleteButton";
@@ -344,8 +344,9 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
       let mailError: string | null = null;
       if (notifyContactId && gateEmail) {
         try {
-          await notifyEntreprenorAboutIssue({
-            issueId: id,
+          await notifyEntreprenorAboutArende({
+            kind: "issue",
+            id: id,
             propertyId: propertyId || null,
             apartmentId: apartmentId || null,
             propertyObjectId,
