@@ -1,0 +1,29 @@
+# Supabase CLI-konfiguration. Bara det som rör deploy av edge functions —
+# ingen lokal stack körs i det här projektet (ingen Docker installerad).
+#
+# verify_jwt måste stå här, per funktion. CLI:t sätter annars `true` som
+# standard vid varje deploy, och skulle då tysta notify-progress: den anropas
+# av databastriggern issues_progress_notify_trigger, som legitimerar sig med
+# x-trigger-secret och inte har någon användar-JWT att skicka. Värdena nedan
+# speglar det som faktiskt låg deployat 2026-09-07 (`supabase functions list`).
+
+project_id = "tixxacthedwaoqtjokdr"
+
+[functions.invite-user]
+verify_jwt = true
+
+[functions.submit-felanmalan]
+verify_jwt = true
+
+[functions.track-felanmalan]
+verify_jwt = true
+
+# Anropas bara av issues_progress_notify_trigger — se kommentaren ovan.
+[functions.notify-progress]
+verify_jwt = false
+
+[functions.notify-entreprenor]
+verify_jwt = true
+
+[functions.entreprenor-portal]
+verify_jwt = true

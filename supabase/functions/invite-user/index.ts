@@ -44,6 +44,54 @@ Deno.serve(async (req) => {
     }
     const supabase = createClient(Deno.env.get('SUPABASE_URL') ?? '', serviceKey);
 
+    // ---- vem frågar? -------------------------------------------------------
+    // Fram till 2026-09-07 fanns ingen kontroll alls här: funktionen litade på
+    // verify_jwt, och verify_jwt godkänner vilken giltig nyckel som helst —
+    // även den publika. Vem som helst kunde alltså be den skapa ett konto med
+    // vilken roll som helst, admin inräknad. Det blev akut när gröna knappen i
+    // tilldelningsmejlet gjorde att publik trafik når hit via portalen.
+    //
+    // Två anropare är tillåtna, och bara två:
+    //   * en inloggad admin (Inställningar → Användare), som får bjuda in vem
+    //     som helst med vilken roll som helst och radera konton;
+    //   * entreprenor-portal med servicenyckeln, för gröna knappen. Den
+    //     anroparen får BARA skapa entreprenörer och får aldrig radera — den
+    //     är i praktiken oautentiserad trafik som portalen gått i god för.
+    const bearer = (req.headers.get('Authorization') ?? '').replace(/^Bearers+/i, '');
+    const isServiceCall = bearer !== '' && bearer === serviceKey;
+
+    if (!isServiceCall) {
+      if (!bearer) {
+        return new Response(JSON.stringify({ error: 'Du måste vara inloggad.' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401,
+        });
+      }
+      const { data: userData } = await supabase.auth.getUser(bearer);
+      if (!userData?.user) {
+        return new Response(JSON.stringify({ error: 'Du måste vara inloggad.' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401,
+        });
+      }
+      const { data: callerProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userData.user.id)
+        .maybeSingle();
+      if (callerProfile?.role !== 'admin') {
+        return new Response(
+          JSON.stringify({ error: 'Endast administratörer kan bjuda in eller radera användare.' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 },
+        );
+      }
+    } else if (body.action === 'delete') {
+      return new Response(JSON.stringify({ error: 'Radering kräver en inloggad administratör.' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 403,
+      });
+    }
+
     if (body.action === 'delete') {
       const { id } = body;
       if (!id) throw new Error('Missing user id');
@@ -59,7 +107,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { email, role, full_name, property_ids } = body;
+    const { email, full_name, property_ids } = body;
+    // Servicenyckelanropet (gröna knappen) får aldrig välja roll själv — det
+    // är oautentiserad trafik som portalen gått i god för, och att låta den
+    // skicka med role: 'admin' hade gjort hela grinden ovan meningslös.
+    const role = isServiceCall ? 'entreprenor' : body.role;
     const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
       data: { role, full_name },
       redirectTo: `${APP_URL}/accept-invite`,

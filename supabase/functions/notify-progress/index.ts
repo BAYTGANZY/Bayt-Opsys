@@ -39,6 +39,64 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-trigger-secret",
 };
 
+// ---------------------------------------------------------------------------
+// Subject-raden kodas för hand — denomailer gör det fel
+//
+// denomailer 1.6.0 kodar en subject-rad som innehåller icke-ASCII till ETT
+// enda encoded-word (`=?utf-8?Q?…?=`) och bryter det sedan var 74:e tecken
+// med `=\r\n` — en "soft line break" som bara betyder något i en *brödtext*.
+// I en header saknar fortsättningsraden inledande blanksteg, så mottagarens
+// klient läser den som en ny (ogiltig) header, avslutar hela headerblocket
+// där, och visar resten av meddelandet — From/To/Date/Content-Type, MIME-
+// gränserna och alltihop — som brödtext. Det var därför mejlen kom fram som
+// rå MIME i stället för som HTML. Brytningen äter dessutom upp ett par tecken
+// mitt i en =XX-sekvens, så även rubriktexten blev fel.
+//
+// Vägen runt är att aldrig lämna över något till denomailer som triggar dess
+// kodning: `quotedPrintableEncodeInline` rör bara strängar som innehåller
+// icke-ASCII eller börjar med "=?" — ren ASCII skrivs ordagrant till tråden.
+// Så vi returnerar antingen ren ASCII, eller egna base64-encoded-words
+// (RFC 2047: ≤75 tecken var, vikta med CRLF + blanksteg) med ett inledande
+// blanksteg så att strängen inte börjar med "=?". Blanksteget är
+// vikningsblanksteg efter "Subject:" och kastas av varje klient.
+//
+// Kopior finns i notify-progress.ts och entreprenor-portal.ts och ska hållas
+// byte-identiska — samma kontrakt som normalizeTrappa ↔ submit-felanmalan.ts.
+// ---------------------------------------------------------------------------
+const SUBJECT_MAX_CHARS = 160;
+
+function encodeMailSubject(raw: string): string {
+  // CR/LF i en subject-rad är header-injektion, och titeln är fritext från en
+  // boende. Bort med dem före allt annat.
+  let subject = String(raw ?? "").replace(/\s+/g, " ").trim();
+  if (!subject) subject = "BAYT";
+  const chars = Array.from(subject); // kodpunkter, så en emoji inte klipps itu
+  if (chars.length > SUBJECT_MAX_CHARS) {
+    subject = chars.slice(0, SUBJECT_MAX_CHARS - 1).join("").trimEnd() + "…";
+  }
+
+  // deno-lint-ignore no-control-regex
+  if (!/[^\u0000-\u007f]/.test(subject) && !subject.startsWith("=?")) return subject;
+
+  // 39 byte per encoded-word: base64 gör 39 byte till 52 tecken, plus
+  // "=?utf-8?B?" + "?=" = 12 → 64. Encoded-word:et ryms i RFC 2047:s gräns på
+  // 75, och "Subject:  " + 64 = 74 håller hela raden under RFC 5322:s 78.
+  const bytes = new TextEncoder().encode(subject);
+  const words: string[] = [];
+  for (let i = 0; i < bytes.length;) {
+    let end = Math.min(i + 39, bytes.length);
+    // Varje encoded-word måste avkoda till giltig text på egen hand, så ett
+    // flerbytestecken får aldrig delas. 0b10xxxxxx är en fortsättningsbyte —
+    // backa tills vi står på en teckenstart.
+    while (end > i && end < bytes.length && (bytes[end] & 0xc0) === 0x80) end--;
+    let bin = "";
+    for (let j = i; j < end; j++) bin += String.fromCharCode(bytes[j]);
+    words.push(`=?utf-8?B?${btoa(bin)}?=`);
+    i = end;
+  }
+  return " " + words.join("\r\n ");
+}
+
 const TRACK_URL = "https://app.bayt.se/arendestatus";
 
 // Mirrors issue_progress_step() in issue-progress-notify.sql and
@@ -264,7 +322,7 @@ Deno.serve(async (req) => {
       await client.send({
         from: fromAddr,
         to: issue.reporter_email as string,
-        subject: subjectForStep(step, (issue.title as string) || "Felanmälan"),
+        subject: encodeMailSubject(subjectForStep(step, (issue.title as string) || "Felanmälan")),
         content: emailText(bodyOpts),
         html: emailHtml(bodyOpts),
         // Without this, Inleed's Exim stamps a self-generated Message-ID on

@@ -34,3 +34,9 @@ dist-ssr
 # Google Drive desktop sync staging folders (churn constantly, not project content)
 .tmp.driveupload/
 .tmp.drivedownload/
+
+# Supabase CLI — lokal länkstatus, inte källkod
+supabase/.temp/
+
+# Claude Code — lokala behörighetsregler
+.claude/settings.local.json

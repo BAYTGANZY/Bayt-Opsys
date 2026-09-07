@@ -46,6 +46,143 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// ---------------------------------------------------------------------------
+// Subject-raden kodas för hand — denomailer gör det fel
+//
+// denomailer 1.6.0 kodar en subject-rad som innehåller icke-ASCII till ETT
+// enda encoded-word (`=?utf-8?Q?…?=`) och bryter det sedan var 74:e tecken
+// med `=\r\n` — en "soft line break" som bara betyder något i en *brödtext*.
+// I en header saknar fortsättningsraden inledande blanksteg, så mottagarens
+// klient läser den som en ny (ogiltig) header, avslutar hela headerblocket
+// där, och visar resten av meddelandet — From/To/Date/Content-Type, MIME-
+// gränserna och alltihop — som brödtext. Det var därför mejlen kom fram som
+// rå MIME i stället för som HTML. Brytningen äter dessutom upp ett par tecken
+// mitt i en =XX-sekvens, så även rubriktexten blev fel.
+//
+// Vägen runt är att aldrig lämna över något till denomailer som triggar dess
+// kodning: `quotedPrintableEncodeInline` rör bara strängar som innehåller
+// icke-ASCII eller börjar med "=?" — ren ASCII skrivs ordagrant till tråden.
+// Så vi returnerar antingen ren ASCII, eller egna base64-encoded-words
+// (RFC 2047: ≤75 tecken var, vikta med CRLF + blanksteg) med ett inledande
+// blanksteg så att strängen inte börjar med "=?". Blanksteget är
+// vikningsblanksteg efter "Subject:" och kastas av varje klient.
+//
+// Kopior finns i notify-progress.ts och entreprenor-portal.ts och ska hållas
+// byte-identiska — samma kontrakt som normalizeTrappa ↔ submit-felanmalan.ts.
+// ---------------------------------------------------------------------------
+const SUBJECT_MAX_CHARS = 160;
+
+function encodeMailSubject(raw: string): string {
+  // CR/LF i en subject-rad är header-injektion, och titeln är fritext från en
+  // boende. Bort med dem före allt annat.
+  let subject = String(raw ?? "").replace(/\s+/g, " ").trim();
+  if (!subject) subject = "BAYT";
+  const chars = Array.from(subject); // kodpunkter, så en emoji inte klipps itu
+  if (chars.length > SUBJECT_MAX_CHARS) {
+    subject = chars.slice(0, SUBJECT_MAX_CHARS - 1).join("").trimEnd() + "…";
+  }
+
+  // deno-lint-ignore no-control-regex
+  if (!/[^\u0000-\u007f]/.test(subject) && !subject.startsWith("=?")) return subject;
+
+  // 39 byte per encoded-word: base64 gör 39 byte till 52 tecken, plus
+  // "=?utf-8?B?" + "?=" = 12 → 64. Encoded-word:et ryms i RFC 2047:s gräns på
+  // 75, och "Subject:  " + 64 = 74 håller hela raden under RFC 5322:s 78.
+  const bytes = new TextEncoder().encode(subject);
+  const words: string[] = [];
+  for (let i = 0; i < bytes.length;) {
+    let end = Math.min(i + 39, bytes.length);
+    // Varje encoded-word måste avkoda till giltig text på egen hand, så ett
+    // flerbytestecken får aldrig delas. 0b10xxxxxx är en fortsättningsbyte —
+    // backa tills vi står på en teckenstart.
+    while (end > i && end < bytes.length && (bytes[end] & 0xc0) === 0x80) end--;
+    let bin = "";
+    for (let j = i; j < end; j++) bin += String.fromCharCode(bytes[j]);
+    words.push(`=?utf-8?B?${btoa(bin)}?=`);
+    i = end;
+  }
+  return " " + words.join("\r\n ");
+}
+
+// ---------------------------------------------------------------------------
+// Kontoinbjudans token — signerad, kortlivad, byte-identisk i
+// notify-entreprenor och entreprenor-portal
+//
+// Gröna "Skapa konto"-knappen i tilldelningsmejlet leder till en publik sida.
+// Utan bevis på att klicket kommer från just det mejlet vore den sidan en
+// öppen ändpunkt: vem som helst hade kunnat be servern skapa konton åt
+// godtyckliga adresser, och genom svaret dessutom läsa av vilka adresser som
+// redan har konto hos BAYT. Token är beviset — den mintas när mejlet skickas
+// och verifieras när sidan anropar portalen.
+//
+// Nyckeln härleds ur SERVICE_ROLE_KEY i stället för att vara en egen secret,
+// så att inget nytt behöver sättas i dashboarden för att det här ska fungera.
+// Den lämnar aldrig servern; bara signaturen gör det.
+//
+// Kopian i den andra filen ska hållas byte-identisk — samma kontrakt som
+// normalizeTrappa ↔ submit-felanmalan och encodeMailSubject.
+// ---------------------------------------------------------------------------
+const ACCOUNT_TOKEN_TTL_DAYS = 14;
+
+function b64urlEncode(bytes: Uint8Array): string {
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function b64urlDecode(value: string): Uint8Array {
+  const b64 = value.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (value.length % 4)) % 4);
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function accountTokenKey(serviceRoleKey: string): Promise<CryptoKey> {
+  return crypto.subtle
+    .digest("SHA-256", new TextEncoder().encode(`bayt-konto-inbjudan|${serviceRoleKey}`))
+    .then((material) =>
+      crypto.subtle.importKey("raw", material, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]),
+    );
+}
+
+/** Mintar en token som säger "den här adressen får skapa konto", giltig i ACCOUNT_TOKEN_TTL_DAYS dygn. */
+async function mintAccountToken(email: string, serviceRoleKey: string): Promise<string> {
+  const payload = b64urlEncode(
+    new TextEncoder().encode(
+      JSON.stringify({ e: email, exp: Math.floor(Date.now() / 1000) + ACCOUNT_TOKEN_TTL_DAYS * 86400 }),
+    ),
+  );
+  const key = await accountTokenKey(serviceRoleKey);
+  const sig = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload)));
+  return `${payload}.${b64urlEncode(sig)}`;
+}
+
+/** Returnerar adressen ur en giltig token, annars null. Kastar aldrig. */
+async function readAccountToken(token: unknown, serviceRoleKey: string): Promise<string | null> {
+  const parts = String(token ?? "").split(".");
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+  try {
+    const key = await accountTokenKey(serviceRoleKey);
+    const expected = new Uint8Array(
+      await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(parts[0])),
+    );
+    const given = b64urlDecode(parts[1]);
+    if (given.length !== expected.length) return null;
+    // Konstanttidsjämförelse: en tidig return hade läckt hur många byte av en
+    // gissad signatur som stämde.
+    let diff = 0;
+    for (let i = 0; i < expected.length; i++) diff |= expected[i] ^ given[i];
+    if (diff !== 0) return null;
+
+    const data = JSON.parse(new TextDecoder().decode(b64urlDecode(parts[0])));
+    if (!data?.e || typeof data.exp !== "number" || data.exp * 1000 < Date.now()) return null;
+    return String(data.e);
+  } catch {
+    return null;
+  }
+}
+
 const APP_URL = "https://app.bayt.se";
 const PORTAL_URL = `${APP_URL}/mina-arenden`;
 
@@ -212,7 +349,7 @@ async function sendMail(to: string, subject: string, text: string, html: string)
     await client.send({
       from: Deno.env.get("SMTP_FROM") || smtpUser,
       to,
-      subject,
+      subject: encodeMailSubject(subject),
       content: text,
       html,
       // Utan detta stämplar mailservern ett eget Message-ID på sin egen domän;
@@ -492,6 +629,73 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const action = String(body?.action ?? "");
+
+    // ======================= create_account ================================
+    // Gröna knappen i tilldelningsmejlet, via bekräftelsesidan /skapa-konto.
+    //
+    // Ingen session krävs — beviset är den signerade token som mejlet bar med
+    // sig. Adressen tas UR token, aldrig ur anropet: annars hade sidan kunnat
+    // be om ett konto åt vilken adress som helst med en token som råkade vara
+    // giltig för en annan.
+    //
+    // Själva inbjudan görs inte här utan av invite-user, anropad med
+    // servicenyckeln. Den funktionen äger redan regeln för hur en entreprenörs
+    // kontaktpost hittas, återaktiveras eller skapas (samma regel som
+    // link_or_create_contact), och den regeln ska finnas på ett ställe.
+    if (action === "create_account") {
+      const email = await readAccountToken(body?.token, serviceRoleKey);
+      if (!email) {
+        return json(
+          {
+            error:
+              "Länken är ogiltig eller har gått ut. Öppna det senaste ärendemejlet, eller logga in med kod på sidan Mina ärenden.",
+          },
+          400,
+        );
+      }
+
+      // Redan konto: säg det rakt ut. Det är ingen läcka — den som håller en
+      // giltig token har redan bevisat att adressen är deras.
+      const { data: profileRows, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, email");
+      if (profileError) throw profileError;
+      const already = ((profileRows ?? []) as Record<string, unknown>[]).some(
+        (p) => normalizeEmail(p.email) === email,
+      );
+      if (already) {
+        return json({ error: "Adressen har redan ett konto. Logga in i stället.", has_account: true }, 409);
+      }
+
+      // Bara en aktiv entreprenörskontakt får bli konto den här vägen. Utan
+      // kontrollen hade en token från en sedan dess pensionerad kontakt kunnat
+      // återuppliva en inloggning som medvetet tagits bort.
+      const contacts = await contactsForEmail(supabase, email);
+      if (contacts.length === 0) {
+        return json(
+          { error: "Adressen finns inte som aktiv entreprenör hos BAYT. Kontakta din förvaltare." },
+          403,
+        );
+      }
+      const fullName = String(contacts[0].full_name ?? contacts[0].company ?? "") || email;
+
+      const inviteRes = await fetch(`${Deno.env.get("SUPABASE_URL") ?? ""}/functions/v1/invite-user`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${serviceRoleKey}`,
+          apikey: serviceRoleKey,
+        },
+        body: JSON.stringify({ email, role: "entreprenor", full_name: fullName }),
+      });
+      if (!inviteRes.ok) {
+        const detail = await inviteRes.text().catch(() => "");
+        console.error("entreprenor-portal: invite-user svarade", inviteRes.status, detail);
+        return json({ error: "Kontot kunde inte skapas just nu. Försök igen om en stund." }, 502);
+      }
+
+      return json({ success: true, email }, 200);
+    }
 
     // ======================= request_code ==================================
     if (action === "request_code") {

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as StyrelseRouteImport } from './routes/styrelse'
 import { Route as StartRouteImport } from './routes/start'
+import { Route as SkapaKontoRouteImport } from './routes/skapa-konto'
 import { Route as MinaArendenRouteImport } from './routes/mina-arenden'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as FelanmalanRouteImport } from './routes/felanmalan'
@@ -82,6 +83,11 @@ const StyrelseRoute = StyrelseRouteImport.update({
 const StartRoute = StartRouteImport.update({
   id: '/start',
   path: '/start',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SkapaKontoRoute = SkapaKontoRouteImport.update({
+  id: '/skapa-konto',
+  path: '/skapa-konto',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MinaArendenRoute = MinaArendenRouteImport.update({
@@ -446,6 +452,7 @@ export interface FileRoutesByFullPath {
   '/felanmalan': typeof FelanmalanRoute
   '/login': typeof LoginRoute
   '/mina-arenden': typeof MinaArendenRoute
+  '/skapa-konto': typeof SkapaKontoRoute
   '/start': typeof StartRoute
   '/styrelse': typeof StyrelseRoute
   '/chatt': typeof AuthenticatedChattRoute
@@ -511,6 +518,7 @@ export interface FileRoutesByTo {
   '/felanmalan': typeof FelanmalanRoute
   '/login': typeof LoginRoute
   '/mina-arenden': typeof MinaArendenRoute
+  '/skapa-konto': typeof SkapaKontoRoute
   '/start': typeof StartRoute
   '/styrelse': typeof StyrelseRoute
   '/chatt': typeof AuthenticatedChattRoute
@@ -577,6 +585,7 @@ export interface FileRoutesById {
   '/felanmalan': typeof FelanmalanRoute
   '/login': typeof LoginRoute
   '/mina-arenden': typeof MinaArendenRoute
+  '/skapa-konto': typeof SkapaKontoRoute
   '/start': typeof StartRoute
   '/styrelse': typeof StyrelseRoute
   '/_authenticated/chatt': typeof AuthenticatedChattRoute
@@ -644,6 +653,7 @@ export interface FileRouteTypes {
     | '/felanmalan'
     | '/login'
     | '/mina-arenden'
+    | '/skapa-konto'
     | '/start'
     | '/styrelse'
     | '/chatt'
@@ -709,6 +719,7 @@ export interface FileRouteTypes {
     | '/felanmalan'
     | '/login'
     | '/mina-arenden'
+    | '/skapa-konto'
     | '/start'
     | '/styrelse'
     | '/chatt'
@@ -774,6 +785,7 @@ export interface FileRouteTypes {
     | '/felanmalan'
     | '/login'
     | '/mina-arenden'
+    | '/skapa-konto'
     | '/start'
     | '/styrelse'
     | '/_authenticated/chatt'
@@ -841,6 +853,7 @@ export interface RootRouteChildren {
   FelanmalanRoute: typeof FelanmalanRoute
   LoginRoute: typeof LoginRoute
   MinaArendenRoute: typeof MinaArendenRoute
+  SkapaKontoRoute: typeof SkapaKontoRoute
   StartRoute: typeof StartRoute
   StyrelseRoute: typeof StyrelseRoute
 }
@@ -859,6 +872,13 @@ declare module '@tanstack/react-router' {
       path: '/start'
       fullPath: '/start'
       preLoaderRoute: typeof StartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/skapa-konto': {
+      id: '/skapa-konto'
+      path: '/skapa-konto'
+      fullPath: '/skapa-konto'
+      preLoaderRoute: typeof SkapaKontoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mina-arenden': {
@@ -1458,6 +1478,7 @@ const rootRouteChildren: RootRouteChildren = {
   FelanmalanRoute: FelanmalanRoute,
   LoginRoute: LoginRoute,
   MinaArendenRoute: MinaArendenRoute,
+  SkapaKontoRoute: SkapaKontoRoute,
   StartRoute: StartRoute,
   StyrelseRoute: StyrelseRoute,
 }
