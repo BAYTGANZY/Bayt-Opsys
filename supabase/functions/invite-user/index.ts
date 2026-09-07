@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     //   * entreprenor-portal med servicenyckeln, för gröna knappen. Den
     //     anroparen får BARA skapa entreprenörer och får aldrig radera — den
     //     är i praktiken oautentiserad trafik som portalen gått i god för.
-    const bearer = (req.headers.get('Authorization') ?? '').replace(/^Bearers+/i, '');
+    const bearer = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
     const isServiceCall = bearer !== '' && bearer === serviceKey;
 
     if (!isServiceCall) {
