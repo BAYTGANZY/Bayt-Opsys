@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { LOGO_ON_LIGHT } from "@/lib/logo";
 
 /**
  * /skapa-konto — gröna knappen i tilldelningsmejlet landar här.
@@ -41,8 +42,6 @@ const C = {
   wash: "#F9FAFB",
   accentBg: "#F0F7EE",
 };
-
-const baytLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
 
 /** Adressen ur tokens nyttolast, enbart för att kunna visa den. Se filhuvudet. */
 function emailFromToken(token: string): string | null {
@@ -124,7 +123,7 @@ function SkapaKontoPage() {
         }}
       >
         <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <img src={baytLogo} alt="BAYT" style={{ height: 30, width: "auto" }} />
+          <img src={LOGO_ON_LIGHT} alt="BAYT" style={{ height: 30, width: "auto" }} />
         </div>
 
         {!token || !email ? (

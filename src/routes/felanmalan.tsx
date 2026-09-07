@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { ISSUE_CATEGORIES } from "@/lib/issue-tokens";
 import { FileDropzone } from "@/components/FileDropzone";
 import { normalizeApartmentNumber, normalizeTrappa, TRAPPA_PLACEHOLDER } from "@/lib/apartment-tokens";
+import { LOGO_ON_DARK } from "@/lib/logo";
 
 // Fuzzy address matching: lets the resident type their home address and narrows
 // the Fastighet dropdown to the closest-sounding building(s) instead of listing
@@ -48,7 +49,6 @@ function similarity(a: string, b: string): number {
 const ADDRESS_MATCH_THRESHOLD = 0.3;
 const MAX_ADDRESS_MATCHES = 3;
 
-const baytLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
 // Shared with the confirmation screen below — the resident's one way back in
 // to check status is this path, keyed on the e-post they just typed above.
 const TRACK_PAGE_PATH = "/arendestatus";
@@ -292,7 +292,7 @@ function FelanmalanPage() {
     return (
       <div style={shellStyle}>
         <div style={{ width: "min(480px, 92vw)", display: "flex", flexDirection: "column", alignItems: "center" }}>
-          <img src={baytLogo} alt="BAYT" style={{ height: "clamp(40px, 10vw, 56px)", width: "auto", marginBottom: 24, filter: "brightness(0) invert(1)" }} />
+          <img src={LOGO_ON_DARK} alt="BAYT" style={{ height: "clamp(40px, 10vw, 56px)", width: "auto", marginBottom: 24 }} />
           <div style={{ background: C.card, borderRadius: 12, padding: "40px 32px", width: "100%", textAlign: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
             <h1 style={{ fontFamily: "Outfit, sans-serif", fontSize: 20, fontWeight: 600, color: C.text, margin: "0 0 12px" }}>Tack!</h1>
             <p style={{ fontSize: 15, color: C.secondary, lineHeight: 1.5, margin: 0 }}>
@@ -324,7 +324,7 @@ function FelanmalanPage() {
   return (
     <div style={shellStyle}>
       <div style={{ width: "min(560px, 94vw)", display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 0" }}>
-        <img src={baytLogo} alt="BAYT" style={{ height: "clamp(40px, 10vw, 56px)", width: "auto", marginBottom: 24, filter: "brightness(0) invert(1)" }} />
+        <img src={LOGO_ON_DARK} alt="BAYT" style={{ height: "clamp(40px, 10vw, 56px)", width: "auto", marginBottom: 24 }} />
         <div style={{ width: "100%", textAlign: "center", marginBottom: 20 }}>
           <h1 style={{ fontFamily: "Outfit, sans-serif", fontSize: 24, fontWeight: 600, color: "#ffffff", margin: "0 0 8px" }}>Felanmälan</h1>
           <p style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", margin: 0 }}>

@@ -2,8 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { LOGO_ON_DARK } from "@/lib/logo";
 
-const baytLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
 
 export const Route = createFileRoute("/arendestatus")({
   ssr: false,
@@ -248,7 +248,7 @@ function ArendeStatusPage() {
   return (
     <div style={shellStyle}>
       <div style={{ width: "min(560px, 94vw)", display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 0" }}>
-        <img src={baytLogo} alt="BAYT" style={{ height: "clamp(40px, 10vw, 56px)", width: "auto", marginBottom: 24, filter: "brightness(0) invert(1)" }} />
+        <img src={LOGO_ON_DARK} alt="BAYT" style={{ height: "clamp(40px, 10vw, 56px)", width: "auto", marginBottom: 24 }} />
         <div style={{ width: "100%", textAlign: "center", marginBottom: 20 }}>
           <h1 style={{ fontFamily: "Outfit, sans-serif", fontSize: 24, fontWeight: 600, color: "#ffffff", margin: "0 0 8px" }}>Ärendestatus</h1>
           <p style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", margin: 0 }}>

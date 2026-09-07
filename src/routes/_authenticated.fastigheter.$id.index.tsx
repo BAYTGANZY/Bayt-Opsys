@@ -21,7 +21,7 @@ import { useAuth } from "@/lib/auth";
 import { useVisibleProperties } from "@/hooks/useVisibleProperties";
 import { useBuildingWorld } from "@/lib/building-world";
 import { PROPERTY_SECTIONS_FOR_ROLE, canEdit } from "@/lib/permissions";
-const baytLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
+import { LOGO_ON_DARK } from "@/lib/logo";
 const buildingSketch = `${import.meta.env.BASE_URL}assets/building-sketch-2.png`;
 
 export const Route = createFileRoute("/_authenticated/fastigheter/$id/")({
@@ -337,7 +337,7 @@ function BuildingHomePage() {
 
         <div className="bw-header">
           <div className="bw-header-left">
-            <img src={baytLogo} alt="BAYT" className="bw-logo" />
+            <img src={LOGO_ON_DARK} alt="BAYT" className="bw-logo" />
             <button
               type="button"
               className="bw-minimize"

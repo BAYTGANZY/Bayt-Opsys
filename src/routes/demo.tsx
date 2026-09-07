@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Image as ImageIcon, Settings as SettingsIcon } from "lucide-react";
-const baytLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
+import { LOGO_ON_DARK } from "@/lib/logo";
 const buildingSketch = `${import.meta.env.BASE_URL}assets/building-sketch-2.png`;
 
 export const Route = createFileRoute("/demo")({
@@ -755,7 +755,7 @@ function WelcomeActions({ heading, body, onStart }: { heading: string; body: str
         maxWidth: 360, textAlign: "center", pointerEvents: "auto",
         animation: "bayt-fade-in 400ms ease-out",
       }}>
-        <img src={baytLogo} alt="BAYT" style={{ height: 40, margin: "0 auto 20px", display: "block" }} />
+        <img src={LOGO_ON_DARK} alt="BAYT" style={{ height: 40, margin: "0 auto 20px", display: "block" }} />
         <h1 style={{ margin: 0, color: "#fff", fontFamily: T.headingFont, fontSize: 26, fontWeight: 700, lineHeight: 1.2 }}>
           {heading}
         </h1>
@@ -800,7 +800,7 @@ function ClosingActions({ heading, body, onRestart }: { heading: string; body: s
         maxWidth: 380, textAlign: "center", pointerEvents: "auto",
         animation: "bayt-fade-in 400ms ease-out",
       }}>
-        <img src={baytLogo} alt="BAYT" style={{ display: "block", height: 34, width: "auto", margin: "0 auto 18px" }} />
+        <img src={LOGO_ON_DARK} alt="BAYT" style={{ display: "block", height: 34, width: "auto", margin: "0 auto 18px" }} />
         <h1 style={{ margin: 0, color: "#fff", fontFamily: T.headingFont, fontSize: 26, fontWeight: 700, lineHeight: 1.2 }}>
           {heading}
         </h1>

@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-const baytLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
+import { LOGO_ON_DARK } from "@/lib/logo";
 
 export const Route = createFileRoute("/accept-invite")({
   ssr: false,
@@ -70,9 +70,9 @@ function AcceptInvitePage() {
     >
       <div style={{ width: "min(360px, 92vw)", display: "flex", flexDirection: "column", alignItems: "center" }}>
         <img
-          src={baytLogo}
+          src={LOGO_ON_DARK}
           alt="BAYT"
-          style={{ height: "clamp(48px, 14vw, 72px)", width: "auto", objectFit: "contain", marginBottom: 18, filter: "brightness(0) invert(1)" }}
+          style={{ height: "clamp(48px, 14vw, 72px)", width: "auto", objectFit: "contain", marginBottom: 18 }}
         />
         <div
           style={{

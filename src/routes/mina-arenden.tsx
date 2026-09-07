@@ -6,6 +6,7 @@ import { ChevronDown } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { deriveIssueStatus, PRIORITY_DISPLAY_LABEL } from "@/lib/issue-tokens";
 import { DerivedStatusBadge } from "@/components/DerivedStatusBadge";
+import { LOGO_ON_DARK } from "@/lib/logo";
 
 /**
  * /mina-arenden — entreprenörens motsvarighet till boendens /arendestatus.
@@ -46,7 +47,6 @@ export const Route = createFileRoute("/mina-arenden")({
   component: MinaArendenPage,
 });
 
-const baytLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
 
 const C = {
   border: "#E5E7EB",
@@ -515,6 +515,63 @@ function IssueRow({
         />
       </button>
 
+      {/* Handlingsraden är livscykeln och ingenting annat, precis som i Dag
+          Rapports bottensheet: vilande → [Öppna] [Avsluta], oppet →
+          [Avsluta]. Ett avslutat ärende visar ingen knapp alls.
+
+          Den ligger utanför den hopfällbara delen med flit: att öppna eller
+          avsluta ett ärende är det man kom hit för, och att först behöva
+          fälla ut kortet gömde dagens enda två handlingar bakom ett extra
+          tryck. Dropdownen är kvar för detaljerna, inte för knapparna. */}
+      {(issue.can_open || issue.can_close) && (
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", padding: "0 18px 16px" }}>
+          {issue.can_open && (
+            <button
+              type="button"
+              onClick={() => onAct("open")}
+              disabled={actingKind !== null}
+              style={{
+                height: 42,
+                padding: "0 18px",
+                background: C.accent,
+                color: "#fff",
+                border: "none",
+                borderRadius: 10,
+                fontSize: 14,
+                fontWeight: 600,
+                fontFamily: HEADING_FONT,
+                cursor: actingKind !== null ? "not-allowed" : "pointer",
+                opacity: actingKind !== null ? 0.7 : 1,
+              }}
+            >
+              {actingKind === "open" ? "Öppnar…" : "Öppna ärende"}
+            </button>
+          )}
+          {issue.can_close && (
+            <button
+              type="button"
+              onClick={() => onAct("close")}
+              disabled={actingKind !== null}
+              style={{
+                height: 42,
+                padding: "0 18px",
+                background: C.dark,
+                color: "#fff",
+                border: "none",
+                borderRadius: 10,
+                fontSize: 14,
+                fontWeight: 600,
+                fontFamily: HEADING_FONT,
+                cursor: actingKind !== null ? "not-allowed" : "pointer",
+                opacity: actingKind !== null ? 0.7 : 1,
+              }}
+            >
+              {actingKind === "close" ? "Avslutar…" : "Avsluta ärende"}
+            </button>
+          )}
+        </div>
+      )}
+
       {expanded && (
         <div style={{ borderTop: `1px solid ${C.hairline}`, padding: "16px 18px 18px", display: "grid", gap: 12 }}>
           <div style={{ display: "grid", gap: 9 }}>
@@ -562,58 +619,6 @@ function IssueRow({
               <div style={{ fontSize: 14, color: C.text, lineHeight: 1.55, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
                 {issue.description}
               </div>
-            </div>
-          )}
-
-          {/* Handlingsraden är livscykeln och ingenting annat, precis som i Dag
-              Rapports bottensheet: vilande → [Öppna] [Avsluta], oppet →
-              [Avsluta]. Ett avslutat ärende visar ingen knapp alls. */}
-          {(issue.can_open || issue.can_close) && (
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", paddingTop: 2 }}>
-              {issue.can_open && (
-                <button
-                  type="button"
-                  onClick={() => onAct("open")}
-                  disabled={actingKind !== null}
-                  style={{
-                    height: 42,
-                    padding: "0 18px",
-                    background: C.accent,
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 10,
-                    fontSize: 14,
-                    fontWeight: 600,
-                    fontFamily: HEADING_FONT,
-                    cursor: actingKind !== null ? "not-allowed" : "pointer",
-                    opacity: actingKind !== null ? 0.7 : 1,
-                  }}
-                >
-                  {actingKind === "open" ? "Öppnar…" : "Öppna ärende"}
-                </button>
-              )}
-              {issue.can_close && (
-                <button
-                  type="button"
-                  onClick={() => onAct("close")}
-                  disabled={actingKind !== null}
-                  style={{
-                    height: 42,
-                    padding: "0 18px",
-                    background: C.dark,
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 10,
-                    fontSize: 14,
-                    fontWeight: 600,
-                    fontFamily: HEADING_FONT,
-                    cursor: actingKind !== null ? "not-allowed" : "pointer",
-                    opacity: actingKind !== null ? 0.7 : 1,
-                  }}
-                >
-                  {actingKind === "close" ? "Avslutar…" : "Avsluta ärende"}
-                </button>
-              )}
             </div>
           )}
         </div>
@@ -804,9 +809,9 @@ function MinaArendenPage() {
         }}
       >
         <img
-          src={baytLogo}
+          src={LOGO_ON_DARK}
           alt="BAYT"
-          style={{ height: "clamp(40px, 10vw, 56px)", width: "auto", marginBottom: 24, filter: "brightness(0) invert(1)" }}
+          style={{ height: "clamp(40px, 10vw, 56px)", width: "auto", marginBottom: 24 }}
         />
         <div style={{ width: "100%", textAlign: "center", marginBottom: 20 }}>
           <h1 style={{ fontFamily: HEADING_FONT, fontSize: 24, fontWeight: 600, color: "#ffffff", margin: "0 0 8px" }}>

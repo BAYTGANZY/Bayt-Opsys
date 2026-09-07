@@ -15,7 +15,7 @@ import {
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { canAccess } from "@/lib/permissions";
-const baytLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
+import { LOGO_ON_DARK } from "@/lib/logo";
 const buildingSketch = `${import.meta.env.BASE_URL}assets/building-sketch-2.png`;
 
 export const Route = createFileRoute("/start")({
@@ -224,7 +224,7 @@ function StartPage() {
         <img src={buildingSketch} alt="" className="start-bg-sketch" aria-hidden />
 
         <div className="start-header">
-          <img src={baytLogo} alt="BAYT" className="start-logo" />
+          <img src={LOGO_ON_DARK} alt="BAYT" className="start-logo" />
           <button
             className="start-logout"
             onClick={async () => {

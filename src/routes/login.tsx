@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router"
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
-const baytLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
+import { LOGO_ON_DARK } from "@/lib/logo";
 
 
 type Search = { error?: string };
@@ -74,9 +74,9 @@ function LoginPage() {
     >
       <div style={{ width: "min(360px, 92vw)", display: "flex", flexDirection: "column", alignItems: "center" }}>
         <img
-          src={baytLogo}
+          src={LOGO_ON_DARK}
           alt="BAYT"
-          style={{ height: "clamp(48px, 14vw, 72px)", width: "auto", objectFit: "contain", marginBottom: 18, filter: "brightness(0) invert(1)" }}
+          style={{ height: "clamp(48px, 14vw, 72px)", width: "auto", objectFit: "contain", marginBottom: 18 }}
         />
         <div
           style={{

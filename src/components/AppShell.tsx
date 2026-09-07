@@ -37,6 +37,7 @@ import { useMyArendeDots, type ArendeDot } from "@/hooks/useMyArendeDots";
 import { useArendeRealtime } from "@/hooks/useArendeRealtime";
 import { StatusDot } from "@/components/StatusDot";
 import { useBuildingWorld } from "@/lib/building-world";
+import { LOGO_ON_DARK } from "@/lib/logo";
 
 type SubItem = { to: string; label: string };
 type NavItem = {
@@ -459,9 +460,16 @@ export function AppShell() {
             border: "1px solid rgba(255,255,255,0.04)",
           }}
         >
+          {/* Loggan står mitt i luften mellan sidopanelens överkant och
+              första raden text. Luften nedåt ligger i tre element, inte ett:
+              padding-bottom här + 4px paddingTop på <nav> + 14px paddingTop på
+              ContextNavs "Aktiv fastighet". Avståndet ned är alltså padding-
+              bottom + 18, så 32/14 ger 32px åt båda hållen — och summan är
+              densamma som förut (16+12), så ingenting nedanför flyttar sig.
+              Ändras någon av de tre måste 14:an räknas om. */}
           <div
             style={{
-              padding: "16px 20px 12px",
+              padding: "32px 20px 14px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -470,9 +478,9 @@ export function AppShell() {
             }}
           >
             <img
-              src={`${import.meta.env.BASE_URL}assets/bayt-logo.png`}
+              src={LOGO_ON_DARK}
               alt="BAYT"
-              style={{ height: 32, width: "auto", display: "block" }}
+              style={{ height: 30, width: "auto", display: "block" }}
             />
             {inBuildingWorld && !isMobile && (
               <button
