@@ -11,6 +11,7 @@ import {
   UserGroupIcon,
   BookOpen01Icon,
   Package01Icon,
+  EyeIcon,
 } from "@hugeicons/core-free-icons";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -39,6 +40,7 @@ const TILES = [
   { to: "/dokument", label: "Dokument", icon: File02Icon },
   { to: "/contacts", label: "Kontakter", icon: UserGroupIcon },
   { to: "/loggbok", label: "Loggbok", icon: BookOpen01Icon },
+  { to: "/genomgang-av-fastighet", label: "Genomgång av fastighet", icon: EyeIcon },
 ] as const;
 
 const BG = "#0e1f1a";
