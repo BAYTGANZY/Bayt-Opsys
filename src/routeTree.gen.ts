@@ -24,6 +24,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedOppnaArendenRouteImport } from './routes/_authenticated.oppna-arenden'
 import { Route as AuthenticatedLoggbokRouteImport } from './routes/_authenticated.loggbok'
 import { Route as AuthenticatedInstallningarRouteImport } from './routes/_authenticated.installningar'
+import { Route as AuthenticatedGenomgangAvFastighetRouteImport } from './routes/_authenticated.genomgang-av-fastighet'
 import { Route as AuthenticatedFelanmalningarRouteImport } from './routes/_authenticated.felanmalningar'
 import { Route as AuthenticatedEntreprenorerRouteImport } from './routes/_authenticated.entreprenorer'
 import { Route as AuthenticatedEkonomiRouteImport } from './routes/_authenticated.ekonomi'
@@ -149,6 +150,12 @@ const AuthenticatedInstallningarRoute =
   AuthenticatedInstallningarRouteImport.update({
     id: '/installningar',
     path: '/installningar',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedGenomgangAvFastighetRoute =
+  AuthenticatedGenomgangAvFastighetRouteImport.update({
+    id: '/genomgang-av-fastighet',
+    path: '/genomgang-av-fastighet',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedFelanmalningarRoute =
@@ -462,6 +469,7 @@ export interface FileRoutesByFullPath {
   '/ekonomi': typeof AuthenticatedEkonomiRoute
   '/entreprenorer': typeof AuthenticatedEntreprenorerRoute
   '/felanmalningar': typeof AuthenticatedFelanmalningarRoute
+  '/genomgang-av-fastighet': typeof AuthenticatedGenomgangAvFastighetRoute
   '/installningar': typeof AuthenticatedInstallningarRoute
   '/loggbok': typeof AuthenticatedLoggbokRoute
   '/oppna-arenden': typeof AuthenticatedOppnaArendenRoute
@@ -528,6 +536,7 @@ export interface FileRoutesByTo {
   '/ekonomi': typeof AuthenticatedEkonomiRoute
   '/entreprenorer': typeof AuthenticatedEntreprenorerRoute
   '/felanmalningar': typeof AuthenticatedFelanmalningarRoute
+  '/genomgang-av-fastighet': typeof AuthenticatedGenomgangAvFastighetRoute
   '/installningar': typeof AuthenticatedInstallningarRoute
   '/loggbok': typeof AuthenticatedLoggbokRoute
   '/oppna-arenden': typeof AuthenticatedOppnaArendenRoute
@@ -595,6 +604,7 @@ export interface FileRoutesById {
   '/_authenticated/ekonomi': typeof AuthenticatedEkonomiRoute
   '/_authenticated/entreprenorer': typeof AuthenticatedEntreprenorerRoute
   '/_authenticated/felanmalningar': typeof AuthenticatedFelanmalningarRoute
+  '/_authenticated/genomgang-av-fastighet': typeof AuthenticatedGenomgangAvFastighetRoute
   '/_authenticated/installningar': typeof AuthenticatedInstallningarRoute
   '/_authenticated/loggbok': typeof AuthenticatedLoggbokRoute
   '/_authenticated/oppna-arenden': typeof AuthenticatedOppnaArendenRoute
@@ -663,6 +673,7 @@ export interface FileRouteTypes {
     | '/ekonomi'
     | '/entreprenorer'
     | '/felanmalningar'
+    | '/genomgang-av-fastighet'
     | '/installningar'
     | '/loggbok'
     | '/oppna-arenden'
@@ -729,6 +740,7 @@ export interface FileRouteTypes {
     | '/ekonomi'
     | '/entreprenorer'
     | '/felanmalningar'
+    | '/genomgang-av-fastighet'
     | '/installningar'
     | '/loggbok'
     | '/oppna-arenden'
@@ -795,6 +807,7 @@ export interface FileRouteTypes {
     | '/_authenticated/ekonomi'
     | '/_authenticated/entreprenorer'
     | '/_authenticated/felanmalningar'
+    | '/_authenticated/genomgang-av-fastighet'
     | '/_authenticated/installningar'
     | '/_authenticated/loggbok'
     | '/_authenticated/oppna-arenden'
@@ -963,6 +976,13 @@ declare module '@tanstack/react-router' {
       path: '/installningar'
       fullPath: '/installningar'
       preLoaderRoute: typeof AuthenticatedInstallningarRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/genomgang-av-fastighet': {
+      id: '/_authenticated/genomgang-av-fastighet'
+      path: '/genomgang-av-fastighet'
+      fullPath: '/genomgang-av-fastighet'
+      preLoaderRoute: typeof AuthenticatedGenomgangAvFastighetRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/felanmalningar': {
@@ -1400,6 +1420,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedEkonomiRoute: typeof AuthenticatedEkonomiRoute
   AuthenticatedEntreprenorerRoute: typeof AuthenticatedEntreprenorerRoute
   AuthenticatedFelanmalningarRoute: typeof AuthenticatedFelanmalningarRoute
+  AuthenticatedGenomgangAvFastighetRoute: typeof AuthenticatedGenomgangAvFastighetRoute
   AuthenticatedInstallningarRoute: typeof AuthenticatedInstallningarRoute
   AuthenticatedLoggbokRoute: typeof AuthenticatedLoggbokRoute
   AuthenticatedOppnaArendenRoute: typeof AuthenticatedOppnaArendenRoute
@@ -1435,6 +1456,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedEkonomiRoute: AuthenticatedEkonomiRoute,
   AuthenticatedEntreprenorerRoute: AuthenticatedEntreprenorerRoute,
   AuthenticatedFelanmalningarRoute: AuthenticatedFelanmalningarRoute,
+  AuthenticatedGenomgangAvFastighetRoute:
+    AuthenticatedGenomgangAvFastighetRoute,
   AuthenticatedInstallningarRoute: AuthenticatedInstallningarRoute,
   AuthenticatedLoggbokRoute: AuthenticatedLoggbokRoute,
   AuthenticatedOppnaArendenRoute: AuthenticatedOppnaArendenRoute,
