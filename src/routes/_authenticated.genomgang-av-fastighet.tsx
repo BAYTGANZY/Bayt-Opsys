@@ -1,13 +1,28 @@
-
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-
-const STORAGE_KEY = "bayt-property-walkthroughs";
+import {
+  Building2,
+  CalendarDays,
+  Check,
+  CheckCircle2,
+  ClipboardCheck,
+  Download,
+  FileText,
+  HardHat,
+  MapPin,
+  MessageSquareText,
+  Save,
+  ShieldCheck,
+  Sprout,
+  UserRound,
+  Wrench,
+  CircleAlert,
+  CircleDashed,
+} from "lucide-react";
 
 const CHECKLIST = [
   {
     title: "1. Allmänt om fastigheten",
-    icon: "⌂",
     items: [
       "Fastighetens adress och typ",
       "Antal byggnader och lägenheter",
@@ -17,7 +32,6 @@ const CHECKLIST = [
   },
   {
     title: "2. Utemiljö och byggnad",
-    icon: "▤",
     items: [
       "Fasad och sockel",
       "Tak och takavvattning",
@@ -28,7 +42,6 @@ const CHECKLIST = [
   },
   {
     title: "3. Gemensamma utrymmen",
-    icon: "▦",
     items: [
       "Trapphus och korridorer",
       "Tvättstuga",
@@ -39,7 +52,6 @@ const CHECKLIST = [
   },
   {
     title: "4. Tekniska installationer",
-    icon: "⚙",
     items: [
       "Värme och ventilation",
       "Vatten och avlopp",
@@ -50,7 +62,6 @@ const CHECKLIST = [
   },
   {
     title: "5. Drift och förvaltning",
-    icon: "✓",
     items: [
       "Pågående fel och brister",
       "Befintliga serviceavtal",
@@ -60,177 +71,6 @@ const CHECKLIST = [
     ],
   },
 ];
-
-const TOTAL = CHECKLIST.reduce(
-  (sum, section) => sum + section.items.length,
-  0,
-);
-
-type Walkthrough = {
-  id: string;
-  propertyName: string;
-  address: string;
-  contact: string;
-  visitDate: string;
-  answers: Record<string, string>;
-  comments: Record<string, string>;
-  generalNotes: string;
-  updatedAt: string;
-};
-
-const styles = `
-.bayt-page {
-  --bayt-green: #0D2B1E;
-  --bayt-green-2: #194631;
-  --bayt-lime: #C4DF83;
-  --bayt-bg: #F5F7F3;
-  --bayt-line: #E1E7DF;
-  --bayt-muted: #718075;
-  color: #18251D;
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-}
-.bayt-page * { box-sizing: border-box; }
-.bayt-page button, .bayt-page input,
-.bayt-page select, .bayt-page textarea { font: inherit; }
-.bayt-page button { cursor: pointer; }
-.bayt-hero {
-  position: relative; overflow: hidden;
-  border-radius: 22px; padding: 28px;
-  color: white; background: var(--bayt-green);
-}
-.bayt-hero:after {
-  content: ""; position: absolute;
-  width: 220px; height: 220px; border-radius: 50%;
-  right: -70px; top: -100px;
-  border: 35px solid rgba(196,223,131,.10);
-  pointer-events: none;
-}
-.bayt-eyebrow {
-  color: var(--bayt-lime); font-size: 11px;
-  font-weight: 800; letter-spacing: .19em;
-}
-.bayt-title {
-  margin: 12px 0 8px; font-size: clamp(25px,4vw,36px);
-  line-height: 1.15; letter-spacing: -.045em;
-  font-weight: 800;
-}
-.bayt-muted { color: var(--bayt-muted); }
-.bayt-panel {
-  border: 1px solid var(--bayt-line);
-  border-radius: 18px; background: white; padding: 22px;
-}
-.bayt-field {
-  width: 100%; min-width: 0; border: 1px solid #DCE4DA;
-  background: #FBFCFA; border-radius: 10px;
-  padding: 12px 13px; color: #18251D;
-  outline: none; transition: border-color .15s, box-shadow .15s;
-}
-.bayt-field:focus {
-  border-color: #648B58;
-  box-shadow: 0 0 0 3px rgba(100,139,88,.12);
-}
-.bayt-label {
-  display: block; margin-bottom: 7px;
-  font-size: 12px; font-weight: 700; color: #526256;
-}
-.bayt-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  gap: 8px; border-radius: 10px; padding: 12px 16px;
-  font-size: 13px; font-weight: 750; border: 1px solid transparent;
-  transition: transform .15s, background .15s;
-}
-.bayt-btn:hover { transform: translateY(-1px); }
-.bayt-primary { background: var(--bayt-green); color: white; }
-.bayt-primary:hover { background: var(--bayt-green-2); }
-.bayt-secondary { background: white; color: var(--bayt-green); border-color: var(--bayt-line); }
-.bayt-lime { background: var(--bayt-lime); color: var(--bayt-green); }
-.bayt-section-head {
-  display: flex; align-items: center; gap: 12px; margin-bottom: 18px;
-}
-.bayt-icon {
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; width: 43px; height: 43px;
-  border-radius: 12px; background: #EAF1E5;
-  color: var(--bayt-green); font-size: 23px; font-weight: 900;
-}
-.bayt-progress {
-  width: 100%; height: 8px; overflow: hidden;
-  border-radius: 99px; background: #E9EEE7;
-}
-.bayt-progress > div {
-  height: 100%; background: var(--bayt-green);
-  border-radius: 99px; transition: width .2s;
-}
-.bayt-check-section {
-  overflow: hidden; border: 1px solid var(--bayt-line);
-  border-radius: 14px; background: white;
-}
-.bayt-check-title {
-  display: flex; align-items: center; gap: 12px;
-  padding: 15px; background: #F7F9F5;
-  border-bottom: 1px solid var(--bayt-line);
-  font-size: 14px; font-weight: 800;
-}
-.bayt-check-item { padding: 15px; border-bottom: 1px solid #EDF0EB; }
-.bayt-check-item:last-child { border-bottom: 0; }
-.bayt-status {
-  display: inline-flex; align-items: center; gap: 6px;
-  border-radius: 99px; padding: 6px 9px;
-  font-size: 11px; font-weight: 800; white-space: nowrap;
-}
-.bayt-status-done { color: #21663C; background: #E7F4E8; }
-.bayt-status-action { color: #963E2E; background: #FCEAE5; }
-.bayt-status-progress { color: #815A17; background: #FFF3D7; }
-.bayt-status-empty { color: #647166; background: #EEF1EC; }
-.bayt-record {
-  display: block; width: 100%; text-align: left;
-  border: 1px solid var(--bayt-line); border-radius: 15px;
-  padding: 17px; background: white; color: inherit;
-  transition: border-color .15s, box-shadow .15s, transform .15s;
-}
-.bayt-record:hover {
-  border-color: #9AB58C;
-  box-shadow: 0 8px 22px rgba(13,43,30,.06);
-  transform: translateY(-1px);
-}
-@media (max-width: 640px) {
-  .bayt-hero { padding: 22px 19px; }
-  .bayt-panel { padding: 16px; }
-  .bayt-check-item { padding: 12px; }
-}
-`;
-
-function getStatus(item: Walkthrough) {
-  const values = CHECKLIST.flatMap(section =>
-    section.items.map(label => item.answers?.[`${section.title}::${label}`] || ""),
-  );
-
-  if (values.some(value => value === "Åtgärd krävs")) {
-    return { label: "Åtgärd krävs", icon: "!", className: "bayt-status-action" };
-  }
-
-  if (values.every(value => value === "Kontrollerat" || value === "Ej aktuellt")) {
-    return { label: "Slutförd", icon: "✓", className: "bayt-status-done" };
-  }
-
-  if (values.some(Boolean)) {
-    return { label: "Påbörjad", icon: "◷", className: "bayt-status-progress" };
-  }
-
-  return { label: "Ej påbörjad", icon: "○", className: "bayt-status-empty" };
-}
-
-function formatDate(value?: string) {
-  if (!value) return "Inget datum";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "Inget datum"
-    : date.toLocaleDateString("sv-SE", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
-}
 
 function GenomgangAvFastighetPage() {
   const [propertyName, setPropertyName] = useState("");
@@ -242,91 +82,63 @@ function GenomgangAvFastighetPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [comments, setComments] = useState<Record<string, string>>({});
   const [generalNotes, setGeneralNotes] = useState("");
-  const [savedWalkthroughs, setSavedWalkthroughs] = useState<Walkthrough[]>([]);
-  const [currentWalkthroughId, setCurrentWalkthroughId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [showChecklist, setShowChecklist] = useState(true);
+const [savedWalkthroughs, setSavedWalkthroughs] = useState<any[]>([]);
+const [currentWalkthroughId, setCurrentWalkthroughId] = useState<string | null>(null);
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) setSavedWalkthroughs(JSON.parse(saved));
-    } catch {
-      console.error("Kunde inte läsa sparade genomgångar.");
-    }
-  }, []);
+useEffect(() => {
+  try {
+    const saved = localStorage.getItem("bayt-property-walkthroughs");
+    if (saved) setSavedWalkthroughs(JSON.parse(saved));
+  } catch {
+    console.error("Kunde inte läsa sparade genomgångar.");
+  }
+}, []);
 
-  const checked = Object.values(answers).filter(
-    answer => answer === "Kontrollerat",
-  ).length;
-  const actionCount = Object.values(answers).filter(
-    answer => answer === "Åtgärd krävs",
-  ).length;
-  const progress = Math.round(
-    (Object.values(answers).filter(Boolean).length / TOTAL) * 100,
+function saveWalkthrough() {
+  const record = {
+    id: currentWalkthroughId ?? crypto.randomUUID(),
+    propertyName,
+    address,
+    contact,
+    visitDate,
+    answers,
+    comments,
+    generalNotes,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const updated = [
+    record,
+    ...savedWalkthroughs.filter((item) => item.id !== record.id),
+  ];
+
+  try {
+    localStorage.setItem(
+      "bayt-property-walkthroughs",
+      JSON.stringify(updated),
+    );
+    setSavedWalkthroughs(updated);
+    setCurrentWalkthroughId(record.id);
+    alert("Genomgången har sparats på den här enheten.");
+  } catch {
+    alert("Kunde inte spara genomgången i webbläsaren.");
+  }
+}
+  const total = CHECKLIST.reduce(
+    (sum, section) => sum + section.items.length,
+    0,
   );
-
-  function startNewWalkthrough() {
-    if (
-      (propertyName.trim() || Object.keys(answers).length > 0) &&
-      !window.confirm("Starta en ny genomgång? Spara först om du vill behålla ändringarna.")
-    ) return;
-
-    setCurrentWalkthroughId(null);
-    setPropertyName("");
-    setAddress("");
-    setContact("");
-    setVisitDate(new Date().toISOString().slice(0, 10));
-    setAnswers({});
-    setComments({});
-    setGeneralNotes("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function saveWalkthrough() {
-    if (!propertyName.trim() && !address.trim()) {
-      alert("Ange minst fastighetens namn eller adress innan du sparar.");
-      return;
-    }
-
-    const record: Walkthrough = {
-      id: currentWalkthroughId ?? crypto.randomUUID(),
-      propertyName,
-      address,
-      contact,
-      visitDate,
-      answers,
-      comments,
-      generalNotes,
-      updatedAt: new Date().toISOString(),
-    };
-
-    const updated = [
-      record,
-      ...savedWalkthroughs.filter(item => item.id !== record.id),
-    ];
-
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      setSavedWalkthroughs(updated);
-      setCurrentWalkthroughId(record.id);
-      alert("Genomgången har sparats på den här enheten.");
-    } catch {
-      alert("Kunde inte spara genomgången i webbläsaren.");
-    }
-  }
-
-  function openWalkthrough(item: Walkthrough) {
-    setCurrentWalkthroughId(item.id);
-    setPropertyName(item.propertyName ?? "");
-    setAddress(item.address ?? "");
-    setContact(item.contact ?? "");
-    setVisitDate(item.visitDate ?? "");
-    setAnswers(item.answers ?? {});
-    setComments(item.comments ?? {});
-    setGeneralNotes(item.generalNotes ?? "");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
+  const checked = Object.values(answers).filter(
+    (answer) => answer === "Kontrollerat",
+  ).length;
+  const needsAction = Object.values(answers).filter(
+    (answer) => answer === "Åtgärd krävs",
+  ).length;
+  const notApplicable = Object.values(answers).filter(
+    (answer) => answer === "Ej aktuellt",
+  ).length;
+  const assessed = checked + needsAction + notApplicable;
+  const sectionIcons = [Building2, Sprout, ClipboardCheck, Wrench, ShieldCheck];
 
   function exportNotes() {
     const lines = [
@@ -336,9 +148,9 @@ function GenomgangAvFastighetPage() {
       `Kontaktperson: ${contact}`,
       `Besöksdatum: ${visitDate}`,
       "",
-      ...CHECKLIST.flatMap(section => [
+      ...CHECKLIST.flatMap((section) => [
         section.title,
-        ...section.items.map(item => {
+        ...section.items.map((item) => {
           const key = `${section.title}::${item}`;
           return `- ${item}: ${answers[key] || "Ej bedömt"}${
             comments[key] ? ` – ${comments[key]}` : ""
@@ -361,291 +173,123 @@ function GenomgangAvFastighetPage() {
     URL.revokeObjectURL(url);
   }
 
-  const filteredWalkthroughs = savedWalkthroughs.filter(item =>
-    `${item.propertyName ?? ""} ${item.address ?? ""}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
-  );
-
   return (
-    <div className="bayt-page mx-auto w-full max-w-6xl space-y-6 p-4 md:p-8">
-      <style>{styles}</style>
-
-      <header className="bayt-hero">
-        <div className="relative z-10 flex flex-wrap items-start justify-between gap-5">
-          <div className="flex items-start gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-lime-200 text-3xl font-black text-emerald-950">
-              ☷
+    <main className="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-8">
+      <header className="relative overflow-hidden rounded-2xl bg-[#123d32] p-6 text-white shadow-lg md:p-8">
+        <div className="absolute -right-12 -top-16 h-56 w-56 rounded-full border-[32px] border-white/5" />
+        <div className="relative flex flex-wrap items-end justify-between gap-5">
+          <div>
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-200/20 bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[.18em] text-emerald-100">
+              <Building2 className="h-4 w-4" /> BAYT <span className="text-emerald-300">/</span> NY KUND
             </div>
-            <div>
-              <p className="bayt-eyebrow">BAYT · ANSVAR HELA VÄGEN</p>
-              <h1 className="bayt-title">Genomgång av fastighet</h1>
-              <p className="max-w-xl text-sm leading-6 text-emerald-100">
-                Ett samlat underlag för fastighetens skick, drift och åtgärdsbehov
-                inför platsbesök och offert.
-              </p>
-            </div>
+            <h1 className="text-3xl font-black tracking-tight md:text-4xl">Platsbesök<span className="text-emerald-300">.</span></h1>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-emerald-50/75 md:text-base">
+              Skapa ett tydligt beslutsunderlag inför offert. Gå igenom varje område, fånga risker och lämna inget åt minnet.
+            </p>
           </div>
-          <button
-            type="button"
-            className="bayt-btn bayt-lime"
-            onClick={startNewWalkthrough}
-          >
-            <span className="text-lg">＋</span> Ny genomgång
-          </button>
-        </div>
-        <div className="relative z-10 mt-7 flex flex-wrap gap-2">
-          <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white">
-            {savedWalkthroughs.length} sparade genomgångar
-          </span>
-          <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white">
-            {TOTAL} kontrollpunkter
-          </span>
+          <div className="rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-emerald-50/80">
+            <span className="block text-[10px] font-bold uppercase tracking-[.16em] text-emerald-200/70">Genomgångens status</span>
+            <span className="mt-1 flex items-center gap-2 font-semibold text-white"><ClipboardCheck className="h-4 w-4 text-emerald-300" /> {assessed} av {total} bedömda</span>
+          </div>
         </div>
       </header>
 
-      <section className="bayt-panel">
-        <div className="bayt-section-head">
-          <div className="bayt-icon">⌂</div>
-          <div>
-            <h2 className="text-lg font-extrabold">Grunduppgifter</h2>
-            <p className="text-sm bayt-muted">Identifiera fastigheten och besöket.</p>
-          </div>
+      <section className="rounded-2xl border border-emerald-950/10 bg-white p-5 shadow-sm md:p-6">
+        <div className="mb-5 flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800"><Building2 className="h-5 w-5" /></span>
+          <div><p className="text-[10px] font-bold uppercase tracking-[.16em] text-emerald-700">01 · Start här</p><h2 className="text-lg font-extrabold tracking-tight text-[#173c32]">Grunduppgifter</h2></div>
         </div>
-
         <div className="grid gap-4 md:grid-cols-2">
-          <label>
-            <span className="bayt-label">Fastighet / kund</span>
-            <input className="bayt-field" value={propertyName}
-              onChange={event => setPropertyName(event.target.value)}
-              placeholder="Namn på fastigheten eller kunden" />
-          </label>
-          <label>
-            <span className="bayt-label">Adress</span>
-            <input className="bayt-field" value={address}
-              onChange={event => setAddress(event.target.value)}
-              placeholder="Fastighetens adress" />
-          </label>
-          <label>
-            <span className="bayt-label">Kontaktperson</span>
-            <input className="bayt-field" value={contact}
-              onChange={event => setContact(event.target.value)}
-              placeholder="Namn och kontaktuppgifter" />
-          </label>
-          <label>
-            <span className="bayt-label">Besöksdatum</span>
-            <input className="bayt-field" type="date" value={visitDate}
-              onChange={event => setVisitDate(event.target.value)} />
+          {[
+            { label: "Fastighet / kund", value: propertyName, change: setPropertyName, placeholder: "Namn på fastigheten eller kunden", icon: Building2 },
+            { label: "Adress", value: address, change: setAddress, placeholder: "Fastighetens adress", icon: MapPin },
+            { label: "Kontaktperson", value: contact, change: setContact, placeholder: "Namn och kontaktuppgifter", icon: UserRound },
+          ].map(({ label, value, change, placeholder, icon: Icon }) => (
+            <label key={label} className="space-y-1.5">
+              <span className="text-xs font-bold text-slate-700">{label}</span>
+              <span className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/70 px-3 focus-within:border-emerald-700 focus-within:ring-2 focus-within:ring-emerald-700/10">
+                <Icon className="h-4 w-4 shrink-0 text-emerald-800/60" />
+                <input className="w-full bg-transparent py-2.5 text-sm outline-none placeholder:text-slate-400" value={value} onChange={(event) => change(event.target.value)} placeholder={placeholder} />
+              </span>
+            </label>
+          ))}
+          <label className="space-y-1.5">
+            <span className="text-xs font-bold text-slate-700">Besöksdatum</span>
+            <span className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/70 px-3 focus-within:border-emerald-700 focus-within:ring-2 focus-within:ring-emerald-700/10"><CalendarDays className="h-4 w-4 shrink-0 text-emerald-800/60" /><input className="w-full bg-transparent py-2.5 text-sm outline-none" type="date" value={visitDate} onChange={(event) => setVisitDate(event.target.value)} /></span>
           </label>
         </div>
       </section>
 
-      <section className="bayt-panel">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="bayt-section-head mb-0">
-            <div className="bayt-icon">☷</div>
-            <div>
-              <h2 className="text-lg font-extrabold">Kontrollöversikt</h2>
-              <p className="text-sm bayt-muted">Följ arbetet genom hela besöket.</p>
+      <section className="overflow-hidden rounded-2xl border border-emerald-950/10 bg-white shadow-sm">
+        <div className="border-b border-slate-100 p-5 md:p-6">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#123d32] text-emerald-200"><ClipboardCheck className="h-5 w-5" /></span>
+              <div><p className="text-[10px] font-bold uppercase tracking-[.16em] text-emerald-700">02 · Systematisk genomgång</p><h2 className="text-xl font-black tracking-tight text-[#173c32]">Checklista</h2></div>
             </div>
+            <p className="text-xs font-semibold text-slate-500"><span className="text-[#123d32]">{checked} klara</span><span className="mx-2 text-slate-300">·</span><span className={needsAction ? "text-rose-700" : ""}>{needsAction} kräver åtgärd</span><span className="mx-2 text-slate-300">·</span>{total - assessed} återstår</p>
           </div>
-          <button type="button" className="bayt-btn bayt-secondary"
-            onClick={() => setShowChecklist(value => !value)}>
-            {showChecklist ? "Dölj checklista −" : "Visa checklista ＋"}
-          </button>
+          <div className="mt-5 h-2.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-emerald-700 to-lime-400 transition-all duration-500" style={{ width: `${(checked / total) * 100}%` }} /></div>
+          <div className="mt-2 flex justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400"><span>{Math.round((checked / total) * 100)}% kontrollerat</span><span>{notApplicable} ej aktuella</span></div>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl bg-[#F4F7F1] p-4">
-            <p className="text-xs font-bold uppercase tracking-wide bayt-muted">Besvarade</p>
-            <p className="mt-1 text-2xl font-extrabold text-[#0D2B1E]">
-              {Object.values(answers).filter(Boolean).length}
-              <span className="text-sm font-semibold bayt-muted"> / {TOTAL}</span>
-            </p>
-          </div>
-          <div className="rounded-xl bg-[#EAF3E8] p-4">
-            <p className="text-xs font-bold uppercase tracking-wide text-[#397247]">Kontrollerade</p>
-            <p className="mt-1 text-2xl font-extrabold text-[#205C35]">{checked}</p>
-          </div>
-          <div className="rounded-xl bg-[#FFF0EA] p-4">
-            <p className="text-xs font-bold uppercase tracking-wide text-[#963E2E]">Åtgärder krävs</p>
-            <p className="mt-1 text-2xl font-extrabold text-[#963E2E]">{actionCount}</p>
-          </div>
-        </div>
-
-        <div className="mt-5 flex items-center justify-between gap-3 text-sm">
-          <span className="font-bold">Genomförande</span>
-          <span className="font-extrabold text-[#0D2B1E]">{progress}%</span>
-        </div>
-        <div className="bayt-progress mt-2"><div style={{ width: `${progress}%` }} /></div>
-      </section>
-
-      {showChecklist && CHECKLIST.map(section => (
-        <section className="bayt-check-section" key={section.title}>
-          <div className="bayt-check-title">
-            <span className="bayt-icon">{section.icon}</span>
-            <span>{section.title}</span>
-          </div>
-          {section.items.map(item => {
-            const key = `${section.title}::${item}`;
-            const answer = answers[key] || "";
-            const statusClass =
-              answer === "Kontrollerat" ? "bayt-status-done" :
-              answer === "Åtgärd krävs" ? "bayt-status-action" :
-              answer === "Ej aktuellt" ? "bayt-status-empty" :
-              "bayt-status-progress";
-
+        <div className="divide-y divide-slate-100">
+          {CHECKLIST.map((section, sectionIndex) => {
+            const SectionIcon = sectionIcons[sectionIndex] ?? HardHat;
+            const sectionChecked = section.items.filter((item) => answers[`${section.title}::${item}`] === "Kontrollerat").length;
+            const sectionAction = section.items.filter((item) => answers[`${section.title}::${item}`] === "Åtgärd krävs").length;
             return (
-              <div className="bayt-check-item" key={key}>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <span className="text-sm font-bold leading-5">{item}</span>
-                  {answer && (
-                    <span className={`bayt-status ${statusClass}`}>
-                      <span>{answer === "Kontrollerat" ? "✓" :
-                        answer === "Åtgärd krävs" ? "!" :
-                        answer === "Ej aktuellt" ? "—" : "◷"}</span>
-                      {answer}
-                    </span>
-                  )}
+              <section key={section.title} className="p-4 md:p-5">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-800"><SectionIcon className="h-[18px] w-[18px]" /></span><div className="min-w-0"><h3 className="text-sm font-extrabold text-[#173c32]">{section.title.replace(/^\d+\.\s*/, "")}</h3><p className="text-[11px] font-medium text-slate-400">{sectionChecked}/{section.items.length} kontrollerade{sectionAction > 0 ? ` · ${sectionAction} att åtgärda` : ""}</p></div></div>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black tracking-wider text-slate-500">0{sectionIndex + 1}</span>
                 </div>
-                <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,220px)_1fr]">
-                  <select className="bayt-field text-sm" value={answer}
-                    aria-label={`Status för ${item}`}
-                    onChange={event => setAnswers(current => ({
-                      ...current, [key]: event.target.value,
-                    }))}>
-                    <option value="">Välj status…</option>
-                    <option value="Kontrollerat">✓ Kontrollerat</option>
-                    <option value="Åtgärd krävs">! Åtgärd krävs</option>
-                    <option value="Ej aktuellt">— Ej aktuellt</option>
-                  </select>
-                  <textarea className="bayt-field text-sm" rows={2}
-                    placeholder="Kommentar eller observation (valfritt)"
-                    aria-label={`Kommentar för ${item}`}
-                    value={comments[key] || ""}
-                    onChange={event => setComments(current => ({
-                      ...current, [key]: event.target.value,
-                    }))} />
+                <div className="space-y-2">
+                  {section.items.map((item) => {
+                    const key = `${section.title}::${item}`;
+                    const status = answers[key] || "";
+                    const statusStyle = status === "Kontrollerat" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : status === "Åtgärd krävs" ? "border-rose-200 bg-rose-50 text-rose-800" : status === "Ej aktuellt" ? "border-slate-200 bg-slate-100 text-slate-600" : "border-slate-200 bg-white text-slate-500";
+                    const StatusIcon = status === "Kontrollerat" ? CheckCircle2 : status === "Åtgärd krävs" ? CircleAlert : status === "Ej aktuellt" ? CircleDashed : CircleDashed;
+                    return (
+                      <article key={key} className={`rounded-xl border p-3 transition-colors ${status === "Åtgärd krävs" ? "border-rose-200 bg-rose-50/40" : status === "Kontrollerat" ? "border-emerald-100 bg-emerald-50/30" : "border-slate-200 bg-slate-50/60"}`}>
+                        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex items-center gap-2.5"><span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${status === "Kontrollerat" ? "bg-emerald-700 text-white" : status === "Åtgärd krävs" ? "bg-rose-100 text-rose-700" : "bg-white text-slate-400"}`}>{status === "Kontrollerat" ? <Check className="h-3.5 w-3.5" /> : <StatusIcon className="h-3.5 w-3.5" />}</span><span className="text-sm font-bold leading-snug text-slate-800">{item}</span></div>
+                          <label className={`flex shrink-0 items-center gap-2 self-start rounded-lg border px-2.5 py-1.5 sm:self-auto ${statusStyle}`}><StatusIcon className="h-3.5 w-3.5" /><select aria-label={`Status: ${item}`} className="max-w-[170px] cursor-pointer bg-transparent text-xs font-bold outline-none" value={status} onChange={(event) => setAnswers((current) => ({ ...current, [key]: event.target.value }))}><option value="">Ej bedömt</option><option value="Kontrollerat">Kontrollerat</option><option value="Åtgärd krävs">Åtgärd krävs</option><option value="Ej aktuellt">Ej aktuellt</option></select></label>
+                        </div>
+                        <label className="mt-2.5 flex items-start gap-2 rounded-lg border border-transparent bg-white/80 px-2.5 py-2 focus-within:border-emerald-200"><MessageSquareText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-800/50" /><textarea className="min-h-6 w-full resize-y bg-transparent text-xs leading-relaxed text-slate-700 outline-none placeholder:text-slate-400" rows={1} aria-label={`Kommentar: ${item}`} placeholder="Lägg till observation eller kommentar…" value={comments[key] || ""} onChange={(event) => setComments((current) => ({ ...current, [key]: event.target.value }))} /></label>
+                      </article>
+                    );
+                  })}
                 </div>
-              </div>
+              </section>
             );
           })}
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-emerald-950/10 bg-white p-5 shadow-sm md:p-6">
+        <div className="mb-3 flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-800"><FileText className="h-[18px] w-[18px]" /></span><div><p className="text-[10px] font-bold uppercase tracking-[.16em] text-emerald-700">03 · Summering</p><h2 className="text-lg font-extrabold text-[#173c32]">Övergripande anteckningar</h2></div></div>
+        <textarea className="w-full rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-sm leading-relaxed outline-none transition focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/10" rows={4} placeholder="Sammanfattning, kundens önskemål, risker och underlag inför offert..." value={generalNotes} onChange={(event) => setGeneralNotes(event.target.value)} />
+      </section>
+
+      <section className="rounded-2xl bg-[#123d32] p-4 text-white shadow-lg md:p-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div><p className="flex items-center gap-2 text-sm font-extrabold"><ClipboardCheck className="h-4 w-4 text-emerald-300" />{checked} av {total} punkter kontrollerade</p><p className="mt-1 text-xs text-emerald-100/65">Sparar lokalt på den här enheten. Uppgifterna sparas inte automatiskt i databasen.</p></div>
+          <div className="flex flex-wrap gap-2"><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-white/10" onClick={exportNotes}><Download className="h-4 w-4" /> Exportera anteckningar</button><button type="button" className="inline-flex items-center gap-2 rounded-lg bg-lime-300 px-4 py-2.5 text-xs font-black text-[#173c32] transition hover:bg-lime-200" onClick={saveWalkthrough}><Save className="h-4 w-4" /> Spara genomgång</button></div>
+        </div>
+      </section>
+
+      {savedWalkthroughs.length > 0 && (
+        <section className="rounded-2xl border border-emerald-950/10 bg-white p-5 shadow-sm md:p-6">
+          <div className="mb-4 flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-800"><Save className="h-[18px] w-[18px]" /></span><div><p className="text-[10px] font-bold uppercase tracking-[.16em] text-emerald-700">Dina utkast</p><h2 className="text-lg font-extrabold text-[#173c32]">Sparade genomgångar</h2></div></div>
+          <div className="grid gap-2 md:grid-cols-2">{savedWalkthroughs.map((item) => (
+            <button key={item.id} type="button" className="group rounded-xl border border-slate-200 p-3 text-left transition hover:border-emerald-300 hover:bg-emerald-50/40" onClick={() => { setCurrentWalkthroughId(item.id); setPropertyName(item.propertyName ?? ""); setAddress(item.address ?? ""); setContact(item.contact ?? ""); setVisitDate(item.visitDate ?? ""); setAnswers(item.answers ?? {}); setComments(item.comments ?? {}); setGeneralNotes(item.generalNotes ?? ""); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+              <span className="flex items-start justify-between gap-2"><span className="font-extrabold text-[#173c32]">{item.propertyName || "Namnlös fastighet"}</span><CheckCircle2 className="h-4 w-4 text-emerald-700 opacity-50 group-hover:opacity-100" /></span><span className="mt-1 block text-xs text-slate-500">{item.address || "Ingen adress angiven"}</span><span className="mt-2 block text-[10px] font-medium text-slate-400">Senast sparad: {new Date(item.updatedAt).toLocaleString("sv-SE")}</span>
+            </button>
+          ))}</div>
         </section>
-      ))}
-
-      <section className="bayt-panel">
-        <div className="bayt-section-head">
-          <div className="bayt-icon">✎</div>
-          <div>
-            <h2 className="text-lg font-extrabold">Övergripande anteckningar</h2>
-            <p className="text-sm bayt-muted">Sammanfattning, risker och underlag inför offert.</p>
-          </div>
-        </div>
-        <textarea className="bayt-field" rows={5}
-          placeholder="Kundens önskemål, prioriteringar, risker och nästa steg…"
-          value={generalNotes}
-          onChange={event => setGeneralNotes(event.target.value)} />
-      </section>
-
-      <section className="bayt-panel">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-extrabold">
-              {currentWalkthroughId ? "Du arbetar med en sparad genomgång" : "Redo att spara"}
-            </p>
-            <p className="mt-1 text-sm bayt-muted">
-              Uppgifterna sparas på den här enheten, inte automatiskt i databasen.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" className="bayt-btn bayt-secondary" onClick={exportNotes}>
-              ↓ Exportera
-            </button>
-            <button type="button" className="bayt-btn bayt-primary" onClick={saveWalkthrough}>
-              ✓ Spara genomgång
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className="bayt-eyebrow" style={{ color: "#64805B" }}>BAYT · DOKUMENTATION</p>
-            <h2 className="mt-1 text-2xl font-extrabold tracking-tight">Sparade genomgångar</h2>
-            <p className="mt-1 text-sm bayt-muted">Öppna en genomgång för att fortsätta där du slutade.</p>
-          </div>
-          <div className="text-sm font-bold bayt-muted">{savedWalkthroughs.length} totalt</div>
-        </div>
-
-        {savedWalkthroughs.length > 0 && (
-          <input className="bayt-field" value={search}
-            onChange={event => setSearch(event.target.value)}
-            placeholder="⌕  Sök efter fastighet eller adress…" />
-        )}
-
-        {savedWalkthroughs.length === 0 ? (
-          <div className="bayt-panel py-10 text-center">
-            <div className="bayt-icon mx-auto mb-4" style={{ width: 58, height: 58 }}>▤</div>
-            <h3 className="text-lg font-extrabold">Inga sparade genomgångar ännu</h3>
-            <p className="mx-auto mt-2 max-w-md text-sm bayt-muted">
-              Fyll i grunduppgifterna och välj Spara genomgång. Den sparade genomgången visas sedan här.
-            </p>
-          </div>
-        ) : filteredWalkthroughs.length === 0 ? (
-          <div className="bayt-panel text-center text-sm bayt-muted">
-            Ingen genomgång matchar din sökning.
-          </div>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {filteredWalkthroughs.map(item => {
-              const status = getStatus(item);
-              const answered = Object.values(item.answers ?? {}).filter(Boolean).length;
-
-              return (
-                <button key={item.id} type="button"
-                  className="bayt-record"
-                  onClick={() => openWalkthrough(item)}>
-                  <div className="flex items-start gap-3">
-                    <div className="bayt-icon">⌂</div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="break-words text-base font-extrabold">
-                        {item.propertyName || "Namnlös fastighet"}
-                      </h3>
-                      <p className="mt-1 break-words text-sm bayt-muted">
-                        {item.address || "Ingen adress angiven"}
-                      </p>
-                    </div>
-                    <span className="text-xl font-black text-[#0D2B1E]">↗</span>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-                    <span className={`bayt-status ${status.className}`}>
-                      <span>{status.icon}</span>{status.label}
-                    </span>
-                    <span className="text-xs font-semibold bayt-muted">
-                      {answered}/{TOTAL} besvarade
-                    </span>
-                  </div>
-
-                  <div className="bayt-progress mt-3">
-                    <div style={{ width: `${Math.round(answered / TOTAL * 100)}%` }} />
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#E8ECE6] pt-3 text-xs bayt-muted">
-                    <span>◷ Besöksdatum: {formatDate(item.visitDate)}</span>
-                    <span>Senast sparad: {formatDate(item.updatedAt)}</span>
-                  </div>
-                  <div className="mt-3 text-sm font-extrabold text-[#0D2B1E]">
-                    Öppna och fortsätt →
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </section>
-    </div>
+      )}
+    </main>
   );
 }
 
