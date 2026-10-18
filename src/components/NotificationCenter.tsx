@@ -24,7 +24,6 @@ const C = {
 
 const headingFont = "Outfit, Inter, system-ui, sans-serif";
 
-/** Distance a drag has to travel upward before the toast is let go. */
 const SWIPE_DISMISS_PX = 40;
 
 function initial(name: string | null | undefined): string {
@@ -59,7 +58,6 @@ function Avatar({
       />
     );
   }
-  // <span>, not <div>: these avatars sit inside the <button> rows of the panel.
   return (
     <span
       style={{
@@ -77,10 +75,6 @@ function Avatar({
     </span>
   );
 }
-
-/* -------------------------------------------------------------------------- */
-/* Bell + dropdown panel                                                      */
-/* -------------------------------------------------------------------------- */
 
 export function NotificationBell({ isMobile }: { isMobile: boolean }) {
   const navigate = useNavigate();
@@ -423,3 +417,165 @@ export function NotificationBell({ isMobile }: { isMobile: boolean }) {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+export function NotificationToasts({ isMobile }: { isMobile: boolean }) {
+  const navigate = useNavigate();
+  const { toasts, dismissToast, markConversationRead } = useNotifications();
+
+  if (toasts.length === 0) return null;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: isMobile ? 64 : 80,
+        right: isMobile ? 8 : 24,
+        left: isMobile ? 8 : undefined,
+        zIndex: 65,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        pointerEvents: "none",
+      }}
+    >
+      {toasts.map((n) => (
+        <ToastCard
+          key={n.id}
+          notification={n}
+          onDismiss={dismissToast}
+          onOpen={() => {
+            markConversationRead(n.conversationId);
+            dismissToast(n.id);
+            navigate({ to: "/chatt", search: { c: n.conversationId } });
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ToastCard({
+  notification: n,
+  onDismiss,
+  onOpen,
+}: {
+  notification: ChatNotification;
+  onDismiss: (id: string) => void;
+  onOpen: () => void;
+}) {
+  const [leaving, setLeaving] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [dy, setDy] = useState(0);
+  const drag = useRef({ startY: 0, active: false, moved: false });
+
+  const close = useCallback(() => setLeaving(true), []);
+
+  useEffect(() => {
+    if (!leaving) return;
+    const t = setTimeout(() => onDismiss(n.id), 200);
+    return () => clearTimeout(t);
+  }, [leaving, n.id, onDismiss]);
+
+  useEffect(() => {
+    if (leaving || paused || dragging) return;
+    const t = setTimeout(close, TOAST_MS);
+    return () => clearTimeout(t);
+  }, [leaving, paused, dragging, close]);
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { startY: e.clientY, active: true, moved: false };
+    setDragging(true);
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!drag.current.active) return;
+    const delta = e.clientY - drag.current.startY;
+    if (Math.abs(delta) > 6) drag.current.moved = true;
+    setDy(Math.min(0, delta));
+  };
+
+  const endDrag = () => {
+    if (!drag.current.active) return;
+    drag.current.active = false;
+    setDragging(false);
+    if (dy <= -SWIPE_DISMISS_PX) close();
+    else setDy(0);
+  };
+
+  return (
+    <div
+      onClick={() => {
+        if (drag.current.moved) return;
+        onOpen();
+      }}
+      onWheel={(e) => {
+        if (e.deltaY < 0) close();
+      }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") onOpen();
+        if (e.key === "Escape") close();
+      }}
+      style={{
+        pointerEvents: "auto",
+        touchAction: "none",
+        cursor: "pointer",
+        width: "min(340px, calc(100vw - 16px))",
+        display: "flex",
+        gap: 10,
+        alignItems: "flex-start",
+        padding: "11px 13px",
+        background: C.card,
+        borderRadius: 14,
+        border: `1px solid ${C.border}`,
+        borderLeft: `3px solid ${C.green}`,
+        boxShadow: "0 1px 2px rgba(13,43,30,0.04), 0 16px 34px -12px rgba(13,43,30,0.32)",
+        transform: leaving ? "translateY(-14px)" : `translateY(${dy}px)`,
+        opacity: leaving ? 0 : 1,
+        transition: dragging ? "none" : "transform 0.2s ease, opacity 0.2s ease",
+        animation: leaving ? "none" : "bayt-toast-in 0.22s ease-out",
+      }}
+    >
+      <Avatar name={n.senderName} url={n.senderAvatar} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+          <span
+            style={{
+              flex: 1,
+              minWidth: 0,
+              fontSize: 13.5,
+              fontWeight: 700,
+              color: C.text,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {n.senderName ?? "Nytt meddelande"}
+            {n.groupName && (
+              <span style={{ fontWeight: 400, color: C.secondary }}> i {n.groupName}</span>
+            )}
+          </span>
+          <span style={{ fontSize: 11, color: C.muted, flexShrink: 0 }}>
+            {formatNotificationTime(n.createdAt)}
+          </span>
+        </div>
+        <div className="bayt-notif-preview" style={{ color: C.secondary }}>
+          {previewText(n.body)}
+        </div>
+      </div>
+    </div>
+  );
+}
