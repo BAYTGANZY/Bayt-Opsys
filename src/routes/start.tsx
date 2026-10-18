@@ -3,17 +3,10 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   DashboardSquare01Icon,
   Building02Icon,
-  DoorOpenIcon,
-  AlertCircleIcon,
-  ClipboardCheckIcon,
-  Briefcase01Icon,
-  File02Icon,
-  UserGroupIcon,
-  BookOpen01Icon,
   CalendarCheckIn01Icon,
   Chatting01Icon,
-  Settings01Icon,
   ViewIcon,
+  ArrowRight01Icon,
 } from "@hugeicons/core-free-icons";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -36,21 +29,14 @@ const TILES = [
   { to: "/dashboard", label: "Översikt", icon: DashboardSquare01Icon },
   { to: "/chatt", label: "Chatt", icon: Chatting01Icon },
   { to: "/fastigheter", label: "Fastigheter", icon: Building02Icon },
-  { to: "/apartments", label: "Lägenheter", icon: DoorOpenIcon },
-  { to: "/objects", label: "Objekt", icon: Building02Icon, adminOnly: true },
-  { to: "/issues", label: "Felanmälningar", icon: AlertCircleIcon },
-  { to: "/inspections", label: "Besiktningar", icon: ClipboardCheckIcon },
-  { to: "/projects", label: "Projekt", icon: Briefcase01Icon },
-  { to: "/dokument", label: "Dokument", icon: File02Icon },
-  { to: "/contacts", label: "Kontakter", icon: UserGroupIcon },
   { to: "/genomgang-av-fastighet", label: "Genomgång av fastighet", icon: ViewIcon },
-  { to: "/loggbok", label: "Loggbok", icon: BookOpen01Icon },
-  { to: "/installningar", label: "Inställningar", icon: Settings01Icon },
 ] as const;
 
 const BG = "#0e1f1a";
 const LINE = "rgba(151, 186, 72, 0.18)";
-const ACCENT = "#bcd97a";
+const LIME = "#bcd97a";
+const GREEN = "#5CB84A";
+const DEEP = "#0D2B1E";
 const TEXT = "#e6efd8";
 const MUTED = "#7a9476";
 
@@ -91,49 +77,89 @@ const STYLES = `
     align-items: center;
     padding: 8px 0 24px;
   }
+
+  /* Desktop: 3 kort på första raden, 2 bredare på andra */
   .start-tiles {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 14px;
-    max-width: 560px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 16px;
+    max-width: 620px;
     width: 100%;
     justify-self: center;
     margin-left: 8%;
   }
   .start-tile {
+    grid-column: span 2;
+    position: relative;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    padding: 24px 16px;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 28px;
+    min-height: 150px;
+    padding: 20px;
     text-decoration: none;
     color: ${TEXT};
-    background: transparent;
-    border: 1.5px solid ${ACCENT};
-    border-radius: 16px;
-    transition: background 0.15s ease;
-    min-height: 130px;
+    background: linear-gradient(160deg, rgba(188,217,122,0.12) 0%, rgba(92,184,74,0.03) 100%);
+    border: 1px solid rgba(188,217,122,0.22);
+    border-radius: 22px;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
   }
-  .start-tile:hover { background: rgba(188, 217, 122, 0.05); }
+  .start-tile:nth-child(n+4) { grid-column: span 3; }
+  .start-tile::before {
+    content: "";
+    position: absolute;
+    top: -40%;
+    right: -30%;
+    width: 80%;
+    height: 120%;
+    background: radial-gradient(circle, rgba(92,184,74,0.22) 0%, transparent 65%);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+  }
+  .start-tile:hover {
+    transform: translateY(-3px);
+    border-color: rgba(92,184,74,0.7);
+    box-shadow: 0 14px 32px -14px rgba(92,184,74,0.45);
+  }
+  .start-tile:hover::before { opacity: 1; }
+  .start-tile:active { transform: scale(0.98); }
+
   .start-tile-icon {
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    border: 1.5px solid ${ACCENT};
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    background: linear-gradient(145deg, ${GREEN} 0%, #3f9a3a 100%);
+    color: ${DEEP};
     display: flex;
     align-items: center;
     justify-content: center;
-    color: ${ACCENT};
     flex-shrink: 0;
+    box-shadow: 0 6px 16px -6px rgba(92,184,74,0.7), inset 0 1px 0 rgba(255,255,255,0.25);
   }
   .start-tile-label {
-    font-size: 14px;
-    letter-spacing: 0.03em;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
     color: ${TEXT};
-    text-align: center;
     line-height: 1.25;
+    position: relative;
   }
+  .start-tile-arrow {
+    position: absolute;
+    top: 20px;
+    right: 18px;
+    color: ${LIME};
+    opacity: 0.45;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  .start-tile:hover .start-tile-arrow { opacity: 1; transform: translateX(3px); }
+
   .start-right {
     display: flex;
     align-items: center;
@@ -166,7 +192,7 @@ const STYLES = `
       height: 100%;
       object-fit: contain;
       object-position: center;
-      opacity: 0.18;
+      opacity: 0.14;
       pointer-events: none;
       z-index: 0;
     }
@@ -177,91 +203,36 @@ const STYLES = `
       justify-items: center;
       position: relative;
       z-index: 1;
-      padding: 16px 0 24px;
+      padding: 20px 0 24px;
     }
     .start-tiles {
       display: flex;
       flex-direction: column;
-      grid-template-columns: none;
-      max-width: 240px;
+      max-width: 340px;
+      width: 100%;
       margin-left: 0;
       justify-self: center;
-      gap: 4px;
+      gap: 12px;
     }
-    .start-tile {
+    .start-tile,
+    .start-tile:nth-child(n+4) {
+      grid-column: auto;
       flex-direction: row;
+      align-items: center;
       justify-content: flex-start;
-      gap: 14px;
-      padding: 10px 14px;
+      gap: 16px;
       min-height: 0;
-      border: 1.5px solid ${ACCENT} !important;
-      border-radius: 10px;
-      background: transparent;
+      padding: 14px 16px;
+      border-radius: 18px;
     }
-    .start-tile-icon { width: 36px; height: 36px; border-width: 1px; }
-    .start-tile-icon svg { width: 18px; height: 18px; }
-    .start-tile-label {
-      font-size: 13px;
-      letter-spacing: 0.02em;
-      text-align: left;
-    }
+    .start-tile-icon { width: 44px; height: 44px; border-radius: 14px; }
+    .start-tile-icon svg { width: 22px; height: 22px; }
+    .start-tile-label { flex: 1; font-size: 15px; }
+    .start-tile-arrow { position: static; margin-left: auto; opacity: 0.6; }
     .start-right { display: none; }
   }
 `;
 
 function StartPage() {
   // Visa bara rutor som rollen faktiskt kommer åt (samma regler som sidomenyn).
-  const [role, setRole] = useState<string | null>(null);
-  useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!data.session) return;
-      const { data: p } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", data.session.user.id)
-        .maybeSingle();
-      setRole((p?.role as string | undefined) ?? null);
-    });
-  }, []);
-
-  const tiles = TILES.filter((t) => canAccess(role, t.to));
-
-  return (
-    <>
-      <style>{STYLES}</style>
-      <div className="start-page">
-        <img src={buildingSketch} alt="" className="start-bg-sketch" aria-hidden />
-
-        <div className="start-header">
-          <img src={baytLogo} alt="BAYT" className="start-logo" />
-          <button
-            className="start-logout"
-            onClick={async () => {
-              await supabase.auth.signOut();
-              window.location.href = "/login";
-            }}
-          >
-            Logga ut
-          </button>
-        </div>
-
-        <div className="start-body">
-          <div className="start-tiles">
-            {tiles.map((tile) => (
-              <Link key={tile.to} to={tile.to} className="start-tile">
-                <div className="start-tile-icon">
-                  <HugeiconsIcon icon={tile.icon} size={30} strokeWidth={1.5} />
-                </div>
-                <div className="start-tile-label">{tile.label}</div>
-              </Link>
-            ))}
-          </div>
-
-          <div className="start-right">
-            <img src={buildingSketch} alt="" className="start-sketch" />
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
+  const [role, setRole] =
