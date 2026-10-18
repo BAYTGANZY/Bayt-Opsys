@@ -48,24 +48,9 @@ const STYRELSE_ROUTES = [
 // Deliberately NOT listed: a nav link to a route that doesn't exist 404s in front
 // of the user. Re-add both here the same commit the pages land.
 const ENTREPRENOR_ROUTES = [
-  "/dag-rapport",
-  "/fastigheter",
-  "/properties",
-  // Lägenheter is reachable but NARROWER than for styrelse: canAccess only gets
-  // them past the route layer, and useRecordScopeGuard then restricts them to
-  // apartments where they hold an assignment (useMyAssignedApartmentIds). They
-  // are here for the per-apartment Historik on the Info view.
-  "/apartments",
   "/issues",
   "/inspections",
   "/projects",
-  "/loggbok",
-  // Narrower again, same shape as Lägenheter: has_object_assignment() (RLS)
-  // only returns an object the entreprenör holds an issue/inspection
-  // assignment against — see property-objects-scoped-rls.sql.
-  "/objects",
-  "/installningar",
-  "/chatt",
 ];
 
 /**
