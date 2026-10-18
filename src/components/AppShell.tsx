@@ -99,6 +99,26 @@ function sectionsForRole(role: string | null | undefined): NavSection[] {
     (s) => s.items.length > 0,
   );
 }
+   const ENTREPRENOR_HIDDEN = new Set(["/fastigheter", "/apartments", "/objects", "/loggbok"]);
+   const ERRAND_KIND_FOR_ROUTE: Record<string, string> = {
+     "/issues": "issue",
+     "/inspections": "inspection",
+     "/projects": "project",
+   };
+
+   /** Entreprenör: bara ärendetyper hen faktiskt har något tilldelat i. */
+   function sectionsForEntreprenor(sections: NavSection[], kinds: Set<string>): NavSection[] {
+     return sections
+       .map((s) => ({
+         ...s,
+         items: s.items.filter((i) => {
+           if (ENTREPRENOR_HIDDEN.has(i.to)) return false;
+           const kind = ERRAND_KIND_FOR_ROUTE[i.to];
+           return kind ? kinds.has(kind) : true;
+         }),
+       }))
+       .filter((s) => s.items.length > 0);
+   }
 
 type Breakpoint = "mobile" | "mini" | "full";
 
