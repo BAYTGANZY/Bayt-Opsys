@@ -56,6 +56,7 @@ const ENTREPRENOR_ROUTES = [
   "/issues",
   "/inspections",
   "/projects",
+  "/fastigheter",
   // Narrower again, same shape as Lägenheter: has_object_assignment() (RLS)
   // only returns an object the entreprenör holds an issue/inspection
   // assignment against — see property-objects-scoped-rls.sql.
