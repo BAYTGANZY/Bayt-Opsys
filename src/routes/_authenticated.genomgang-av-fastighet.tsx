@@ -175,24 +175,38 @@ function saveWalkthrough() {
 
   return (
     <main className="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-8">
-      <header className="relative overflow-hidden rounded-2xl bg-[#123d32] p-6 text-white shadow-lg md:p-8">
-        <div className="absolute -right-12 -top-16 h-56 w-56 rounded-full border-[32px] border-white/5" />
-        <div className="relative flex flex-wrap items-end justify-between gap-5">
-          <div>
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-200/20 bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[.18em] text-emerald-100">
-              <Building2 className="h-4 w-4" /> BAYT <span className="text-emerald-300">/</span> NY KUND
-            </div>
-            <h1 className="text-3xl font-black tracking-tight md:text-4xl">Platsbesök<span className="text-emerald-300">.</span></h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-emerald-50/75 md:text-base">
-              Skapa ett tydligt beslutsunderlag inför offert. Gå igenom varje område, fånga risker och lämna inget åt minnet.
-            </p>
-          </div>
-          <div className="rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-emerald-50/80">
-            <span className="block text-[10px] font-bold uppercase tracking-[.16em] text-emerald-200/70">Genomgångens status</span>
-            <span className="mt-1 flex items-center gap-2 font-semibold text-white"><ClipboardCheck className="h-4 w-4 text-emerald-300" /> {assessed} av {total} bedömda</span>
-          </div>
-        </div>
-      </header>
+<header className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#123d32] via-[#13745d] to-[#2f9e78] p-6 text-white shadow-lg md:p-8">
+  <div className="absolute -right-12 -top-16 h-56 w-56 rounded-full border-[32px] border-lime-200/20" />
+  <div className="absolute -bottom-20 right-48 h-40 w-40 rounded-full bg-emerald-300/10 blur-2xl" />
+
+  <div className="relative flex flex-wrap items-end justify-between gap-5">
+    <div>
+      <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[.18em] text-emerald-50">
+        <Building2 className="h-4 w-4" />
+        BAYT <span className="text-lime-300">/</span> NY KUND
+      </div>
+
+      <h1 className="text-3xl font-black tracking-tight md:text-4xl">
+        Platsbesök<span className="text-lime-300">.</span>
+      </h1>
+
+      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-teal-50/90 md:text-base">
+        Skapa ett tydligt beslutsunderlag inför offert. Gå igenom varje område,
+        fånga risker och lämna inget åt minnet.
+      </p>
+    </div>
+
+    <div className="rounded-xl border border-white/25 bg-white/15 px-4 py-3 text-sm text-emerald-50">
+      <span className="block text-[10px] font-bold uppercase tracking-[.16em] text-lime-100/80">
+        Genomgångens status
+      </span>
+      <span className="mt-1 flex items-center gap-2 font-semibold text-white">
+        <ClipboardCheck className="h-4 w-4 text-lime-300" />
+        {assessed} av {total} bedömda
+      </span>
+    </div>
+  </div>
+</header>
 
       <section className="rounded-2xl border border-emerald-950/10 bg-white p-5 shadow-sm md:p-6">
         <div className="mb-5 flex items-center gap-3">
