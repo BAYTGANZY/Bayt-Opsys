@@ -235,4 +235,62 @@ const STYLES = `
 
 function StartPage() {
   // Visa bara rutor som rollen faktiskt kommer åt (samma regler som sidomenyn).
-  const [role, setRole] =
+  const [role, setRole] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (!data.session) return;
+      const { data: p } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", data.session.user.id)
+        .maybeSingle();
+      setRole((p?.role as string | undefined) ?? null);
+    });
+  }, []);
+
+  const tiles = TILES.filter((t) => canAccess(role, t.to));
+
+  return (
+    <>
+      <style>{STYLES}</style>
+      <div className="start-page">
+        <img src={buildingSketch} alt="" className="start-bg-sketch" aria-hidden />
+
+        <div className="start-header">
+          <img src={baytLogo} alt="BAYT" className="start-logo" />
+          <button
+            className="start-logout"
+            onClick={async () => {
+              await supabase.auth.signOut();
+              window.location.href = "/login";
+            }}
+          >
+            Logga ut
+          </button>
+        </div>
+
+        <div className="start-body">
+          <div className="start-tiles">
+            {tiles.map((tile) => (
+              <Link key={tile.to} to={tile.to} className="start-tile">
+                <div className="start-tile-icon">
+                  <HugeiconsIcon icon={tile.icon} size={26} strokeWidth={1.8} />
+                </div>
+                <div className="start-tile-label">{tile.label}</div>
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  size={18}
+                  className="start-tile-arrow"
+                />
+              </Link>
+            ))}
+          </div>
+
+          <div className="start-right">
+            <img src={buildingSketch} alt="" className="start-sketch" />
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
