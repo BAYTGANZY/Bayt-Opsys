@@ -31,6 +31,7 @@ import { NotificationBell, NotificationToasts } from "@/components/NotificationC
 import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { useMyArendeDots, type ArendeDot } from "@/hooks/useMyArendeDots";
 import { StatusDot } from "@/components/StatusDot";
+import { useMyArenden } from "@/hooks/useMyArenden";
 
 
 type SubItem = { to: string; label: string };
