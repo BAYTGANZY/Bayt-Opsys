@@ -10,13 +10,15 @@ import {
   File02Icon,
   UserGroupIcon,
   BookOpen01Icon,
-  Package01Icon,
-  EyeIcon,
+  CalendarCheckIn01Icon,
+  Chatting01Icon,
+  Settings01Icon,
+  ViewIcon,
 } from "@hugeicons/core-free-icons";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { canAccess } from "@/lib/permissions";
-import { LOGO_ON_DARK } from "@/lib/logo";
+const baytLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
 const buildingSketch = `${import.meta.env.BASE_URL}assets/building-sketch-2.png`;
 
 export const Route = createFileRoute("/start")({
@@ -30,17 +32,20 @@ export const Route = createFileRoute("/start")({
 });
 
 const TILES = [
-  { to: "/dashboard", label: "Dashboard", icon: DashboardSquare01Icon },
+  { to: "/dag-rapport", label: "Dag Rapport", icon: CalendarCheckIn01Icon },
+  { to: "/dashboard", label: "Översikt", icon: DashboardSquare01Icon },
+  { to: "/chatt", label: "Chatt", icon: Chatting01Icon },
   { to: "/fastigheter", label: "Fastigheter", icon: Building02Icon },
   { to: "/apartments", label: "Lägenheter", icon: DoorOpenIcon },
+  { to: "/objects", label: "Objekt", icon: Building02Icon, adminOnly: true },
   { to: "/issues", label: "Felanmälningar", icon: AlertCircleIcon },
   { to: "/inspections", label: "Besiktningar", icon: ClipboardCheckIcon },
   { to: "/projects", label: "Projekt", icon: Briefcase01Icon },
-  { to: "/objects", label: "Objekt", icon: Package01Icon },
   { to: "/dokument", label: "Dokument", icon: File02Icon },
   { to: "/contacts", label: "Kontakter", icon: UserGroupIcon },
+  { to: "/genomgang-av-fastighet", label: "Genomgång av fastighet", icon: ViewIcon },
   { to: "/loggbok", label: "Loggbok", icon: BookOpen01Icon },
-  { to: "/genomgang-av-fastighet", label: "Genomgång av fastighet", icon: EyeIcon },
+  { to: "/installningar", label: "Inställningar", icon: Settings01Icon },
 ] as const;
 
 const BG = "#0e1f1a";
@@ -84,6 +89,7 @@ const STYLES = `
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 48px;
     align-items: center;
+    padding: 8px 0 24px;
   }
   .start-tiles {
     display: grid;
@@ -99,20 +105,20 @@ const STYLES = `
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 14px;
-    padding: 32px 16px;
+    gap: 12px;
+    padding: 24px 16px;
     text-decoration: none;
     color: ${TEXT};
     background: transparent;
     border: 1.5px solid ${ACCENT};
     border-radius: 16px;
     transition: background 0.15s ease;
-    min-height: 160px;
+    min-height: 130px;
   }
   .start-tile:hover { background: rgba(188, 217, 122, 0.05); }
   .start-tile-icon {
-    width: 64px;
-    height: 64px;
+    width: 56px;
+    height: 56px;
     border-radius: 50%;
     border: 1.5px solid ${ACCENT};
     display: flex;
@@ -142,19 +148,19 @@ const STYLES = `
   }
   .start-bg-sketch { display: none; }
 
-
   @media (max-width: 768px) {
     .start-page {
-      padding: 20px 16px;
+      padding: 20px 16px 88px;
       position: relative;
-      overflow: hidden;
-      height: 100vh;
+      min-height: 100vh;
+      min-height: 100dvh;
+      overflow-y: auto;
     }
     .start-header { padding-bottom: 14px; margin-bottom: 0; position: relative; z-index: 2; }
     .start-logo { height: 32px; }
     .start-bg-sketch {
       display: block;
-      position: absolute;
+      position: fixed;
       inset: 0;
       width: 100%;
       height: 100%;
@@ -167,16 +173,17 @@ const STYLES = `
     .start-body {
       grid-template-columns: minmax(0, 1fr);
       gap: 0;
-      align-items: center;
+      align-items: start;
       justify-items: center;
       position: relative;
       z-index: 1;
+      padding: 16px 0 24px;
     }
     .start-tiles {
       display: flex;
       flex-direction: column;
       grid-template-columns: none;
-      max-width: 220px;
+      max-width: 240px;
       margin-left: 0;
       justify-self: center;
       gap: 4px;
@@ -203,7 +210,7 @@ const STYLES = `
 `;
 
 function StartPage() {
-  // Only show tiles this role can actually reach (same rules as the sidebar).
+  // Visa bara rutor som rollen faktiskt kommer åt (samma regler som sidomenyn).
   const [role, setRole] = useState<string | null>(null);
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
@@ -226,7 +233,7 @@ function StartPage() {
         <img src={buildingSketch} alt="" className="start-bg-sketch" aria-hidden />
 
         <div className="start-header">
-          <img src={LOGO_ON_DARK} alt="BAYT" className="start-logo" />
+          <img src={baytLogo} alt="BAYT" className="start-logo" />
           <button
             className="start-logout"
             onClick={async () => {
@@ -240,20 +247,14 @@ function StartPage() {
 
         <div className="start-body">
           <div className="start-tiles">
-            {tiles.map((tile) => {
-              return (
-                <Link
-                  key={tile.to}
-                  to={tile.to}
-                  className="start-tile"
-                >
-                  <div className="start-tile-icon">
-                    <HugeiconsIcon icon={tile.icon} size={30} strokeWidth={1.5} />
-                  </div>
-                  <div className="start-tile-label">{tile.label}</div>
-                </Link>
-              );
-            })}
+            {tiles.map((tile) => (
+              <Link key={tile.to} to={tile.to} className="start-tile">
+                <div className="start-tile-icon">
+                  <HugeiconsIcon icon={tile.icon} size={30} strokeWidth={1.5} />
+                </div>
+                <div className="start-tile-label">{tile.label}</div>
+              </Link>
+            ))}
           </div>
 
           <div className="start-right">
