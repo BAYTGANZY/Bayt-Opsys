@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Notification03Icon, Alert02Icon, Chatting01Icon } from "@hugeicons/core-free-icons";
 import { useAkutIssues } from "@/components/AkutWatcher";
+import { useArendeNotifications } from "@/hooks/useArendeNotifications";
 import {
   formatNotificationTime,
   previewText,
@@ -85,6 +86,7 @@ export function NotificationBell({ isMobile }: { isMobile: boolean }) {
   const navigate = useNavigate();
   const { items, unreadCount, isUnread, markConversationRead, markAllRead } = useNotifications();
   const akut = useAkutIssues();
+  const arende = useArendeNotifications();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -104,7 +106,7 @@ export function NotificationBell({ isMobile }: { isMobile: boolean }) {
     };
   }, [open]);
 
-  const badge = unreadCount + akut.length;
+  const badge = unreadCount + arende.unreadCount + akut.length;
   const hasAkut = akut.length > 0;
 
   const openConversation = (n: ChatNotification) => {
@@ -193,10 +195,13 @@ export function NotificationBell({ isMobile }: { isMobile: boolean }) {
             <span style={{ fontFamily: headingFont, fontSize: 15, fontWeight: 600, color: C.text }}>
               Notiser
             </span>
-            {unreadCount > 0 && (
+            {unreadCount + arende.unreadCount > 0 && (
               <button
                 type="button"
-                onClick={() => void markAllRead()}
+                onClick={() => {
+                  void markAllRead();
+                  void arende.markAllRead();
+                }}
                 style={{
                   background: "transparent",
                   border: "none",
@@ -260,6 +265,66 @@ export function NotificationBell({ isMobile }: { isMobile: boolean }) {
               </button>
             ))}
 
+            {arende.items.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                className="bayt-notif-row"
+                style={{ background: a.readAt ? "transparent" : "#F4F8F3" }}
+                onClick={() => {
+                  void arende.markRead(a.id);
+                  setOpen(false);
+                  navigate({ to: "/projects/$id", params: { id: a.projectId } });
+                }}
+              >
+                <span
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: "50%",
+                    background: "#E8F3E5",
+                    color: "#3D8A30",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <HugeiconsIcon icon={Notification03Icon} size={18} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: 13.5,
+                      fontWeight: a.readAt ? 600 : 700,
+                      color: C.text,
+                    }}
+                  >
+                    Projekt uppdaterat
+                  </span>
+                  <span
+                    className="bayt-notif-preview"
+                    style={{ color: a.readAt ? C.secondary : C.text }}
+                  >
+                    {a.title} · {formatNotificationTime(a.createdAt)}
+                  </span>
+                </span>
+                {!a.readAt && (
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: C.green,
+                      flexShrink: 0,
+                      alignSelf: "center",
+                    }}
+                  />
+                )}
+              </button>
+            ))}
+
             {items.map((n) => {
               const unread = isUnread(n);
               return (
@@ -320,7 +385,7 @@ export function NotificationBell({ isMobile }: { isMobile: boolean }) {
               );
             })}
 
-            {akut.length === 0 && items.length === 0 && (
+            {akut.length === 0 && items.length === 0 && arende.items.length === 0 && (
               <div style={{ padding: "36px 20px", textAlign: "center" }}>
                 <HugeiconsIcon icon={Notification03Icon} size={24} color={C.muted} />
                 <div style={{ marginTop: 8, fontSize: 13, color: C.secondary }}>Inga notiser</div>
@@ -358,173 +423,3 @@ export function NotificationBell({ isMobile }: { isMobile: boolean }) {
           </button>
         </div>
       )}
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/* Toast popups under the top bar                                             */
-/* -------------------------------------------------------------------------- */
-
-export function NotificationToasts({ isMobile }: { isMobile: boolean }) {
-  const navigate = useNavigate();
-  const { toasts, dismissToast, markConversationRead } = useNotifications();
-
-  if (toasts.length === 0) return null;
-
-  return (
-    <div
-      style={{
-        position: "fixed",
-        top: isMobile ? 64 : 80,
-        right: isMobile ? 8 : 24,
-        left: isMobile ? 8 : undefined,
-        zIndex: 65,
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-        pointerEvents: "none",
-      }}
-    >
-      {toasts.map((n) => (
-        <ToastCard
-          key={n.id}
-          notification={n}
-          onDismiss={dismissToast}
-          onOpen={() => {
-            markConversationRead(n.conversationId);
-            dismissToast(n.id);
-            navigate({ to: "/chatt", search: { c: n.conversationId } });
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-function ToastCard({
-  notification: n,
-  onDismiss,
-  onOpen,
-}: {
-  notification: ChatNotification;
-  onDismiss: (id: string) => void;
-  onOpen: () => void;
-}) {
-  const [leaving, setLeaving] = useState(false);
-  const [paused, setPaused] = useState(false);
-  const [dragging, setDragging] = useState(false);
-  const [dy, setDy] = useState(0);
-  const drag = useRef({ startY: 0, active: false, moved: false });
-
-  const close = useCallback(() => setLeaving(true), []);
-
-  // Exit animation first, then drop it from the queue.
-  useEffect(() => {
-    if (!leaving) return;
-    const t = setTimeout(() => onDismiss(n.id), 200);
-    return () => clearTimeout(t);
-  }, [leaving, n.id, onDismiss]);
-
-  // Auto-dismiss, held back while hovered or mid-swipe so it stays readable.
-  useEffect(() => {
-    if (leaving || paused || dragging) return;
-    const t = setTimeout(close, TOAST_MS);
-    return () => clearTimeout(t);
-  }, [leaving, paused, dragging, close]);
-
-  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
-    drag.current = { startY: e.clientY, active: true, moved: false };
-    setDragging(true);
-  };
-
-  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!drag.current.active) return;
-    const delta = e.clientY - drag.current.startY;
-    if (Math.abs(delta) > 6) drag.current.moved = true;
-    // Upward only — dragging down does nothing.
-    setDy(Math.min(0, delta));
-  };
-
-  const endDrag = () => {
-    if (!drag.current.active) return;
-    drag.current.active = false;
-    setDragging(false);
-    if (dy <= -SWIPE_DISMISS_PX) close();
-    else setDy(0);
-  };
-
-  return (
-    <div
-      onClick={() => {
-        if (drag.current.moved) return;
-        onOpen();
-      }}
-      onWheel={(e) => {
-        // "Scroll up on the notification and it goes away."
-        if (e.deltaY < 0) close();
-      }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={endDrag}
-      onPointerCancel={endDrag}
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") onOpen();
-        if (e.key === "Escape") close();
-      }}
-      style={{
-        pointerEvents: "auto",
-        touchAction: "none",
-        cursor: "pointer",
-        width: "min(340px, calc(100vw - 16px))",
-        display: "flex",
-        gap: 10,
-        alignItems: "flex-start",
-        padding: "11px 13px",
-        background: C.card,
-        borderRadius: 14,
-        border: `1px solid ${C.border}`,
-        borderLeft: `3px solid ${C.green}`,
-        boxShadow: "0 1px 2px rgba(13,43,30,0.04), 0 16px 34px -12px rgba(13,43,30,0.32)",
-        transform: leaving ? "translateY(-14px)" : `translateY(${dy}px)`,
-        opacity: leaving ? 0 : 1,
-        transition: dragging ? "none" : "transform 0.2s ease, opacity 0.2s ease",
-        animation: leaving ? "none" : "bayt-toast-in 0.22s ease-out",
-      }}
-    >
-      <Avatar name={n.senderName} url={n.senderAvatar} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-          <span
-            style={{
-              flex: 1,
-              minWidth: 0,
-              fontSize: 13.5,
-              fontWeight: 700,
-              color: C.text,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {n.senderName ?? "Nytt meddelande"}
-            {n.groupName && (
-              <span style={{ fontWeight: 400, color: C.secondary }}> i {n.groupName}</span>
-            )}
-          </span>
-          <span style={{ fontSize: 11, color: C.muted, flexShrink: 0 }}>
-            {formatNotificationTime(n.createdAt)}
-          </span>
-        </div>
-        <div className="bayt-notif-preview" style={{ color: C.secondary }}>
-          {previewText(n.body)}
-        </div>
-      </div>
-    </div>
-  );
-}
