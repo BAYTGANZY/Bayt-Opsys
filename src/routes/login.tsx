@@ -4,7 +4,6 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { LOGO_ON_DARK } from "@/lib/logo";
 
-
 type Search = { error?: string };
 
 export const Route = createFileRoute("/login")({
@@ -20,9 +19,11 @@ function LoginPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: "/login" });
   const { session, loading } = useAuth();
+  const [mode, setMode] = useState<"login" | "reset">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(search.error ?? null);
+  const [info, setInfo] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -60,6 +61,28 @@ function LoginPage() {
     navigate({ to: "/start" });
   };
 
+  const onReset = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setInfo(null);
+    const trimmed = email.trim();
+    if (!trimmed) {
+      setError("Ange din e-postadress.");
+      return;
+    }
+    setSubmitting(true);
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmed, {
+      redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}aterstall-losenord`,
+    });
+    setSubmitting(false);
+    if (resetError) {
+      setError("Kunde inte skicka mejlet just nu. Försök igen om en stund.");
+      return;
+    }
+    // Samma svar oavsett om adressen finns, så ingen kan se vilka som har konto.
+    setInfo("Om adressen har ett konto har vi skickat en länk för att välja nytt lösenord. Kolla även skräpposten.");
+  };
+
   return (
     <div
       style={{
@@ -87,71 +110,7 @@ function LoginPage() {
             border: "1px solid #E5E7EB",
           }}
         >
-          <form onSubmit={onSubmit}>
-            <label style={labelStyle}>E-post</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              style={inputStyle}
-              autoComplete="email"
-            />
-            <label style={{ ...labelStyle, marginTop: 16 }}>Lösenord</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={inputStyle}
-              autoComplete="current-password"
-            />
-            {error && (
-              <div style={{ color: "#DC2626", fontSize: 13, marginTop: 12 }}>{error}</div>
-            )}
-            <button
-              type="submit"
-              disabled={submitting}
-              style={{
-                marginTop: 20,
-                width: "100%",
-                height: 44,
-                background: "#3D8A30",
-                color: "#ffffff",
-                border: "none",
-                borderRadius: 6,
-                fontSize: 15,
-                fontWeight: 600,
-                cursor: submitting ? "not-allowed" : "pointer",
-                opacity: submitting ? 0.7 : 1,
-              }}
-            >
-              {submitting ? "Loggar in…" : "Logga in"}
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: 13,
-  fontWeight: 500,
-  color: "#1a1a1a",
-  marginBottom: 6,
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  height: 40,
-  padding: "0 12px",
-  border: "1px solid #E5E7EB",
-  borderRadius: 6,
-  fontSize: 14,
-  color: "#1a1a1a",
-  background: "#ffffff",
-  boxSizing: "border-box",
-  outline: "none",
-};
+          {mode === "login" ? (
+            <form onSubmit={onSubmit}>
+              <label style={labelStyle}>E-post</label>
+              <input
