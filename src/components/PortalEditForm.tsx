@@ -1,51 +1,25 @@
 import { useState } from "react";
 
-type Field = { key: string; label: string; type: "text" | "date" | "number" };
-
-const FIELDS: Record<string, Field[]> = {
-  issue: [
-    { key: "description", label: "Beskrivning", type: "text" },
-    { key: "deadline", label: "Tidsgräns", type: "date" },
-  ],
-  inspection: [
-    { key: "description", label: "Anteckningar", type: "text" },
-    { key: "deadline", label: "Tidsgräns", type: "date" },
-    { key: "last_completed_date", label: "Senast utförd", type: "date" },
-    { key: "next_due_date", label: "Nästa besiktning", type: "date" },
-    { key: "inspector", label: "Besiktningsman", type: "text" },
-  ],
-  project: [
-    { key: "description", label: "Beskrivning", type: "text" },
-    { key: "budget", label: "Budget (kr)", type: "number" },
-    { key: "start_date", label: "Startdatum", type: "date" },
-    { key: "end_date", label: "Slutdatum", type: "date" },
-  ],
-};
-
-// Besiktningens anteckningar heter "notes" i databasen men "description" i listan.
-const SERVER_KEY: Record<string, Record<string, string>> = {
-  inspection: { description: "notes" },
-};
-
 export function PortalEditForm({
-  kind,
   values,
   saving,
   onSave,
+  onDone,
+  doneSaving,
 }: {
   kind: string;
   values: Record<string, unknown>;
   saving: boolean;
   onSave: (fields: Record<string, unknown>) => void;
+  onDone: () => void;
+  doneSaving: boolean;
 }) {
-  const fields = FIELDS[kind] ?? [];
-  const [draft, setDraft] = useState<Record<string, string>>(() => {
-    const d: Record<string, string> = {};
-    for (const f of fields) d[f.key] = values[f.key] == null ? "" : String(values[f.key]);
-    return d;
-  });
+  const [note, setNote] = useState<string>(
+    values.contractor_note == null ? "" : String(values.contractor_note),
+  );
+  const doneAt = values.contractor_done_at ? String(values.contractor_done_at) : null;
 
-  const input: React.CSSProperties = {
+  const box: React.CSSProperties = {
     width: "100%",
     border: "1px solid #E5E7EB",
     borderRadius: 8,
@@ -57,40 +31,20 @@ export function PortalEditForm({
 
   return (
     <div style={{ display: "grid", gap: 12, marginTop: 4 }}>
-      <div style={{ fontSize: 12, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-        Uppdatera ärendet
-      </div>
-      {fields.map((f) => (
-        <label key={f.key} style={{ display: "grid", gap: 4, fontSize: 13, color: "#1F2A37" }}>
-          {f.label}
-          {f.type === "text" && f.key === "description" ? (
-            <textarea
-              rows={4}
-              style={input}
-              value={draft[f.key]}
-              onChange={(e) => setDraft((p) => ({ ...p, [f.key]: e.target.value }))}
-            />
-          ) : (
-            <input
-              style={input}
-              type={f.type === "text" ? "text" : f.type}
-              min={f.type === "number" ? 0 : undefined}
-              value={draft[f.key]}
-              onChange={(e) => setDraft((p) => ({ ...p, [f.key]: e.target.value }))}
-            />
-          )}
-        </label>
-      ))}
+      <label style={{ display: "grid", gap: 4, fontSize: 13, color: "#1F2A37" }}>
+        Din kommentar
+        <textarea
+          rows={4}
+          style={box}
+          value={note}
+          placeholder="Skriv här, t.ex. vad som är gjort eller vad som behövs."
+          onChange={(e) => setNote(e.target.value)}
+        />
+      </label>
       <button
         type="button"
         disabled={saving}
-        onClick={() => {
-          const out: Record<string, unknown> = {};
-          for (const f of fields) {
-            out[SERVER_KEY[kind]?.[f.key] ?? f.key] = draft[f.key] === "" ? null : draft[f.key];
-          }
-          onSave(out);
-        }}
+        onClick={() => onSave({ contractor_note: note === "" ? null : note })}
         style={{
           height: 44,
           background: "#3D8A30",
@@ -103,8 +57,33 @@ export function PortalEditForm({
           opacity: saving ? 0.7 : 1,
         }}
       >
-        {saving ? "Sparar…" : "Spara ändringar"}
+        {saving ? "Sparar…" : "Spara kommentar"}
       </button>
+
+      {doneAt ? (
+        <div style={{ fontSize: 13, color: "#3D8A30", fontWeight: 600 }}>
+          Slutfört meddelat. Förvaltaren avslutar ärendet.
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={doneSaving}
+          onClick={onDone}
+          style={{
+            height: 44,
+            background: "#ffffff",
+            color: "#0D2B1E",
+            border: "1px solid #3D8A30",
+            borderRadius: 8,
+            fontSize: 15,
+            fontWeight: 600,
+            cursor: doneSaving ? "not-allowed" : "pointer",
+            opacity: doneSaving ? 0.7 : 1,
+          }}
+        >
+          {doneSaving ? "Skickar…" : "Meddela slutfört"}
+        </button>
+      )}
     </div>
   );
 }
