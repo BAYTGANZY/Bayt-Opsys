@@ -16,7 +16,7 @@ import { PortalEditForm } from "@/components/PortalEditForm";
 import { LOGO_ON_DARK } from "@/lib/logo";
 
 // /mina-arenden — entreprenörens inloggningsfria sida (e-post + kod).
-// All trafik går via edge-funktionen entreprenor-portal, aldrig direkt mot databasen.
+// All trafik går via edge-funktionen entreprenor-portal.
 export const Route = createFileRoute("/mina-arenden")({
   ssr: false,
   head: () => ({
@@ -149,8 +149,6 @@ type PortalArende = {
   budget: number | null;
   contractor_note: string | null;
   contractor_done_at: string | null;
-  can_open: boolean;
-  can_close: boolean;
 };
 
 const KIND_LABEL: Record<ArendeKind, string> = {
@@ -457,8 +455,6 @@ function IssueRow({
   issue,
   expanded,
   onToggle,
-  onAct,
-  actingKind,
   onSave,
   saving,
   onDone,
@@ -467,8 +463,6 @@ function IssueRow({
   issue: PortalArende;
   expanded: boolean;
   onToggle: () => void;
-  onAct: (action: "open" | "close") => void;
-  actingKind: "open" | "close" | null;
   onSave: (fields: Record<string, unknown>) => void;
   saving: boolean;
   onDone: () => void;
@@ -556,55 +550,6 @@ function IssueRow({
           style={{ flexShrink: 0, transform: expanded ? "rotate(180deg)" : "none", transition: "transform 120ms" }}
         />
       </button>
-
-      {(issue.can_open || issue.can_close) && (
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", padding: "0 18px 16px" }}>
-          {issue.can_open && (
-            <button
-              type="button"
-              onClick={() => onAct("open")}
-              disabled={actingKind !== null}
-              style={{
-                height: 42,
-                padding: "0 18px",
-                background: C.accent,
-                color: "#fff",
-                border: "none",
-                borderRadius: 10,
-                fontSize: 14,
-                fontWeight: 600,
-                fontFamily: HEADING_FONT,
-                cursor: actingKind !== null ? "not-allowed" : "pointer",
-                opacity: actingKind !== null ? 0.7 : 1,
-              }}
-            >
-              {actingKind === "open" ? "Öppnar…" : "Öppna ärende"}
-            </button>
-          )}
-          {issue.can_close && (
-            <button
-              type="button"
-              onClick={() => onAct("close")}
-              disabled={actingKind !== null}
-              style={{
-                height: 42,
-                padding: "0 18px",
-                background: C.dark,
-                color: "#fff",
-                border: "none",
-                borderRadius: 10,
-                fontSize: 14,
-                fontWeight: 600,
-                fontFamily: HEADING_FONT,
-                cursor: actingKind !== null ? "not-allowed" : "pointer",
-                opacity: actingKind !== null ? 0.7 : 1,
-              }}
-            >
-              {actingKind === "close" ? "Avslutar…" : "Avsluta ärende"}
-            </button>
-          )}
-        </div>
-      )}
 
       {expanded && (
         <div style={{ borderTop: `1px solid ${C.hairline}`, padding: "16px 18px 18px", display: "grid", gap: 12 }}>
@@ -709,7 +654,8 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 
 function ArendeList({ session, onSignOut }: { session: StoredSession; onSignOut: () => void }) {
   const qc = useQueryClient();
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Alla ärenden är utfällda från start; här lagras de kunden fällt ihop.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<FilterKey>("alla");
 
   const listQuery = useQuery({
@@ -721,23 +667,6 @@ function ArendeList({ session, onSignOut }: { session: StoredSession; onSignOut:
   useEffect(() => {
     if (listQuery.error instanceof PortalError && listQuery.error.status === 401) onSignOut();
   }, [listQuery.error, onSignOut]);
-
-  const act = useMutation({
-    mutationFn: (vars: { id: string; action: "open" | "close"; kind: ArendeKind }) =>
-      callPortal({ action: vars.action, token: session.token, kind: vars.kind, id: vars.id }),
-    onSuccess: (_data, vars) => {
-      toast.success(vars.action === "open" ? "Ärendet är öppet" : "Ärendet är avslutat");
-      qc.invalidateQueries({ queryKey: ["entreprenor-portal", session.token] });
-    },
-    onError: (err: Error) => {
-      if (err instanceof PortalError && err.status === 401) {
-        onSignOut();
-        return;
-      }
-      toast.error(err.message);
-      qc.invalidateQueries({ queryKey: ["entreprenor-portal", session.token] });
-    },
-  });
 
   const save = useMutation({
     mutationFn: (vars: { id: string; kind: ArendeKind; fields: Record<string, unknown> }) =>
@@ -765,7 +694,7 @@ function ArendeList({ session, onSignOut }: { session: StoredSession; onSignOut:
     mutationFn: (vars: { id: string; kind: ArendeKind }) =>
       callPortal({ action: "done", token: session.token, kind: vars.kind, id: vars.id }),
     onSuccess: () => {
-      toast.success("Slutfört är meddelat");
+      toast.success("Förvaltaren har fått besked om att uppdraget är slutfört");
       qc.invalidateQueries({ queryKey: ["entreprenor-portal", session.token] });
     },
     onError: (err: Error) => {
@@ -868,10 +797,15 @@ function ArendeList({ session, onSignOut }: { session: StoredSession; onSignOut:
         <IssueRow
           key={issue.id}
           issue={issue}
-          expanded={expandedId === issue.id}
-          onToggle={() => setExpandedId((prev) => (prev === issue.id ? null : issue.id))}
-          onAct={(action) => act.mutate({ id: issue.id, action, kind: issue.kind })}
-          actingKind={act.isPending && act.variables?.id === issue.id ? act.variables.action : null}
+          expanded={!collapsed.has(issue.id)}
+          onToggle={() =>
+            setCollapsed((prev) => {
+              const next = new Set(prev);
+              if (next.has(issue.id)) next.delete(issue.id);
+              else next.add(issue.id);
+              return next;
+            })
+          }
           onSave={(fields) => save.mutate({ id: issue.id, kind: issue.kind, fields })}
           saving={save.isPending && save.variables?.id === issue.id}
           onDone={() => done.mutate({ id: issue.id, kind: issue.kind })}
