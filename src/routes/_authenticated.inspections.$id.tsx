@@ -13,6 +13,7 @@ import { AnsvarigDropdown } from "@/components/AnsvarigDropdown";
 import { ObjectDropdown } from "@/components/ObjectDropdown";
 import { ObjectInfoCard } from "@/components/ObjectInfoCard";
 import { DeleteButton } from "@/components/DeleteButton";
+import { ContractorBox } from "@/components/ContractorBox";
 import { DerivedStatusField } from "@/components/DerivedStatusBadge";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
 import { deriveInspectionStatus, derivePriorityFromStatus } from "@/lib/issue-tokens";
@@ -125,8 +126,7 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
   });
 
   // Trappan tillhör lägenheten — mirrors the chosen apartment and locks when it
-  // has one. Covers seeding too: apartmentId is seeded from the row, so once the
-  // apartments query resolves the field fills itself.
+  // has one.
   const apartmentTrappa = apartments.find((a) => a.id === apartmentId)?.trappa?.trim() ?? "";
 
   useEffect(() => {
@@ -157,10 +157,8 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
   const save = useMutation({
     mutationFn: async () => {
       // Att välja en entreprenör som ansvarig är också att skicka besiktningen
-      // till hen — samma regel som på felanmälan. Grinden ställs FÖRE
-      // skrivningen: säger admin nej ska ingen tilldelning bli kvar heller,
-      // eftersom grinden bara reagerar på ett *byte* av entreprenör och nästa
-      // sparning därför inte skulle fråga igen.
+      // till hen. Grinden ställs FÖRE skrivningen: säger admin nej ska ingen
+      // tilldelning bli kvar heller.
       const previousContactId = insp?.assigned_contact_id ?? null;
       const notifyContactId =
         profile?.role === "admin" && assignedContactId && assignedContactId !== previousContactId
@@ -191,18 +189,15 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
         next_due_date: nextDue || null,
         apartment_id: apartmentId || null,
         property_object_id: propertyObjectId,
-        // No `trappa` key: the live DB has no inspections.trappa column, and an
-        // unknown column makes PostgREST reject the whole UPDATE. Trappa is
-        // displayed derived from the linked apartment instead of persisted.
+        // No `trappa` key: the live DB has no inspections.trappa column.
         assigned_contact_id: assignedContactId,
       }).eq("id", id).select("id");
       if (error) throw error;
-      // En UPDATE som RLS filtrerar bort är 200 med noll rader. Utan den här
-      // kontrollen hade mejlet gått iväg om en sparning som aldrig skedde.
+      // En UPDATE som RLS filtrerar bort är 200 med noll rader.
       if (!updated?.length) throw new Error("Du saknar behörighet att ändra den här besiktningen.");
 
-      // Utskicket sker efter skrivningen — mejlet ska spegla det som faktiskt
-      // sparades. Ett misslyckat utskick rullar inte tillbaka sparningen.
+      // Utskicket sker efter skrivningen. Ett misslyckat utskick rullar inte
+      // tillbaka sparningen.
       let mailedTo: string | null = null;
       let mailError: string | null = null;
       if (notifyContactId && gateEmail) {
@@ -283,8 +278,7 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
     last_completed_date: lastDate || null,
     interval_months: Number(interval) || null,
   });
-  // Besiktningar have no prioritet column and never had a dropdown — the
-  // prioritet is purely read, out of the same tidsgräns the status uses.
+  // Besiktningar have no prioritet column — the prioritet is purely read.
   const derivedPriority = derivePriorityFromStatus(derived, {
     from: (insp as { created_at?: string | null }).created_at ?? null,
     dueLabel: "Nästa besiktning",
@@ -321,6 +315,15 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
         />
       </div>
 
+      {/* Kundens kommentar, slutfört-besked och filer — bara läsning. */}
+      <div style={{ maxWidth: 720 }}>
+        <ContractorBox
+          kind="inspection"
+          id={id}
+          note={insp.contractor_note}
+          doneAt={insp.contractor_done_at}
+        />
+      </div>
 
       <div style={{
         background: C.card, border: `1px solid ${C.border}`, borderRadius: 8,
@@ -392,8 +395,7 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
               ))}
             </select>
             {/* Entreprenör: the apartment is not theirs to change, but it is
-                theirs to inspect — arrow opens the apartment page. Placed left
-                of the native select-chevron, not over it. */}
+                theirs to inspect — arrow opens the apartment page. */}
             {entreprenor && apartmentId && (
               <button
                 type="button"
@@ -408,109 +410,3 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
                 }
                 style={{
                   position: "absolute", right: 30, top: "50%", transform: "translateY(-50%)",
-                  display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  width: 24, height: 24, padding: 0, border: "none", background: "transparent",
-                  cursor: "pointer",
-                }}
-              >
-                <ArrowUpRight size={16} color={C.primary} />
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div>
-          <label style={labelStyle}>Trappa</label>
-          {/* Locked to the apartment's trappa when it has one — free typing here
-              caused mismatches with the apartment identity. Not persisted on
-              inspections (no such column); display only. */}
-          <input
-            style={{ ...inputStyle, ...(apartmentTrappa ? { background: "#F3F4F6", cursor: "default" } : {}) }}
-            value={apartmentTrappa || trappa}
-            readOnly={!!apartmentTrappa}
-            onChange={(e) => { if (!apartmentTrappa) setTrappa(e.target.value); }}
-            placeholder="t.ex. A"
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Anteckningar</label>
-          <textarea style={{ ...inputStyle, height: 96, padding: 12, resize: "vertical" }}
-            value={notes} onChange={(e) => setNotes(e.target.value)} />
-        </div>
-
-        <AnsvarigDropdown value={assignedContactId} onChange={setAssignedContactId} />
-
-        {error && <div style={{ color: C.error, fontSize: 14 }}>{error}</div>}
-
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <button onClick={() => save.mutate()} disabled={save.isPending} style={{
-            height: 44, background: C.primary, color: "#ffffff", border: "none",
-            borderRadius: 6, padding: "0 24px", fontSize: 15, fontWeight: 600,
-            cursor: save.isPending ? "default" : "pointer", opacity: save.isPending ? 0.7 : 1,
-          }}>
-            {save.isPending ? "Sparar…" : "Spara"}
-          </button>
-          <DeleteButton
-            table="inspections"
-            id={id}
-            label="besiktningen"
-            variant="full"
-            invalidateKeys={[["inspections"], ["oppna-arenden"]]}
-            onDeleted={() => navigate({ to: "/inspections" })}
-          />
-        </div>
-      </div>
-
-      <div style={{
-        background: C.card, border: `1px solid ${C.border}`, borderRadius: 8,
-        padding: 24, maxWidth: 720,
-      }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: "0 0 16px" }}>Protokoll</h2>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16, minWidth: 0 }}>
-          <FileDropzone
-            files={files}
-            onAdd={(picked) => setFiles((prev) => [...prev, ...picked])}
-            onRemove={(i) => setFiles((prev) => prev.filter((_, k) => k !== i))}
-          />
-          <button onClick={handleUpload} disabled={!files.length || uploading} style={{
-            height: 40, background: C.primary, color: "#ffffff", border: "none",
-            borderRadius: 6, padding: "0 16px", fontSize: 14, fontWeight: 600,
-            cursor: (!files.length || uploading) ? "default" : "pointer",
-            opacity: (!files.length || uploading) ? 0.6 : 1,
-            display: "inline-flex", alignItems: "center", gap: 6,
-            alignSelf: "flex-start",
-          }}>
-            <Upload size={18} /> {uploading ? "Laddar upp…" : "Ladda upp"}
-          </button>
-        </div>
-
-        {protocols.length === 0 ? (
-          <div style={{ color: C.secondary, fontSize: 14 }}>Inga protokoll uppladdade</div>
-        ) : (
-          <div style={{ display: "grid", gap: 8 }}>
-            {(protocols as any[]).map((p) => (
-              <div key={p.id} style={{
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-                padding: 12, border: `1px solid ${C.border}`, borderRadius: 6,
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <FileText size={18} color={C.secondary} />
-                  <div>
-                    <div style={{ fontSize: 14, color: C.text }}>{fmt(p.completed_date)}</div>
-                    <div style={{ fontSize: 12, color: C.secondary }}>{fmt(p.created_at)}</div>
-                  </div>
-                </div>
-                <a href={p.protocol_url} target="_blank" rel="noreferrer"
-                  style={{ color: C.primary, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>
-                  Öppna
-                </a>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
