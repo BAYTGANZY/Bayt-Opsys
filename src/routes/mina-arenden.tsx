@@ -147,6 +147,8 @@ type PortalArende = {
   start_date: string | null;
   end_date: string | null;
   budget: number | null;
+  contractor_note: string | null;
+  contractor_done_at: string | null;
   can_open: boolean;
   can_close: boolean;
 };
@@ -459,6 +461,8 @@ function IssueRow({
   actingKind,
   onSave,
   saving,
+  onDone,
+  doneSaving,
 }: {
   issue: PortalArende;
   expanded: boolean;
@@ -467,6 +471,8 @@ function IssueRow({
   actingKind: "open" | "close" | null;
   onSave: (fields: Record<string, unknown>) => void;
   saving: boolean;
+  onDone: () => void;
+  doneSaving: boolean;
 }) {
   const derived = deriveArende(issue);
 
@@ -665,25 +671,27 @@ function IssueRow({
             )}
           </div>
 
-          {issue.lifecycle !== "avslutat" && (
-            <PortalEditForm
-              key={issue.id + String(issue.description) + String(issue.deadline) + String(issue.budget)}
-              kind={issue.kind}
-              values={issue as unknown as Record<string, unknown>}
-              saving={saving}
-              onSave={onSave}
-            />
-          )}
-
           {issue.description && (
             <div style={{ background: C.wash, borderRadius: 8, padding: "12px 14px" }}>
               <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
-                Beskrivning
+                Beskrivning från förvaltaren
               </div>
               <div style={{ fontSize: 14, color: C.text, lineHeight: 1.55, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
                 {issue.description}
               </div>
             </div>
+          )}
+
+          {issue.lifecycle !== "avslutat" && (
+            <PortalEditForm
+              key={issue.id + String(issue.contractor_note) + String(issue.contractor_done_at)}
+              kind={issue.kind}
+              values={issue as unknown as Record<string, unknown>}
+              saving={saving}
+              onSave={onSave}
+              onDone={onDone}
+              doneSaving={doneSaving}
+            />
           )}
         </div>
       )}
@@ -741,7 +749,23 @@ function ArendeList({ session, onSignOut }: { session: StoredSession; onSignOut:
         fields: vars.fields,
       }),
     onSuccess: (data) => {
-      toast.success(data?.changed?.length ? "Ändringarna är sparade" : "Inget att spara");
+      toast.success(data?.changed?.length ? "Kommentaren är sparad" : "Inget att spara");
+      qc.invalidateQueries({ queryKey: ["entreprenor-portal", session.token] });
+    },
+    onError: (err: Error) => {
+      if (err instanceof PortalError && err.status === 401) {
+        onSignOut();
+        return;
+      }
+      toast.error(err.message);
+    },
+  });
+
+  const done = useMutation({
+    mutationFn: (vars: { id: string; kind: ArendeKind }) =>
+      callPortal({ action: "done", token: session.token, kind: vars.kind, id: vars.id }),
+    onSuccess: () => {
+      toast.success("Slutfört är meddelat");
       qc.invalidateQueries({ queryKey: ["entreprenor-portal", session.token] });
     },
     onError: (err: Error) => {
@@ -850,6 +874,8 @@ function ArendeList({ session, onSignOut }: { session: StoredSession; onSignOut:
           actingKind={act.isPending && act.variables?.id === issue.id ? act.variables.action : null}
           onSave={(fields) => save.mutate({ id: issue.id, kind: issue.kind, fields })}
           saving={save.isPending && save.variables?.id === issue.id}
+          onDone={() => done.mutate({ id: issue.id, kind: issue.kind })}
+          doneSaving={done.isPending && done.variables?.id === issue.id}
         />
       ))}
     </div>
