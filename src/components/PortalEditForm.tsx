@@ -62,18 +62,20 @@ export function PortalEditForm({
 
       {doneAt ? (
         <div style={{ fontSize: 13, color: "#3D8A30", fontWeight: 600 }}>
-          Slutfört meddelat. Förvaltaren avslutar ärendet.
+          Du har meddelat att uppdraget är slutfört. Förvaltaren granskar och avslutar ärendet.
         </div>
       ) : (
         <button
           type="button"
           disabled={doneSaving}
-          onClick={onDone}
+          onClick={() => {
+            if (window.confirm("Meddela förvaltaren att uppdraget är slutfört?")) onDone();
+          }}
           style={{
             height: 44,
-            background: "#ffffff",
-            color: "#0D2B1E",
-            border: "1px solid #3D8A30",
+            background: "#0D2B1E",
+            color: "#ffffff",
+            border: "1px solid #0D2B1E",
             borderRadius: 8,
             fontSize: 15,
             fontWeight: 600,
@@ -81,7 +83,7 @@ export function PortalEditForm({
             opacity: doneSaving ? 0.7 : 1,
           }}
         >
-          {doneSaving ? "Skickar…" : "Meddela slutfört"}
+          {doneSaving ? "Skickar…" : "Meddela att uppdraget är slutfört"}
         </button>
       )}
     </div>
