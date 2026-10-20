@@ -410,3 +410,108 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
                 }
                 style={{
                   position: "absolute", right: 30, top: "50%", transform: "translateY(-50%)",
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  width: 24, height: 24, padding: 0, border: "none", background: "transparent",
+                  cursor: "pointer",
+                }}
+              >
+                <ArrowUpRight size={16} color={C.primary} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <label style={labelStyle}>Trappa</label>
+          {/* Locked to the apartment's trappa when it has one. Not persisted on
+              inspections (no such column); display only. */}
+          <input
+            style={{ ...inputStyle, ...(apartmentTrappa ? { background: "#F3F4F6", cursor: "default" } : {}) }}
+            value={apartmentTrappa || trappa}
+            readOnly={!!apartmentTrappa}
+            onChange={(e) => { if (!apartmentTrappa) setTrappa(e.target.value); }}
+            placeholder="t.ex. A"
+          />
+        </div>
+
+        <div>
+          <label style={labelStyle}>Anteckningar</label>
+          <textarea style={{ ...inputStyle, height: 96, padding: 12, resize: "vertical" }}
+            value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </div>
+
+        <AnsvarigDropdown value={assignedContactId} onChange={setAssignedContactId} />
+
+        {error && <div style={{ color: C.error, fontSize: 14 }}>{error}</div>}
+
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <button onClick={() => save.mutate()} disabled={save.isPending} style={{
+            height: 44, background: C.primary, color: "#ffffff", border: "none",
+            borderRadius: 6, padding: "0 24px", fontSize: 15, fontWeight: 600,
+            cursor: save.isPending ? "default" : "pointer", opacity: save.isPending ? 0.7 : 1,
+          }}>
+            {save.isPending ? "Sparar…" : "Spara"}
+          </button>
+          <DeleteButton
+            table="inspections"
+            id={id}
+            label="besiktningen"
+            variant="full"
+            invalidateKeys={[["inspections"], ["oppna-arenden"]]}
+            onDeleted={() => navigate({ to: "/inspections" })}
+          />
+        </div>
+      </div>
+
+      <div style={{
+        background: C.card, border: `1px solid ${C.border}`, borderRadius: 8,
+        padding: 24, maxWidth: 720,
+      }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, color: C.text, margin: "0 0 16px" }}>Protokoll</h2>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16, minWidth: 0 }}>
+          <FileDropzone
+            files={files}
+            onAdd={(picked) => setFiles((prev) => [...prev, ...picked])}
+            onRemove={(i) => setFiles((prev) => prev.filter((_, k) => k !== i))}
+          />
+          <button onClick={handleUpload} disabled={!files.length || uploading} style={{
+            height: 40, background: C.primary, color: "#ffffff", border: "none",
+            borderRadius: 6, padding: "0 16px", fontSize: 14, fontWeight: 600,
+            cursor: (!files.length || uploading) ? "default" : "pointer",
+            opacity: (!files.length || uploading) ? 0.6 : 1,
+            display: "inline-flex", alignItems: "center", gap: 6,
+            alignSelf: "flex-start",
+          }}>
+            <Upload size={18} /> {uploading ? "Laddar upp…" : "Ladda upp"}
+          </button>
+        </div>
+
+        {protocols.length === 0 ? (
+          <div style={{ color: C.secondary, fontSize: 14 }}>Inga protokoll uppladdade</div>
+        ) : (
+          <div style={{ display: "grid", gap: 8 }}>
+            {(protocols as any[]).map((p) => (
+              <div key={p.id} style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: 12, border: `1px solid ${C.border}`, borderRadius: 6,
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <FileText size={18} color={C.secondary} />
+                  <div>
+                    <div style={{ fontSize: 14, color: C.text }}>{fmt(p.completed_date)}</div>
+                    <div style={{ fontSize: 12, color: C.secondary }}>{fmt(p.created_at)}</div>
+                  </div>
+                </div>
+                <a href={p.protocol_url} target="_blank" rel="noreferrer"
+                  style={{ color: C.primary, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>
+                  Öppna
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
