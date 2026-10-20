@@ -1,110 +1,591 @@
-import { useCallback } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/lib/auth";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Notification03Icon, Alert02Icon, Chatting01Icon } from "@hugeicons/core-free-icons";
+import { useAkutIssues } from "@/components/AkutWatcher";
+import { useArendeNotifications, type ArendeNotification } from "@/hooks/useArendeNotifications";
+import {
+  formatNotificationTime,
+  previewText,
+  useNotifications,
+  TOAST_MS,
+  type ChatNotification,
+} from "@/lib/notifications";
 
-export type ArendeNotification = {
-  id: string;
-  source: "project" | "arende";
-  projectId: string;
-  title: string;
-  createdAt: string;
-  readAt: string | null;
+const C = {
+  card: "#FFFFFF",
+  border: "#E9EBE9",
+  green: "#5CB84A",
+  text: "#111318",
+  secondary: "#5B6169",
+  muted: "#9AA0A6",
+  red: "#DC2626",
 };
 
-const TABLE = {
-  project: "project_update_notifications",
-  arende: "arende_notifications",
-} as const;
+const headingFont = "Outfit, Inter, system-ui, sans-serif";
 
-/** Notiser till den inloggade: projektnotiser (trigger) + ärendenotiser (portalen utan konto). */
-export function useArendeNotifications() {
-  const { user } = useAuth();
-  const qc = useQueryClient();
-  const key = ["arende-notifications", user?.id];
+const SWIPE_DISMISS_PX = 40;
 
-  const q = useQuery({
-    queryKey: key,
-    enabled: !!user?.id,
-    refetchInterval: 20_000,
-    refetchOnWindowFocus: true,
-    queryFn: async (): Promise<ArendeNotification[]> => {
-      const [projRes, arRes] = await Promise.all([
-        supabase
-          .from("project_update_notifications")
-          .select("id, project_id, created_at, read_at")
-          .eq("recipient_profile_id", user!.id)
-          .order("created_at", { ascending: false })
-          .limit(30),
-        supabase
-          .from("arende_notifications")
-          .select("id, kind, arende_id, summary, created_at, read_at")
-          .eq("recipient_profile_id", user!.id)
-          .order("created_at", { ascending: false })
-          .limit(30),
-      ]);
-      if (projRes.error) throw projRes.error;
+const KIND_HEADING: Record<ArendeNotification["kind"], string> = {
+  issue: "Felanmälan uppdaterad",
+  inspection: "Besiktning uppdaterad",
+  project: "Projekt uppdaterat",
+};
 
-      const projRows = projRes.data ?? [];
-      const arRows = arRes.error ? [] : (arRes.data ?? []);
+function initial(name: string | null | undefined): string {
+  if (!name) return "?";
+  return name.trim().charAt(0).toUpperCase();
+}
 
-      const ids = Array.from(new Set(projRows.map((r) => r.project_id as string)));
-      const titles = new Map<string, string>();
-      if (ids.length > 0) {
-        const { data: ps } = await supabase.from("projects").select("id, title").in("id", ids);
-        for (const p of ps ?? []) titles.set(p.id as string, (p.title as string) ?? "Projekt");
-      }
-
-      const fromProjects: ArendeNotification[] = projRows.map((r) => ({
-        id: r.id as string,
-        source: "project",
-        projectId: r.project_id as string,
-        title: titles.get(r.project_id as string) ?? "Projekt",
-        createdAt: r.created_at as string,
-        readAt: (r.read_at as string | null) ?? null,
-      }));
-
-      const fromArenden: ArendeNotification[] = arRows.map((r) => ({
-        id: r.id as string,
-        source: "arende",
-        // Klockan navigerar till /projects/$id; för övriga typer räcker id:t som länkmål.
-        projectId: r.arende_id as string,
-        title: (r.summary as string) ?? "Ärende uppdaterat",
-        createdAt: r.created_at as string,
-        readAt: (r.read_at as string | null) ?? null,
-      }));
-
-      return [...fromProjects, ...fromArenden]
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-        .slice(0, 40);
-    },
-  });
-
-  const items = q.data ?? [];
-  const unreadCount = items.filter((i) => !i.readAt).length;
-
-  const markRead = useCallback(
-    async (id: string) => {
-      const item = (qc.getQueryData(key) as ArendeNotification[] | undefined)?.find((i) => i.id === id);
-      const table = TABLE[item?.source ?? "project"];
-      await supabase.from(table).update({ read_at: new Date().toISOString() }).eq("id", id);
-      void qc.invalidateQueries({ queryKey: key });
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [qc, user?.id],
-  );
-
-  const markAllRead = useCallback(async () => {
-    if (!user?.id) return;
-    const now = new Date().toISOString();
-    await Promise.all(
-      (Object.values(TABLE) as string[]).map((t) =>
-        supabase.from(t).update({ read_at: now }).eq("recipient_profile_id", user.id).is("read_at", null),
-      ),
+function Avatar({
+  name,
+  url,
+  size = 38,
+}: {
+  name: string | null;
+  url: string | null;
+  size?: number;
+}) {
+  const [failed, setFailed] = useState(false);
+  const base = {
+    width: size,
+    height: size,
+    borderRadius: "50%",
+    flexShrink: 0,
+    display: "block",
+  } as const;
+  if (url && !failed) {
+    return (
+      <img
+        src={url}
+        alt=""
+        onError={() => setFailed(true)}
+        style={{ ...base, objectFit: "cover" }}
+      />
     );
-    void qc.invalidateQueries({ queryKey: key });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qc, user?.id]);
+  }
+  return (
+    <span
+      style={{
+        ...base,
+        background: C.green,
+        color: "#0D2B1E",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontWeight: 700,
+        fontSize: Math.round(size * 0.4),
+      }}
+    >
+      {initial(name)}
+    </span>
+  );
+}
 
-  return { items, unreadCount, markRead, markAllRead };
+export function NotificationBell({ isMobile }: { isMobile: boolean }) {
+  const navigate = useNavigate();
+  const { items, unreadCount, isUnread, markConversationRead, markAllRead } = useNotifications();
+  const akut = useAkutIssues();
+  const arende = useArendeNotifications();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const badge = unreadCount + arende.unreadCount + akut.length;
+  const hasAkut = akut.length > 0;
+
+  const openConversation = (n: ChatNotification) => {
+    markConversationRead(n.conversationId);
+    setOpen(false);
+    navigate({ to: "/chatt", search: { c: n.conversationId } });
+  };
+
+  const openArende = (a: ArendeNotification) => {
+    void arende.markRead(a.id);
+    setOpen(false);
+    if (a.kind === "issue") navigate({ to: "/issues/$id", params: { id: a.arendeId } });
+    else if (a.kind === "inspection") navigate({ to: "/inspections/$id", params: { id: a.arendeId } });
+    else navigate({ to: "/projects/$id", params: { id: a.arendeId } });
+  };
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-label={badge > 0 ? `${badge} notiser` : "Inga notiser"}
+        title={badge > 0 ? `${badge} notiser` : "Inga notiser"}
+        style={{
+          position: "relative",
+          background: "transparent",
+          border: "none",
+          color: hasAkut ? "#FF6B6B" : open ? "#ffffff" : "rgba(255,255,255,0.7)",
+          cursor: "pointer",
+          padding: 8,
+          minWidth: 40,
+          minHeight: 40,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          animation: hasAkut ? "bayt-bell-pulse 1.4s ease-in-out infinite" : "none",
+        }}
+      >
+        <HugeiconsIcon icon={Notification03Icon} size={20} />
+        {badge > 0 && (
+          <span
+            style={{
+              position: "absolute",
+              top: 4,
+              right: 4,
+              minWidth: 16,
+              height: 16,
+              borderRadius: 999,
+              background: hasAkut ? C.red : C.green,
+              color: "#fff",
+              fontSize: 10,
+              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "0 4px",
+              border: "2px solid #0D2B1E",
+              boxSizing: "content-box",
+            }}
+          >
+            {badge > 9 ? "9+" : badge}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div
+          role="dialog"
+          aria-label="Notiser"
+          style={{
+            position: isMobile ? "fixed" : "absolute",
+            top: isMobile ? 60 : 46,
+            right: isMobile ? 8 : 0,
+            left: isMobile ? 8 : undefined,
+            width: isMobile ? undefined : 360,
+            background: C.card,
+            border: `1px solid ${C.border}`,
+            borderRadius: 14,
+            boxShadow: "0 1px 2px rgba(13,43,30,0.04), 0 18px 40px -12px rgba(13,43,30,0.28)",
+            zIndex: 100,
+            overflow: "hidden",
+            animation: "bayt-notif-panel-in 0.16s ease-out",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              padding: "12px 14px",
+              borderBottom: `1px solid ${C.border}`,
+            }}
+          >
+            <span style={{ fontFamily: headingFont, fontSize: 15, fontWeight: 600, color: C.text }}>
+              Notiser
+            </span>
+            {unreadCount + arende.unreadCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  void markAllRead();
+                  void arende.markAllRead();
+                }}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#3D8A30",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  padding: 0,
+                  fontFamily: "inherit",
+                }}
+              >
+                Markera alla som lästa
+              </button>
+            )}
+          </div>
+
+          <div style={{ maxHeight: "min(60vh, 420px)", overflowY: "auto" }}>
+            {akut.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  navigate({ to: "/issues/$id", params: { id: a.id } });
+                }}
+                className="bayt-notif-row"
+                style={{ borderLeft: `3px solid ${C.red}` }}
+              >
+                <span
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: "50%",
+                    background: "#FEE2E2",
+                    color: C.red,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <HugeiconsIcon icon={Alert02Icon} size={18} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.red }}>
+                    Akut ärende
+                  </span>
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: 13,
+                      color: C.text,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {a.title}
+                  </span>
+                </span>
+              </button>
+            ))}
+
+            {arende.items.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                className="bayt-notif-row"
+                style={{ background: a.readAt ? "transparent" : "#F4F8F3" }}
+                onClick={() => openArende(a)}
+              >
+                <span
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: "50%",
+                    background: "#E8F3E5",
+                    color: "#3D8A30",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <HugeiconsIcon icon={Notification03Icon} size={18} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: 13.5,
+                      fontWeight: a.readAt ? 600 : 700,
+                      color: C.text,
+                    }}
+                  >
+                    {KIND_HEADING[a.kind]}
+                  </span>
+                  <span
+                    className="bayt-notif-preview"
+                    style={{ color: a.readAt ? C.secondary : C.text }}
+                  >
+                    {a.title} · {formatNotificationTime(a.createdAt)}
+                  </span>
+                </span>
+                {!a.readAt && (
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: C.green,
+                      flexShrink: 0,
+                      alignSelf: "center",
+                    }}
+                  />
+                )}
+              </button>
+            ))}
+
+            {items.map((n) => {
+              const unread = isUnread(n);
+              return (
+                <button
+                  key={n.id}
+                  type="button"
+                  onClick={() => openConversation(n)}
+                  className="bayt-notif-row"
+                  style={{ background: unread ? "#F4F8F3" : "transparent" }}
+                >
+                  <Avatar name={n.senderName} url={n.senderAvatar} />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                      <span
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          fontSize: 13.5,
+                          fontWeight: unread ? 700 : 600,
+                          color: C.text,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {n.senderName ?? "Okänd avsändare"}
+                        {n.groupName && (
+                          <span style={{ fontWeight: 400, color: C.secondary }}>
+                            {" "}
+                            i {n.groupName}
+                          </span>
+                        )}
+                      </span>
+                      <span style={{ fontSize: 11, color: C.muted, flexShrink: 0 }}>
+                        {formatNotificationTime(n.createdAt)}
+                      </span>
+                    </span>
+                    <span
+                      className="bayt-notif-preview"
+                      style={{ color: unread ? C.text : C.secondary }}
+                    >
+                      {previewText(n.body)}
+                    </span>
+                  </span>
+                  {unread && (
+                    <span
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        background: C.green,
+                        flexShrink: 0,
+                        alignSelf: "center",
+                      }}
+                    />
+                  )}
+                </button>
+              );
+            })}
+
+            {akut.length === 0 && items.length === 0 && arende.items.length === 0 && (
+              <div style={{ padding: "36px 20px", textAlign: "center" }}>
+                <HugeiconsIcon icon={Notification03Icon} size={24} color={C.muted} />
+                <div style={{ marginTop: 8, fontSize: 13, color: C.secondary }}>Inga notiser</div>
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              navigate({ to: "/chatt", search: {} });
+            }}
+            style={{
+              width: "100%",
+              padding: "10px 14px",
+              borderTop: `1px solid ${C.border}`,
+              background: "#FBFBFA",
+              border: "none",
+              borderBottomLeftRadius: 14,
+              borderBottomRightRadius: 14,
+              cursor: "pointer",
+              fontSize: 12.5,
+              fontWeight: 600,
+              color: C.secondary,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              fontFamily: "inherit",
+            }}
+          >
+            <HugeiconsIcon icon={Chatting01Icon} size={14} />
+            Öppna chatten
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function NotificationToasts({ isMobile }: { isMobile: boolean }) {
+  const navigate = useNavigate();
+  const { toasts, dismissToast, markConversationRead } = useNotifications();
+
+  if (toasts.length === 0) return null;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: isMobile ? 64 : 80,
+        right: isMobile ? 8 : 24,
+        left: isMobile ? 8 : undefined,
+        zIndex: 65,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        pointerEvents: "none",
+      }}
+    >
+      {toasts.map((n) => (
+        <ToastCard
+          key={n.id}
+          notification={n}
+          onDismiss={dismissToast}
+          onOpen={() => {
+            markConversationRead(n.conversationId);
+            dismissToast(n.id);
+            navigate({ to: "/chatt", search: { c: n.conversationId } });
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ToastCard({
+  notification: n,
+  onDismiss,
+  onOpen,
+}: {
+  notification: ChatNotification;
+  onDismiss: (id: string) => void;
+  onOpen: () => void;
+}) {
+  const [leaving, setLeaving] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [dy, setDy] = useState(0);
+  const drag = useRef({ startY: 0, active: false, moved: false });
+
+  const close = useCallback(() => setLeaving(true), []);
+
+  useEffect(() => {
+    if (!leaving) return;
+    const t = setTimeout(() => onDismiss(n.id), 200);
+    return () => clearTimeout(t);
+  }, [leaving, n.id, onDismiss]);
+
+  useEffect(() => {
+    if (leaving || paused || dragging) return;
+    const t = setTimeout(close, TOAST_MS);
+    return () => clearTimeout(t);
+  }, [leaving, paused, dragging, close]);
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { startY: e.clientY, active: true, moved: false };
+    setDragging(true);
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!drag.current.active) return;
+    const delta = e.clientY - drag.current.startY;
+    if (Math.abs(delta) > 6) drag.current.moved = true;
+    setDy(Math.min(0, delta));
+  };
+
+  const endDrag = () => {
+    if (!drag.current.active) return;
+    drag.current.active = false;
+    setDragging(false);
+    if (dy <= -SWIPE_DISMISS_PX) close();
+    else setDy(0);
+  };
+
+  return (
+    <div
+      onClick={() => {
+        if (drag.current.moved) return;
+        onOpen();
+      }}
+      onWheel={(e) => {
+        if (e.deltaY < 0) close();
+      }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") onOpen();
+        if (e.key === "Escape") close();
+      }}
+      style={{
+        pointerEvents: "auto",
+        touchAction: "none",
+        cursor: "pointer",
+        width: "min(340px, calc(100vw - 16px))",
+        display: "flex",
+        gap: 10,
+        alignItems: "flex-start",
+        padding: "11px 13px",
+        background: C.card,
+        borderRadius: 14,
+        border: `1px solid ${C.border}`,
+        borderLeft: `3px solid ${C.green}`,
+        boxShadow: "0 1px 2px rgba(13,43,30,0.04), 0 16px 34px -12px rgba(13,43,30,0.32)",
+        transform: leaving ? "translateY(-14px)" : `translateY(${dy}px)`,
+        opacity: leaving ? 0 : 1,
+        transition: dragging ? "none" : "transform 0.2s ease, opacity 0.2s ease",
+        animation: leaving ? "none" : "bayt-toast-in 0.22s ease-out",
+      }}
+    >
+      <Avatar name={n.senderName} url={n.senderAvatar} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+          <span
+            style={{
+              flex: 1,
+              minWidth: 0,
+              fontSize: 13.5,
+              fontWeight: 700,
+              color: C.text,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {n.senderName ?? "Nytt meddelande"}
+            {n.groupName && (
+              <span style={{ fontWeight: 400, color: C.secondary }}> i {n.groupName}</span>
+            )}
+          </span>
+          <span style={{ fontSize: 11, color: C.muted, flexShrink: 0 }}>
+            {formatNotificationTime(n.createdAt)}
+          </span>
+        </div>
+        <div className="bayt-notif-preview" style={{ color: C.secondary }}>
+          {previewText(n.body)}
+        </div>
+      </div>
+    </div>
+  );
 }
