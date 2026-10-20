@@ -21,6 +21,7 @@ import { gateEntreprenorEmail, notifyEntreprenorAboutArende } from "@/lib/entrep
 import { ObjectDropdown } from "@/components/ObjectDropdown";
 import { ObjectInfoCard } from "@/components/ObjectInfoCard";
 import { DeleteButton } from "@/components/DeleteButton";
+import { ContractorBox } from "@/components/ContractorBox";
 import { useRecordScopeGuard } from "@/hooks/useRecordScopeGuard";
 
 export const Route = createFileRoute("/_authenticated/issues/$id")({
@@ -90,18 +91,14 @@ type Issue = {
   submission_source: string | null;
   created_by: string | null;
   created_at: string;
+  contractor_note: string | null;
+  contractor_done_at: string | null;
   properties: { name: string | null } | null;
 };
 
-/**
- * Vad en sparning slutade med. `cancelled` är inte ett fel: admin backade ur
- * bekräftelserutan för utskicket, och då skrivs ingenting alls — tilldelning
- * och utskick hör ihop.
- */
 type SaveOutcome = {
   failures: string[];
   cancelled: boolean;
-  /** Adressen ärendet mejlades till, om en entreprenör tilldelades i denna sparning. */
   mailedTo: string | null;
   mailError: string | null;
 };
@@ -109,9 +106,6 @@ type SaveOutcome = {
 export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
   const params = useParams({ strict: false }) as { id?: string };
   const id = idOverride ?? params.id!;
-  // Embedded = rendered inside PropertyShell (property-scoped route). That shell
-  // already provides the back link, breadcrumb, building header and outer card,
-  // so we drop our own duplicate chrome and let the fields flow into that card.
   const embedded = !!idOverride;
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -123,7 +117,7 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("issues")
-        .select("id, property_id, apartment_id, property_object_id, title, description, category, priority, status, deadline, assigned_to, assigned_contact_id, reporter_name, reporter_phone, reporter_email, trappa, submission_source, created_by, created_at, properties(name)")
+        .select("id, property_id, apartment_id, property_object_id, title, description, category, priority, status, deadline, assigned_to, assigned_contact_id, reporter_name, reporter_phone, reporter_email, trappa, submission_source, created_by, created_at, contractor_note, contractor_done_at, properties(name)")
         .eq("id", id)
         .single();
       if (error) throw error;
@@ -131,10 +125,6 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
     },
   });
 
-  // Reachable by URL — make sure this role is actually scoped to this errand.
-  // `undefined` until the row is actually in hand: a read that failed must not
-  // masquerade as "assigned to nobody" and evict the entreprenör it belongs to.
-  // No redirectTo — the guard sends each role to its own home page.
   useRecordScopeGuard({
     propertyId: issueQ.data?.property_id,
     assignedContactId: issueQ.data ? (issueQ.data.assigned_contact_id ?? null) : undefined,
@@ -154,8 +144,6 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
     },
   });
 
-  // Stored image URLs are getPublicUrl() links into the private "documents"
-  // bucket — render them through signed URLs or the thumbnails 400 for everyone.
   const resolveFileUrl = useSignedFileUrls(
     ((imagesQ.data ?? []) as Array<{ url: string }>).map((i) => i.url),
   );
@@ -203,7 +191,6 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
   const [cause, setCause] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
-  // Ingen priority-state: prioritet är härledd ur deadline (derivePriority).
   const [status, setStatus] = useState("ny");
   const [deadline, setDeadline] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
@@ -220,9 +207,6 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("apartments")
-        // trappa included to match the other users of this cache key — the five
-        // ["apartments-for-property"] queries must select identical columns or
-        // whichever runs first starves the others of trappa.
         .select("id, apartment_number, trappa")
         .eq("property_id", propertyId)
         .order("apartment_number");
@@ -254,10 +238,6 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
     void supabase.from("issues").update({ viewed_at: new Date().toISOString() }).eq("id", id).is("viewed_at", null);
   }, [id]);
 
-  // Shared by "Ladda upp" and "Spara ändringar": uploads what's picked, prunes
-  // the successfully uploaded files out of state (so a retry never re-uploads
-  // them) and returns what failed so the caller can report it. A failure keeps
-  // its chip in the dropzone list so nothing is silently dropped.
   const uploadPendingFiles = async (): Promise<{ uploaded: number; failures: string[] }> => {
     let uploaded = 0;
     const failures: string[] = [];
@@ -283,11 +263,6 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
       const idle: SaveOutcome = { failures: [], cancelled: false, mailedTo: null, mailError: null };
       if (!issueQ.data || !user) return idle;
 
-      // Att tilldela en entreprenör är också att mejla ut ärendet till hen.
-      // Frågan om adressen ställs FÖRE skrivningen: säger admin nej ska ingen
-      // tilldelning bli kvar heller, annars hade ärendet stått som tilldelat
-      // utan att någon fått veta det — och nästa sparning hade inte frågat
-      // igen, eftersom grinden bara reagerar på ett byte av entreprenör.
       const previousContactId = issueQ.data.assigned_contact_id ?? null;
       const notifyContactId =
         profile?.role === "admin" && assignedContactId && assignedContactId !== previousContactId
@@ -307,8 +282,6 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
         gateName = gate.name;
       }
 
-      // Picked-but-not-uploaded files ride along with the save — before this,
-      // "Spara ändringar" silently ignored them.
       const upload = files.length
         ? await uploadPendingFiles()
         : { uploaded: 0, failures: [] as string[] };
@@ -316,10 +289,6 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
         cause.trim() ? `Orsak: ${cause.trim()}` : "",
         description.trim(),
       ].filter(Boolean).join("\n\n") || null;
-      // `status` is deliberately absent: it is derived (see deriveIssueStatus)
-      // and the lifecycle column is only written by Öppna-/Avsluta-ärende.
-      // `priority` on the other hand IS written — but never picked: it falls out
-      // of the deadline, so editing the deadline re-stamps it (derivePriority).
       const { data: updated, error } = await supabase.from("issues").update({
         title,
         description: combined,
@@ -333,13 +302,8 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
         property_object_id: propertyObjectId,
       } as any).eq("id", id).select("id");
       if (error) throw error;
-      // An UPDATE that RLS filters away is a 200 with zero rows — without this
-      // check the toast says "Sparat!" over an untouched row.
       if (!updated?.length) throw new Error("Du saknar behörighet att ändra denna felanmälan.");
 
-      // Utskicket sker efter skrivningen — mejlet innehåller ärendets
-      // uppgifter och ska spegla det som faktiskt sparades. Ett misslyckat
-      // utskick rullar inte tillbaka sparningen; det rapporteras i toasten.
       let mailedTo: string | null = null;
       let mailError: string | null = null;
       if (notifyContactId && gateEmail) {
@@ -426,10 +390,6 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
   if (issueQ.error || !issueQ.data) return <div style={{ padding: 32, color: C.error }}>Felanmälan hittades inte</div>;
   const issue = issueQ.data;
 
-  // Prioritet and status are both read, never chosen — and both fall out of the
-  // deadline currently in the form, so the two badges react live while it is
-  // being edited. Prioritet is the width of the window measured from skapad;
-  // that the window is closing is what status says.
   const derivedPriority = derivePriority(deadline || null, { from: issue.created_at });
   const derived = deriveIssueStatus({
     status,
@@ -473,6 +433,12 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
         />
       </div>
 
+      <ContractorBox
+        kind="issue"
+        id={id}
+        note={issue.contractor_note}
+        doneAt={issue.contractor_done_at}
+      />
 
       <div style={{ display: "grid", gridTemplateColumns: embedded || isMobile ? "1fr" : "2fr 1fr", gap: 16, minWidth: 0 }}>
         <div style={{ ...(embedded ? { minWidth: 0 } : card), display: "grid", gap: 16 }}>
