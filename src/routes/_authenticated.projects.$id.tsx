@@ -90,6 +90,8 @@ type Project = {
   created_by: string | null;
   created_at: string;
   updated_at: string | null;
+  contractor_note: string | null;
+  contractor_done_at: string | null;
   properties: { name: string | null } | null;
 };
 
@@ -114,9 +116,7 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
     },
   });
 
-  // Reachable by URL — enforce role scope on this projekt. `undefined` until the
-  // row is in hand (see useRecordScopeGuard), and no redirectTo so each role
-  // lands on its own home page rather than a grid it may not be able to use.
+  // Reachable by URL — enforce role scope on this projekt.
   useRecordScopeGuard({
     propertyId: projectQ.data?.property_id,
     assignedContactId: projectQ.data
@@ -138,8 +138,6 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
     },
   });
 
-  // Stored image URLs are getPublicUrl() links into a bucket the app treats as
-  // private — render through signed URLs or the thumbnails 400 for everyone.
   const resolveFileUrl = useSignedFileUrls(
     ((imagesQ.data ?? []) as Array<{ url: string }>).map((i) => i.url),
   );
@@ -185,11 +183,7 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
 
   const save = useMutation({
     mutationFn: async () => {
-      // Att välja en entreprenör som ansvarig är också att skicka projektet
-      // till hen — samma regel som på felanmälan och besiktning. Grinden
-      // ställs FÖRE skrivningen: säger admin nej ska ingen tilldelning bli
-      // kvar heller, eftersom grinden bara reagerar på ett *byte* av
-      // entreprenör och nästa sparning därför inte skulle fråga igen.
+      // Att välja en entreprenör som ansvarig är också att skicka projektet till hen.
       const previousContactId = projectQ.data?.assigned_contact_id ?? null;
       const notifyContactId =
         profile?.role === "admin" && assignedContactId && assignedContactId !== previousContactId
@@ -216,9 +210,7 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
           property_object_id: propertyObjectId,
           title,
           description: description || null,
-          // `status` is deliberately absent — derived via deriveProjectStatus.
-          // Only ProjektStatusButtons (pausad/avbruten) and Öppna/Avsluta
-          // (arende_status) may change what a projekt's status is.
+          // `status` är medvetet utelämnad — härleds via deriveProjectStatus.
           budget: budget ? Number(budget) : null,
           start_date: startDate || null,
           end_date: endDate || null,
@@ -227,12 +219,8 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
         .eq("id", id)
         .select("id");
       if (error) throw error;
-      // En UPDATE som RLS filtrerar bort är 200 med noll rader. Utan den här
-      // kontrollen hade mejlet gått iväg om en sparning som aldrig skedde.
       if (!updated?.length) throw new Error("Du saknar behörighet att ändra det här projektet.");
 
-      // Utskicket sker efter skrivningen — mejlet ska spegla det som faktiskt
-      // sparades. Ett misslyckat utskick rullar inte tillbaka sparningen.
       let mailedTo: string | null = null;
       let mailError: string | null = null;
       if (notifyContactId && gateEmail) {
@@ -241,7 +229,6 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
             kind: "project",
             id,
             propertyId: propertyId || null,
-            // projects har ingen apartment_id — projekt är byggnadsnivå.
             propertyObjectId,
             title,
             contactName: gateName ?? "entreprenören",
@@ -308,16 +295,12 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
 
   const p = projectQ.data;
 
-  // Read, never chosen. Live form dates so the badge reacts while editing;
-  // pausad/avbruten come from the record, since only the buttons set them.
   const derived = deriveProjectStatus({
     arende_status: (p as { arende_status?: string | null } | null)?.arende_status ?? null,
     status: p?.status ?? null,
     start_date: startDate || null,
     end_date: endDate || null,
   });
-  // Projekt have no prioritet column and never had a dropdown — the prioritet
-  // is purely read, out of slutdatum (the same tidsgräns the status uses).
   const derivedPriority = derivePriorityFromStatus(derived, {
     from: p?.created_at ?? null,
     dueLabel: "Slutdatum",
@@ -375,7 +358,6 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
         />
       </div>
 
-
       <div
         style={{
           background: C.card,
@@ -431,6 +413,30 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
                 rows={4}
               />
             </div>
+
+            {/* Kundens egen kommentar — skrivskyddad för admin. */}
+            {(p?.contractor_note || p?.contractor_done_at) && (
+              <div
+                style={{
+                  marginBottom: 16,
+                  background: "#F0F7EE",
+                  border: "1px solid #CFE6C9",
+                  borderRadius: 8,
+                  padding: 14,
+                }}
+              >
+                <div style={{ ...labelStyle, marginBottom: 6 }}>Kommentar från entreprenören</div>
+                <div style={{ fontSize: 14, color: C.text, whiteSpace: "pre-wrap", lineHeight: 1.55 }}>
+                  {p?.contractor_note || "—"}
+                </div>
+                {p?.contractor_done_at && (
+                  <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: "#3D8A30" }}>
+                    Entreprenören har meddelat att uppdraget är slutfört (
+                    {new Date(p.contractor_done_at).toLocaleString("sv-SE")}). Granska och avsluta ärendet.
+                  </div>
+                )}
+              </div>
+            )}
 
             <div style={{ marginBottom: 16 }}>
               <DerivedStatusField status={derived} labelStyle={labelStyle} reasonColor={C.secondary} />
@@ -529,43 +535,40 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
       >
         <h2 style={{ fontSize: 18, fontWeight: 700, color: C.text, margin: "0 0 16px" }}>Projektbilder</h2>
 
-        {/* Uppladdning: admin + entreprenör. Styrelse är läs-only by spec och
-            project_images har bara en SELECT-policy för dem — knappen skulle
-            bara ge ett RLS-fel, så den renderas inte alls. */}
         {!isStyrelse(profile?.role) && (
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ ...labelStyle, marginBottom: 8 }}>Ladda upp bild</label>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
-            <FileDropzone
-              files={filesList}
-              onAdd={(picked) => setFilesList((prev) => [...prev, ...picked])}
-              onRemove={(i) => setFilesList((prev) => prev.filter((_, k) => k !== i))}
-            />
-            {filesList.length > 0 && (
-              <button
-                onClick={handleUpload}
-                disabled={uploading}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "8px 14px",
-                  borderRadius: 6,
-                  background: C.primary,
-                  color: "#ffffff",
-                  border: "none",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: uploading ? "not-allowed" : "pointer",
-                  opacity: uploading ? 0.7 : 1,
-                }}
-              >
-                <Upload size={18} />
-                {uploading ? "Laddar upp…" : "Ladda upp"}
-              </button>
-            )}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ ...labelStyle, marginBottom: 8 }}>Ladda upp bild</label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+              <FileDropzone
+                files={filesList}
+                onAdd={(picked) => setFilesList((prev) => [...prev, ...picked])}
+                onRemove={(i) => setFilesList((prev) => prev.filter((_, k) => k !== i))}
+              />
+              {filesList.length > 0 && (
+                <button
+                  onClick={handleUpload}
+                  disabled={uploading}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "8px 14px",
+                    borderRadius: 6,
+                    background: C.primary,
+                    color: "#ffffff",
+                    border: "none",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: uploading ? "not-allowed" : "pointer",
+                    opacity: uploading ? 0.7 : 1,
+                  }}
+                >
+                  <Upload size={18} />
+                  {uploading ? "Laddar upp…" : "Ladda upp"}
+                </button>
+              )}
+            </div>
           </div>
-        </div>
         )}
 
         {imagesQ.isLoading ? (
