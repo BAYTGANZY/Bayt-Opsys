@@ -12,47 +12,22 @@ import {
   type DerivedStatus,
 } from "@/lib/issue-tokens";
 import { DerivedStatusBadge } from "@/components/DerivedStatusBadge";
+import { PortalEditForm } from "@/components/PortalEditForm";
 import { LOGO_ON_DARK } from "@/lib/logo";
 
-/**
- * /mina-arenden — entreprenörens motsvarighet till boendens /arendestatus.
- *
- * Publik och utan inloggning i portalen: en entreprenör skriver den e-post som
- * står på deras kontaktpost — samma adress som tilldelningsmejlen går till —
- * får en sexsiffrig kod i mejlen, och ser sedan sina felanmälningar nyast
- * först. En rad fälls ut till hela ärendet, och därifrån öppnas och avslutas
- * det.
- *
- * VARFÖR EN KOD OCH INTE BARA ADRESSEN, som på /arendestatus
- * Den boendes sida bara läser, och bara den boendes egna rader. Den här sidan
- * *skriver* — den flyttar ett ärendes livscykel — och visar anmälarens namn och
- * telefonnummer. En entreprenörs e-postadress står på varje faktura och
- * visitkort och är alltså ingen hemlighet; koden är det som bevisar att den som
- * skriver adressen också läser den.
- *
- * ALL TRAFIK GÅR GENOM EDGE-FUNKTIONEN entreprenor-portal, aldrig genom
- * supabase-klienten direkt. `issues` har RLS på utan anon-policy, och det ska
- * den fortsätta ha: en publik läspolicy hade öppnat hela beståndets ärenden för
- * vem som helst med anon-nyckeln. Funktionen kör med service role och
- * kontrollerar själv, per anrop, att ärendet är tilldelat sessionens kontakt.
- *
- * Statusskrivningarna speglar OppnaArendeButton/AvslutaArendeButton: samma
- * statusvärden, samma rad i issue_status_history, samma loggbokspost. De
- * knapparna går inte att återanvända här — de skriver genom den inloggade
- * klienten och läser roll ur useAuth, och här finns ingen inloggning alls.
- */
+// /mina-arenden — entreprenörens inloggningsfria sida (e-post + kod).
+// All trafik går via edge-funktionen entreprenor-portal, aldrig direkt mot databasen.
 export const Route = createFileRoute("/mina-arenden")({
   ssr: false,
   head: () => ({
     meta: [
       { title: "Mina ärenden — BAYT" },
-      { name: "description", content: "Se och hantera de felanmälningar du är tilldelad." },
+      { name: "description", content: "Se och hantera de ärenden du är tilldelad." },
       { name: "robots", content: "noindex" },
     ],
   }),
   component: MinaArendenPage,
 });
-
 
 const C = {
   border: "#E5E7EB",
@@ -83,9 +58,6 @@ type StoredSession = {
   expiresAt: string;
 };
 
-// localStorage kastar i privat läge och när webbläsaren blockerar lagring, och
-// det får inte ta ner sidan — en entreprenör som inte kan bli ihågkommen ska
-// bara få skriva koden igen.
 function readSession(): StoredSession | null {
   try {
     const raw = window.localStorage.getItem(SESSION_KEY);
@@ -103,7 +75,7 @@ function writeSession(session: StoredSession): void {
   try {
     window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   } catch {
-    // Sessionen lever kvar i minnet den här sidvisningen; nästa besök får logga in igen.
+    /* privat läge: sessionen lever kvar i minnet */
   }
 }
 
@@ -126,13 +98,6 @@ class PortalError extends Error {
   }
 }
 
-/**
- * functions.invoke lägger INTE svarskroppen i `data` när statuskoden är 4xx/5xx
- * — den hamnar i `error.context`, som är själva Response-objektet. Utan det här
- * uppackandet skulle varje avvisat anrop visa supabase-js generiska
- * "Edge Function returned a non-2xx status code" i stället för funktionens
- * svenska förklaring, och 401 gick inte att skilja från 500.
- */
 async function callPortal<T>(payload: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke("entreprenor-portal", { body: payload });
 
@@ -153,15 +118,8 @@ async function callPortal<T>(payload: Record<string, unknown>): Promise<T> {
 // ---------------------------------------------------------------------------
 // Typer
 // ---------------------------------------------------------------------------
-/**
- * Ett ärende i portalen — felanmälan, besiktning eller projekt.
- *
- * De tre tabellerna är oense om nästan varje kolumnnamn, och normaliseringen
- * sker i edge-funktionen. Det som kommer hit är därför en gemensam form där
- * de typspecifika fälten helt enkelt är null för de typer som saknar dem.
- * Råfälten följer med av en anledning: den härledda statusen räknas ut med
- * samma deriveXStatus som resten av appen använder, aldrig med en egen regel.
- */
+type ArendeKind = "issue" | "inspection" | "project";
+
 type PortalArende = {
   kind: ArendeKind;
   id: string;
@@ -176,19 +134,16 @@ type PortalArende = {
   object_label: string | null;
   status: string | null;
   arende_status: string | null;
-  // Felanmälan
   category: string | null;
   priority: string | null;
   deadline: string | null;
   reporter_name: string | null;
   reporter_phone: string | null;
   reporter_email: string | null;
-  // Besiktning
   next_due_date: string | null;
   last_completed_date: string | null;
   interval_months: number | null;
   inspector: string | null;
-  // Projekt
   start_date: string | null;
   end_date: string | null;
   budget: number | null;
@@ -196,15 +151,12 @@ type PortalArende = {
   can_close: boolean;
 };
 
-type ArendeKind = "issue" | "inspection" | "project";
-
 const KIND_LABEL: Record<ArendeKind, string> = {
   issue: "Felanmälan",
   inspection: "Besiktning",
   project: "Projekt",
 };
 
-/** Härledd status via appens egna regler — en badge, en regel, hela vägen. */
 function deriveArende(a: PortalArende): DerivedStatus {
   if (a.kind === "inspection") {
     return deriveInspectionStatus({
@@ -239,7 +191,6 @@ function intervalLabel(months: number | null): string | null {
 }
 
 type ListResponse = {
-  /** Nya svaret. `issues` finns kvar i funktionen för en klient som ligger efter. */
   arenden?: PortalArende[];
   issues: PortalArende[];
   name: string | null;
@@ -258,7 +209,6 @@ const dayFmt = new Intl.DateTimeFormat("sv-SE", {
 
 const shortFmt = new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short", year: "numeric" });
 
-/** "Måndag 27 juli 2026" — veckodag först, som ute på fältet. */
 function formatDay(iso: string | null): string | null {
   if (!iso) return null;
   const d = new Date(iso.length <= 10 ? `${iso}T00:00:00` : iso);
@@ -448,8 +398,6 @@ function LoginCard({ onSignedIn }: { onSignedIn: (session: StoredSession) => voi
         </label>
         <input
           id="entreprenor-code"
-          // inputMode numeric + one-time-code ger sifferknappsatsen på mobilen
-          // och låter iOS/Android fylla i koden direkt från notisen.
           type="text"
           inputMode="numeric"
           autoComplete="one-time-code"
@@ -509,17 +457,17 @@ function IssueRow({
   onToggle,
   onAct,
   actingKind,
+  onSave,
+  saving,
 }: {
   issue: PortalArende;
   expanded: boolean;
   onToggle: () => void;
   onAct: (action: "open" | "close") => void;
-  /** Vilken av de två knapparna som just nu väntar på svar, om någon. */
   actingKind: "open" | "close" | null;
+  onSave: (fields: Record<string, unknown>) => void;
+  saving: boolean;
 }) {
-  // Samma härledda status som resten av appen visar för ett ärende, genom
-  // samma badge — en "Försenad" måste se likadan ut och betyda samma sak här
-  // som inne i portalen, annars börjar de två ytorna säga emot varandra.
   const derived = deriveArende(issue);
 
   const metaParts = [issue.property_name, issue.apartment_label ?? issue.object_label, formatShort(issue.created_at)]
@@ -603,14 +551,6 @@ function IssueRow({
         />
       </button>
 
-      {/* Handlingsraden är livscykeln och ingenting annat, precis som i Dag
-          Rapports bottensheet: vilande → [Öppna] [Avsluta], oppet →
-          [Avsluta]. Ett avslutat ärende visar ingen knapp alls.
-
-          Den ligger utanför den hopfällbara delen med flit: att öppna eller
-          avsluta ett ärende är det man kom hit för, och att först behöva
-          fälla ut kortet gömde dagens enda två handlingar bakom ett extra
-          tryck. Dropdownen är kvar för detaljerna, inte för knapparna. */}
       {(issue.can_open || issue.can_close) && (
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", padding: "0 18px 16px" }}>
           {issue.can_open && (
@@ -671,8 +611,6 @@ function IssueRow({
             {issue.apartment_label && <Detail label="Lägenhet">{issue.apartment_label}</Detail>}
             {!issue.apartment_label && issue.trappa && <Detail label="Trappa">{issue.trappa}</Detail>}
             {issue.object_label && <Detail label="Objekt">{issue.object_label}</Detail>}
-            {/* Härifrån och ner är raderna typspecifika. Ordningen speglar
-                tilldelningsmejlet, så den som fått mejlet känner igen sig. */}
             {issue.kind === "issue" && (
               <>
                 {issue.category && <Detail label="Kategori">{issue.category}</Detail>}
@@ -712,9 +650,6 @@ function IssueRow({
               <Detail label="Anmälare">
                 <div style={{ display: "grid", gap: 2 }}>
                   {issue.reporter_name && <div>{issue.reporter_name}</div>}
-                  {/* Klickbara på mobilen: den här sidan används stående utanför
-                      en port, och att ringa anmälaren är nästa steg efter att ha
-                      läst raden. */}
                   {issue.reporter_phone && (
                     <a href={`tel:${issue.reporter_phone}`} style={{ color: C.primary, fontWeight: 600 }}>
                       {issue.reporter_phone}
@@ -729,6 +664,16 @@ function IssueRow({
               </Detail>
             )}
           </div>
+
+          {issue.lifecycle !== "avslutat" && (
+            <PortalEditForm
+              key={issue.id + String(issue.description) + String(issue.deadline) + String(issue.budget)}
+              kind={issue.kind}
+              values={issue as unknown as Record<string, unknown>}
+              saving={saving}
+              onSave={onSave}
+            />
+          )}
 
           {issue.description && (
             <div style={{ background: C.wash, borderRadius: 8, padding: "12px 14px" }}>
@@ -761,22 +706,15 @@ function ArendeList({ session, onSignOut }: { session: StoredSession; onSignOut:
 
   const listQuery = useQuery({
     queryKey: ["entreprenor-portal", session.token],
-    // Ett utgånget token är ett slutgiltigt svar, inte ett tillfälligt fel —
-    // utan detta försöker react-query igen tre gånger innan sidan ger upp.
     retry: false,
     queryFn: () => callPortal<ListResponse>({ action: "list", token: session.token }),
   });
 
-  // Servern är den som avgör om sessionen lever. Svarar den 401 är token dött
-  // och ska bort ur webbläsaren, annars fastnar sidan i ett felmeddelande som
-  // inte går att klicka sig ur.
   useEffect(() => {
     if (listQuery.error instanceof PortalError && listQuery.error.status === 401) onSignOut();
   }, [listQuery.error, onSignOut]);
 
   const act = useMutation({
-    // `action` är vad som ska göras, `kind` vilken sorts ärende det gäller.
-    // Funktionen behöver båda: den avgör tabell och statuskolumn ur kind.
     mutationFn: (vars: { id: string; action: "open" | "close"; kind: ArendeKind }) =>
       callPortal({ action: vars.action, token: session.token, kind: vars.kind, id: vars.id }),
     onSuccess: (_data, vars) => {
@@ -789,14 +727,32 @@ function ArendeList({ session, onSignOut }: { session: StoredSession; onSignOut:
         return;
       }
       toast.error(err.message);
-      // Ett 409 betyder att någon annan hann före. Att hämta om listan är hela
-      // rättelsen: raden får sin riktiga status och rätt knappar.
       qc.invalidateQueries({ queryKey: ["entreprenor-portal", session.token] });
     },
   });
 
-  // `arenden` är det nya svaret med alla tre typerna. Fallbacken finns för
-  // det korta glapp där en klient kan hinna före funktionsdeployen.
+  const save = useMutation({
+    mutationFn: (vars: { id: string; kind: ArendeKind; fields: Record<string, unknown> }) =>
+      callPortal<{ changed?: string[] }>({
+        action: "update",
+        token: session.token,
+        kind: vars.kind,
+        id: vars.id,
+        fields: vars.fields,
+      }),
+    onSuccess: (data) => {
+      toast.success(data?.changed?.length ? "Ändringarna är sparade" : "Inget att spara");
+      qc.invalidateQueries({ queryKey: ["entreprenor-portal", session.token] });
+    },
+    onError: (err: Error) => {
+      if (err instanceof PortalError && err.status === 401) {
+        onSignOut();
+        return;
+      }
+      toast.error(err.message);
+    },
+  });
+
   const issues = listQuery.data?.arenden ?? listQuery.data?.issues ?? [];
 
   const counts = useMemo(
@@ -833,8 +789,6 @@ function ArendeList({ session, onSignOut }: { session: StoredSession; onSignOut:
           </button>
         </div>
 
-        {/* Filtret döljer bara rader, det ändrar inget. En entreprenör som ska
-            se "allt jag har" är sidans grundfråga, så Alla är förvalt. */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {FILTERS.map((f) => {
             const active = filter === f.key;
@@ -881,7 +835,7 @@ function ArendeList({ session, onSignOut }: { session: StoredSession; onSignOut:
       {listQuery.isSuccess && visible.length === 0 && (
         <div style={{ ...cardStyle, fontSize: 14, color: C.text, lineHeight: 1.5 }}>
           {issues.length === 0
-            ? "Du har inga tilldelade felanmälningar just nu."
+            ? "Du har inga tilldelade ärenden just nu."
             : "Inga ärenden för det här valet."}
         </div>
       )}
@@ -894,6 +848,8 @@ function ArendeList({ session, onSignOut }: { session: StoredSession; onSignOut:
           onToggle={() => setExpandedId((prev) => (prev === issue.id ? null : issue.id))}
           onAct={(action) => act.mutate({ id: issue.id, action, kind: issue.kind })}
           actingKind={act.isPending && act.variables?.id === issue.id ? act.variables.action : null}
+          onSave={(fields) => save.mutate({ id: issue.id, kind: issue.kind, fields })}
+          saving={save.isPending && save.variables?.id === issue.id}
         />
       ))}
     </div>
@@ -903,8 +859,6 @@ function ArendeList({ session, onSignOut }: { session: StoredSession; onSignOut:
 // ---------------------------------------------------------------------------
 function MinaArendenPage() {
   const qc = useQueryClient();
-  // Läses ur localStorage direkt vid första renderingen, inte i en effekt: en
-  // inloggad entreprenör ska inte se inloggningsformuläret blinka förbi.
   const [session, setSession] = useState<StoredSession | null>(() => readSession());
 
   function signOut() {
@@ -912,9 +866,6 @@ function MinaArendenPage() {
     setSession(null);
     clearStoredSession();
     if (token) {
-      // Bäst-möjliga-fall: sessionsraden tas bort serverside så ett token som
-      // ändå läckt ut inte lever kvar i trettio dagar. Misslyckas det spelar
-      // det ingen roll för den som loggar ut — den är redan utloggad här.
       void callPortal({ action: "logout", token }).catch(() => {});
       qc.removeQueries({ queryKey: ["entreprenor-portal", token] });
     }
@@ -942,7 +893,7 @@ function MinaArendenPage() {
           </h1>
           <p style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", margin: 0 }}>
             {session
-              ? "Dina tilldelade felanmälningar, senaste först."
+              ? "Dina tilldelade ärenden, senaste först."
               : "För dig som är entreprenör hos BAYT."}
           </p>
         </div>
