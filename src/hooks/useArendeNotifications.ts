@@ -5,13 +5,19 @@ import { useAuth } from "@/lib/auth";
 
 export type ArendeNotification = {
   id: string;
+  source: "project" | "arende";
   projectId: string;
   title: string;
   createdAt: string;
   readAt: string | null;
 };
 
-/** Projektnotiser till den inloggade (skapas av triggern notify_project_update_recipients). */
+const TABLE = {
+  project: "project_update_notifications",
+  arende: "arende_notifications",
+} as const;
+
+/** Notiser till den inloggade: projektnotiser (trigger) + ärendenotiser (portalen utan konto). */
 export function useArendeNotifications() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -23,29 +29,54 @@ export function useArendeNotifications() {
     refetchInterval: 20_000,
     refetchOnWindowFocus: true,
     queryFn: async (): Promise<ArendeNotification[]> => {
-      const { data, error } = await supabase
-        .from("project_update_notifications")
-        .select("id, project_id, created_at, read_at")
-        .eq("recipient_profile_id", user!.id)
-        .order("created_at", { ascending: false })
-        .limit(30);
-      if (error) throw error;
-      const rows = data ?? [];
+      const [projRes, arRes] = await Promise.all([
+        supabase
+          .from("project_update_notifications")
+          .select("id, project_id, created_at, read_at")
+          .eq("recipient_profile_id", user!.id)
+          .order("created_at", { ascending: false })
+          .limit(30),
+        supabase
+          .from("arende_notifications")
+          .select("id, kind, arende_id, summary, created_at, read_at")
+          .eq("recipient_profile_id", user!.id)
+          .order("created_at", { ascending: false })
+          .limit(30),
+      ]);
+      if (projRes.error) throw projRes.error;
 
-      const ids = Array.from(new Set(rows.map((r) => r.project_id as string)));
+      const projRows = projRes.data ?? [];
+      const arRows = arRes.error ? [] : (arRes.data ?? []);
+
+      const ids = Array.from(new Set(projRows.map((r) => r.project_id as string)));
       const titles = new Map<string, string>();
       if (ids.length > 0) {
         const { data: ps } = await supabase.from("projects").select("id, title").in("id", ids);
         for (const p of ps ?? []) titles.set(p.id as string, (p.title as string) ?? "Projekt");
       }
 
-      return rows.map((r) => ({
+      const fromProjects: ArendeNotification[] = projRows.map((r) => ({
         id: r.id as string,
+        source: "project",
         projectId: r.project_id as string,
         title: titles.get(r.project_id as string) ?? "Projekt",
         createdAt: r.created_at as string,
         readAt: (r.read_at as string | null) ?? null,
       }));
+
+      const fromArenden: ArendeNotification[] = arRows.map((r) => ({
+        id: r.id as string,
+        source: "arende",
+        // Klockan navigerar till /projects/$id; för övriga typer räcker id:t som länkmål.
+        projectId: r.arende_id as string,
+        title: (r.summary as string) ?? "Ärende uppdaterat",
+        createdAt: r.created_at as string,
+        readAt: (r.read_at as string | null) ?? null,
+      }));
+
+      return [...fromProjects, ...fromArenden]
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .slice(0, 40);
     },
   });
 
@@ -54,10 +85,9 @@ export function useArendeNotifications() {
 
   const markRead = useCallback(
     async (id: string) => {
-      await supabase
-        .from("project_update_notifications")
-        .update({ read_at: new Date().toISOString() })
-        .eq("id", id);
+      const item = (qc.getQueryData(key) as ArendeNotification[] | undefined)?.find((i) => i.id === id);
+      const table = TABLE[item?.source ?? "project"];
+      await supabase.from(table).update({ read_at: new Date().toISOString() }).eq("id", id);
       void qc.invalidateQueries({ queryKey: key });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -66,11 +96,12 @@ export function useArendeNotifications() {
 
   const markAllRead = useCallback(async () => {
     if (!user?.id) return;
-    await supabase
-      .from("project_update_notifications")
-      .update({ read_at: new Date().toISOString() })
-      .eq("recipient_profile_id", user.id)
-      .is("read_at", null);
+    const now = new Date().toISOString();
+    await Promise.all(
+      (Object.values(TABLE) as string[]).map((t) =>
+        supabase.from(t).update({ read_at: now }).eq("recipient_profile_id", user.id).is("read_at", null),
+      ),
+    );
     void qc.invalidateQueries({ queryKey: key });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qc, user?.id]);
