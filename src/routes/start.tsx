@@ -11,6 +11,7 @@ import {
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { canAccess } from "@/lib/permissions";
+import { TEKNIK_NAV_ICON } from "@/lib/teknik-config";
 const baytLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
 const buildingSketch = `${import.meta.env.BASE_URL}assets/building-sketch-2.png`;
 
@@ -30,6 +31,7 @@ const TILES = [
   { to: "/chatt", label: "Chatt", icon: Chatting01Icon },
   { to: "/fastigheter", label: "Fastigheter", icon: Building02Icon },
   { to: "/genomgang-av-fastighet", label: "Genomgång av fastighet", icon: ViewIcon },
+  { to: "/teknik", label: "Teknik", icon: TEKNIK_NAV_ICON },
 ] as const;
 
 const BG = "#0e1f1a";
@@ -110,6 +112,8 @@ const STYLES = `
     -webkit-tap-highlight-color: transparent;
   }
   .start-tile:nth-child(n+4) { grid-column: span 3; }
+  /* Sex rutor (admin): två jämna rader om tre. */
+  .start-tiles-six .start-tile:nth-child(n+4) { grid-column: span 2; }
   .start-tile::before {
     content: "";
     position: absolute;
@@ -270,7 +274,7 @@ function StartPage() {
         </div>
 
         <div className="start-body">
-          <div className="start-tiles">
+          <div className={`start-tiles${tiles.length === 6 ? " start-tiles-six" : ""}`}>
             {tiles.map((tile) => (
               <Link key={tile.to} to={tile.to} className="start-tile">
                 <div className="start-tile-icon">
