@@ -32,6 +32,7 @@ import { useSwipeBack } from "@/hooks/useSwipeBack";
 import { useMyArendeDots, type ArendeDot } from "@/hooks/useMyArendeDots";
 import { StatusDot } from "@/components/StatusDot";
 import { useMyArenden } from "@/hooks/useMyArenden";
+import { TEKNIK_NAV_ICON } from "@/lib/teknik-config";
 
 
 type SubItem = { to: string; label: string };
@@ -69,6 +70,7 @@ const SECTIONS: NavSection[] = [
       { to: "/projects", label: "Projekt", icon: Briefcase01Icon },
       { to: "/entreprenorer", label: "Entreprenörer", icon: UserGroupIcon },
       { to: "/genomgang-av-fastighet", label: "Genomgång av fastighet", icon: EyeIcon },
+      { to: "/teknik", label: "Teknik", icon: TEKNIK_NAV_ICON },
     ],
   },
   {
