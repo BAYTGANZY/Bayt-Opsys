@@ -22,34 +22,53 @@ const dateFmt = new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short
 
 const STYLES = `
   .tk-page {
-    min-height: calc(100vh - 110px);
-    background: radial-gradient(ellipse at top, #15332c 0%, #0e1f1a 70%);
+    min-height: calc(100vh - 104px);
+    display: flex;
+    flex-direction: column;
+    background: radial-gradient(ellipse at top, #1b3a33 0%, #0e1f1a 75%);
     color: #e6efd8;
-    padding: 28px 32px 40px;
+    padding: 28px 36px 36px;
     font-family: Inter, system-ui, sans-serif;
     box-sizing: border-box;
   }
   .tk-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
-  .tk-title { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 26px; font-weight: 600; margin: 0; }
+  .tk-title { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 28px; font-weight: 600; margin: 0; }
   .tk-select {
     height: 40px; padding: 0 12px; border-radius: 8px; font-size: 14px; font-family: inherit;
     background: rgba(255,255,255,0.06); color: #e6efd8; border: 1px solid rgba(255,255,255,0.14); max-width: 100%;
   }
   .tk-select option { color: #1a1a1a; }
-  .tk-body { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: 40px; align-items: center; }
-  .tk-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid rgba(255,255,255,0.10); border-left: 1px solid rgba(255,255,255,0.10); }
+
+  /* Översikten fyller hela ytan: rutnätet till vänster, byggnaden till höger. */
+  .tk-body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.7fr);
+    gap: 48px;
+    align-items: stretch;
+    min-height: 0;
+  }
+  .tk-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+    border-top: 1px solid rgba(255,255,255,0.12);
+    border-left: 1px solid rgba(255,255,255,0.12);
+    min-height: 480px;
+  }
   .tk-tile {
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
-    min-height: 150px; padding: 18px 8px; text-decoration: none; color: #d9dfdb; background: transparent;
-    border: none; border-right: 1px solid rgba(255,255,255,0.10); border-bottom: 1px solid rgba(255,255,255,0.10);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    padding: 18px 8px; text-decoration: none; color: #d9dfdb; background: transparent;
+    border: none; border-right: 1px solid rgba(255,255,255,0.12); border-bottom: 1px solid rgba(255,255,255,0.12);
     cursor: pointer; font: inherit; transition: background 0.15s ease, color 0.15s ease;
     -webkit-tap-highlight-color: transparent;
   }
   .tk-tile:hover { background: rgba(92,184,74,0.10); color: #ffffff; }
-  .tk-tile-label { font-size: 14px; font-weight: 500; }
-  .tk-tile-sub { font-size: 12px; color: #8aa38a; }
+  .tk-tile-label { font-size: 17px; font-weight: 500; }
+  .tk-tile-sub { font-size: 13px; color: #8aa38a; }
   .tk-tile-sub.tk-full { color: #5CB84A; font-weight: 600; }
-  .tk-sketch { max-width: 100%; max-height: 460px; opacity: 0.85; justify-self: center; filter: drop-shadow(0 8px 24px rgba(0,0,0,0.4)); }
+  .tk-side { display: flex; align-items: center; justify-content: center; min-height: 0; }
+  .tk-sketch { max-width: 100%; max-height: 72vh; width: auto; height: auto; opacity: 0.9; filter: drop-shadow(0 8px 24px rgba(0,0,0,0.4)); }
 
   .tk-back { background: none; border: none; color: #9fb79f; font-size: 14px; cursor: pointer; padding: 0; font-family: inherit; }
   .tk-head { display: flex; align-items: center; gap: 14px; margin: 14px 0 6px; }
@@ -86,12 +105,14 @@ const STYLES = `
   .tk-hist h2 { font-size: 15px; font-weight: 600; margin: 0 0 8px; color: #c9d6c3; }
   .tk-hist-row { display: flex; justify-content: space-between; padding: 8px 2px; font-size: 13.5px; color: #9fb79f; border-bottom: 1px solid rgba(255,255,255,0.06); }
 
+  @media (max-width: 1100px) {
+    .tk-body { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+    .tk-side { display: none; }
+  }
   @media (max-width: 768px) {
     .tk-page { padding: 18px 14px 96px; }
-    .tk-body { grid-template-columns: minmax(0, 1fr); }
-    .tk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .tk-tile { min-height: 124px; }
-    .tk-sketch { display: none; }
+    .tk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; min-height: 0; }
+    .tk-tile { min-height: 130px; }
     .tk-row { flex-wrap: wrap; }
     .tk-note { flex: 1 1 100%; margin-left: 40px; }
   }
@@ -449,7 +470,9 @@ function TeknikPage() {
                 );
               })}
             </div>
-            <img src={buildingSketch} alt="" className="tk-sketch" />
+            <div className="tk-side">
+              <img src={buildingSketch} alt="" className="tk-sketch" />
+            </div>
           </div>
         )}
 
