@@ -36,14 +36,15 @@ export const TEKNIK_SECTIONS: TeknikSection[] = [
   { key: "allmant", label: "Allmänt", kind: "checklist" },
 ];
 
-export function TeknikIcon({ name, size = 34 }: { name: string; size?: number }) {
+export function TeknikIcon({ name, size = 68 }: { name: string; size?: number }) {
   const common = {
     width: size,
     height: size,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
-    strokeWidth: 1.5,
+    // Tunnare linje på stora ikoner så de inte blir klumpiga.
+    strokeWidth: size >= 48 ? 1 : 1.5,
     strokeLinecap: "round" as const,
     strokeLinejoin: "round" as const,
     "aria-hidden": true,
