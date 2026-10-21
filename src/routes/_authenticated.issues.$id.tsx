@@ -22,6 +22,8 @@ import { ObjectDropdown } from "@/components/ObjectDropdown";
 import { ObjectInfoCard } from "@/components/ObjectInfoCard";
 import { DeleteButton } from "@/components/DeleteButton";
 import { ContractorBox } from "@/components/ContractorBox";
+import { EntreprenorView } from "@/components/EntreprenorView";
+import { isEntreprenor } from "@/lib/permissions";
 import { useRecordScopeGuard } from "@/hooks/useRecordScopeGuard";
 
 export const Route = createFileRoute("/_authenticated/issues/$id")({
@@ -385,6 +387,9 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
   const fmt = new Intl.DateTimeFormat("sv-SE", {
     year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
   });
+
+  // Entreprenör: egen vy (admins uppgifter som text, egen kommentar, filer, slutfört).
+  if (isEntreprenor(profile?.role)) return <EntreprenorView kind="issue" id={id} />;
 
   if (issueQ.isLoading) return <div style={{ padding: 32, color: C.secondary }}>Laddar…</div>;
   if (issueQ.error || !issueQ.data) return <div style={{ padding: 32, color: C.error }}>Felanmälan hittades inte</div>;
