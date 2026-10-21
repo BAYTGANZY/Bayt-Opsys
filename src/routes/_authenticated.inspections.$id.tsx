@@ -14,6 +14,7 @@ import { ObjectDropdown } from "@/components/ObjectDropdown";
 import { ObjectInfoCard } from "@/components/ObjectInfoCard";
 import { DeleteButton } from "@/components/DeleteButton";
 import { ContractorBox } from "@/components/ContractorBox";
+import { EntreprenorView } from "@/components/EntreprenorView";
 import { DerivedStatusField } from "@/components/DerivedStatusBadge";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
 import { deriveInspectionStatus, derivePriorityFromStatus } from "@/lib/issue-tokens";
@@ -60,8 +61,6 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
   const qc = useQueryClient();
   const { user, profile } = useAuth();
   const entreprenor = isEntreprenor(profile?.role);
-  // Passed as ?from= so the apartment page's Tillbaka can return here — its
-  // default back link is hard-wired to the fastighet, not to the besiktning.
   const currentPath = useRouterState({ select: (s) => s.location.pathname });
 
   const { data: insp, isLoading } = useQuery({
@@ -76,9 +75,6 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
     },
   });
 
-  // Reachable by URL — enforce role scope on this besiktning. `undefined` until
-  // the row is in hand (see useRecordScopeGuard), and no redirectTo so each role
-  // lands on its own home page rather than a grid it may not be able to use.
   useRecordScopeGuard({
     propertyId: insp?.property_id,
     assignedContactId: insp ? (insp.assigned_contact_id ?? null) : undefined,
@@ -125,8 +121,6 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
     },
   });
 
-  // Trappan tillhör lägenheten — mirrors the chosen apartment and locks when it
-  // has one.
   const apartmentTrappa = apartments.find((a) => a.id === apartmentId)?.trappa?.trim() ?? "";
 
   useEffect(() => {
@@ -156,9 +150,6 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
 
   const save = useMutation({
     mutationFn: async () => {
-      // Att välja en entreprenör som ansvarig är också att skicka besiktningen
-      // till hen. Grinden ställs FÖRE skrivningen: säger admin nej ska ingen
-      // tilldelning bli kvar heller.
       const previousContactId = insp?.assigned_contact_id ?? null;
       const notifyContactId =
         profile?.role === "admin" && assignedContactId && assignedContactId !== previousContactId
@@ -183,21 +174,15 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
         inspector: inspector || null,
         interval_months: Number(interval) || null,
         notes: notes || null,
-        // `status` is deliberately absent — derived via deriveInspectionStatus.
-        // Lifecycle lives in arende_status, written only by Öppna/Avsluta.
         last_completed_date: lastDate || null,
         next_due_date: nextDue || null,
         apartment_id: apartmentId || null,
         property_object_id: propertyObjectId,
-        // No `trappa` key: the live DB has no inspections.trappa column.
         assigned_contact_id: assignedContactId,
       }).eq("id", id).select("id");
       if (error) throw error;
-      // En UPDATE som RLS filtrerar bort är 200 med noll rader.
       if (!updated?.length) throw new Error("Du saknar behörighet att ändra den här besiktningen.");
 
-      // Utskicket sker efter skrivningen. Ett misslyckat utskick rullar inte
-      // tillbaka sparningen.
       let mailedTo: string | null = null;
       let mailError: string | null = null;
       if (notifyContactId && gateEmail) {
@@ -265,12 +250,13 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
     }
   };
 
+  // Entreprenör: egen vy (admins uppgifter som text, egen kommentar, filer, slutfört).
+  if (entreprenor) return <EntreprenorView kind="inspection" id={id} />;
+
   if (isLoading || !insp) {
     return <div style={{ background: C.bg, minHeight: "100vh", padding: 32, color: C.secondary }}>Laddar…</div>;
   }
 
-  // Read, never chosen. Uses the live form values so the badge reacts while
-  // utförd-datum / intervall are being edited.
   const derived = deriveInspectionStatus({
     arende_status: insp.arende_status ?? null,
     status: insp.status ?? null,
@@ -278,7 +264,6 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
     last_completed_date: lastDate || null,
     interval_months: Number(interval) || null,
   });
-  // Besiktningar have no prioritet column — the prioritet is purely read.
   const derivedPriority = derivePriorityFromStatus(derived, {
     from: (insp as { created_at?: string | null }).created_at ?? null,
     dueLabel: "Nästa besiktning",
@@ -315,7 +300,6 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
         />
       </div>
 
-      {/* Kundens kommentar, slutfört-besked och filer — bara läsning. */}
       <div style={{ maxWidth: 720 }}>
         <ContractorBox
           kind="inspection"
@@ -333,9 +317,6 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
           <label style={labelStyle}>Typ</label>
           <select style={inputStyle} value={inspectionType} onChange={(e) => setInspectionType(e.target.value)}>
             {!inspectionType && <option value="">Välj typ</option>}
-            {/* A row saved before this enum existed, or by hand in SQL, can carry
-                a value outside INSPECTION_TYPES — keep it selectable so opening
-                the page doesn't silently change it on save. */}
             {inspectionType && !INSPECTION_TYPES.some((t) => t.value === inspectionType) && (
               <option value={inspectionType}>{inspectionType}</option>
             )}
@@ -394,8 +375,6 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
                 </option>
               ))}
             </select>
-            {/* Entreprenör: the apartment is not theirs to change, but it is
-                theirs to inspect — arrow opens the apartment page. */}
             {entreprenor && apartmentId && (
               <button
                 type="button"
@@ -423,8 +402,6 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
 
         <div>
           <label style={labelStyle}>Trappa</label>
-          {/* Locked to the apartment's trappa when it has one. Not persisted on
-              inspections (no such column); display only. */}
           <input
             style={{ ...inputStyle, ...(apartmentTrappa ? { background: "#F3F4F6", cursor: "default" } : {}) }}
             value={apartmentTrappa || trappa}
