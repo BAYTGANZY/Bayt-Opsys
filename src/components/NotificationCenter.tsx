@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Notification03Icon, Alert02Icon, Chatting01Icon } from "@hugeicons/core-free-icons";
 import { useAkutIssues } from "@/components/AkutWatcher";
-import { useArendeNotifications } from "@/hooks/useArendeNotifications";
+import { useArendeNotifications, type ArendeNotification } from "@/hooks/useArendeNotifications";
 import {
   formatNotificationTime,
   previewText,
@@ -25,6 +25,12 @@ const C = {
 const headingFont = "Outfit, Inter, system-ui, sans-serif";
 
 const SWIPE_DISMISS_PX = 40;
+
+const KIND_HEADING: Record<ArendeNotification["kind"], string> = {
+  issue: "Felanmälan uppdaterad",
+  inspection: "Besiktning uppdaterad",
+  project: "Projekt uppdaterat",
+};
 
 function initial(name: string | null | undefined): string {
   if (!name) return "?";
@@ -107,6 +113,14 @@ export function NotificationBell({ isMobile }: { isMobile: boolean }) {
     markConversationRead(n.conversationId);
     setOpen(false);
     navigate({ to: "/chatt", search: { c: n.conversationId } });
+  };
+
+  const openArende = (a: ArendeNotification) => {
+    void arende.markRead(a.id);
+    setOpen(false);
+    if (a.kind === "issue") navigate({ to: "/issues/$id", params: { id: a.arendeId } });
+    else if (a.kind === "inspection") navigate({ to: "/inspections/$id", params: { id: a.arendeId } });
+    else navigate({ to: "/projects/$id", params: { id: a.arendeId } });
   };
 
   return (
@@ -265,11 +279,7 @@ export function NotificationBell({ isMobile }: { isMobile: boolean }) {
                 type="button"
                 className="bayt-notif-row"
                 style={{ background: a.readAt ? "transparent" : "#F4F8F3" }}
-                onClick={() => {
-                  void arende.markRead(a.id);
-                  setOpen(false);
-                  navigate({ to: "/projects/$id", params: { id: a.projectId } });
-                }}
+                onClick={() => openArende(a)}
               >
                 <span
                   style={{
@@ -295,7 +305,7 @@ export function NotificationBell({ isMobile }: { isMobile: boolean }) {
                       color: C.text,
                     }}
                   >
-                    Projekt uppdaterat
+                    {KIND_HEADING[a.kind]}
                   </span>
                   <span
                     className="bayt-notif-preview"
