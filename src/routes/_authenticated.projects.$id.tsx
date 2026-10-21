@@ -15,12 +15,14 @@ import { ObjectDropdown } from "@/components/ObjectDropdown";
 import { ObjectInfoCard } from "@/components/ObjectInfoCard";
 import { DeleteButton } from "@/components/DeleteButton";
 import { ProjektStatusButtons } from "@/components/ProjektStatusButtons";
+import { ContractorBox } from "@/components/ContractorBox";
+import { EntreprenorView } from "@/components/EntreprenorView";
 import { DerivedStatusField } from "@/components/DerivedStatusBadge";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
 import { deriveProjectStatus, derivePriorityFromStatus } from "@/lib/issue-tokens";
 import { gateEntreprenorEmail, notifyEntreprenorAboutArende } from "@/lib/entreprenor-notify";
 import { useRecordScopeGuard } from "@/hooks/useRecordScopeGuard";
-import { isStyrelse } from "@/lib/permissions";
+import { isEntreprenor, isStyrelse } from "@/lib/permissions";
 import { sanitizeStorageName, useSignedFileUrls } from "@/lib/storage";
 
 export const Route = createFileRoute("/_authenticated/projects/$id")({
@@ -116,7 +118,6 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
     },
   });
 
-  // Reachable by URL — enforce role scope on this projekt.
   useRecordScopeGuard({
     propertyId: projectQ.data?.property_id,
     assignedContactId: projectQ.data
@@ -183,7 +184,6 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
 
   const save = useMutation({
     mutationFn: async () => {
-      // Att välja en entreprenör som ansvarig är också att skicka projektet till hen.
       const previousContactId = projectQ.data?.assigned_contact_id ?? null;
       const notifyContactId =
         profile?.role === "admin" && assignedContactId && assignedContactId !== previousContactId
@@ -210,7 +210,6 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
           property_object_id: propertyObjectId,
           title,
           description: description || null,
-          // `status` är medvetet utelämnad — härleds via deriveProjectStatus.
           budget: budget ? Number(budget) : null,
           start_date: startDate || null,
           end_date: endDate || null,
@@ -293,6 +292,9 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
   const fmtDate = (s: string | null) =>
     s ? new Intl.DateTimeFormat("sv-SE").format(new Date(s)) : "—";
 
+  // Entreprenör: egen vy (admins uppgifter som text, egen kommentar, filer, slutfört).
+  if (isEntreprenor(profile?.role)) return <EntreprenorView kind="project" id={id} />;
+
   const p = projectQ.data;
 
   const derived = deriveProjectStatus({
@@ -358,6 +360,15 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
         />
       </div>
 
+      <div style={{ maxWidth: 640 }}>
+        <ContractorBox
+          kind="project"
+          id={id}
+          note={p?.contractor_note}
+          doneAt={p?.contractor_done_at}
+        />
+      </div>
+
       <div
         style={{
           background: C.card,
@@ -413,30 +424,6 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
                 rows={4}
               />
             </div>
-
-            {/* Kundens egen kommentar — skrivskyddad för admin. */}
-            {(p?.contractor_note || p?.contractor_done_at) && (
-              <div
-                style={{
-                  marginBottom: 16,
-                  background: "#F0F7EE",
-                  border: "1px solid #CFE6C9",
-                  borderRadius: 8,
-                  padding: 14,
-                }}
-              >
-                <div style={{ ...labelStyle, marginBottom: 6 }}>Kommentar från entreprenören</div>
-                <div style={{ fontSize: 14, color: C.text, whiteSpace: "pre-wrap", lineHeight: 1.55 }}>
-                  {p?.contractor_note || "—"}
-                </div>
-                {p?.contractor_done_at && (
-                  <div style={{ marginTop: 8, fontSize: 13, fontWeight: 600, color: "#3D8A30" }}>
-                    Entreprenören har meddelat att uppdraget är slutfört (
-                    {new Date(p.contractor_done_at).toLocaleString("sv-SE")}). Granska och avsluta ärendet.
-                  </div>
-                )}
-              </div>
-            )}
 
             <div style={{ marginBottom: 16 }}>
               <DerivedStatusField status={derived} labelStyle={labelStyle} reasonColor={C.secondary} />
@@ -523,7 +510,6 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
         )}
       </div>
 
-      {/* Images section */}
       <div
         style={{
           background: C.card,
