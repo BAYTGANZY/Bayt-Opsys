@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { CalendarCheckIn01Icon, CheckmarkCircle02Icon } from "@hugeicons/core-free-icons";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -33,17 +33,17 @@ import {
  *
  * Two lists, both showing nothing but ärenden assigned to them (useMyArenden
  * filters on assigned_contact_id):
- *   1. Öppna ärenden — the work they have started. Tap a row → details → Avsluta.
+ *   1. Öppna ärenden — the work they have started.
  *   2. Alla ärenden — the full worklist in deadline order, prioritet as
- *      tie-break. Tap a row → details → Öppna (when it is still vilande).
+ *      tie-break.
+ *
+ * Entreprenör: a tap on a row goes straight to the ärende page, which shows
+ * the entreprenör view (admin's details as text, own comment, files, and
+ * "Meddela att uppdraget är slutfört"). Styrelse keeps the read-only sheet.
  *
  * Section 1 is a subset of section 2 on purpose: "what I have started" is worth
  * its own list even though the row also appears in the complete one. Avslutade
  * ärenden appear in neither — those belong in the (not yet built) Avslutat view.
- *
- * Every status write goes through OppnaArendeButton/AvslutaArendeButton, which
- * are the only writers of an ärende's lifecycle column and already handle
- * issue_status_history + the loggbok entry.
  */
 
 const C = {
@@ -531,9 +531,19 @@ function DagRapportView({
 }) {
   const isMobile = useIsMobile();
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [kind, setKind] = useState<string | null>(null);
   const [property, setProperty] = useState<string | null>(null);
+
+  // Entreprenör: direkt till ärendets sida (egen vy). Styrelse: bottenarket som förut.
+  const pick = (a: MyArende) => {
+    if (readOnly) {
+      setSelectedKey(`${a.kind}-${a.id}`);
+      return;
+    }
+    navigate({ to: arendeHref(a) as never });
+  };
 
   // Ärendetyp finns i båda vyerna. Fastighet bara hos styrelsen — showAssignee
   // är redan exakt den flaggan som skiljer vyerna åt, så den gör dubbel nytta
@@ -640,7 +650,7 @@ function DagRapportView({
             subtitle={copy.oppnaSubtitle}
             rows={oppna}
             empty={isFiltered ? "Inga ärenden för det här valet" : copy.oppnaEmpty}
-            onPick={(a) => setSelectedKey(`${a.kind}-${a.id}`)}
+            onPick={pick}
             showAssignee={showAssignee}
           />
 
@@ -649,7 +659,7 @@ function DagRapportView({
             subtitle={copy.allaSubtitle}
             rows={alla}
             empty={isFiltered ? "Inga ärenden för det här valet" : copy.allaEmpty}
-            onPick={(a) => setSelectedKey(`${a.kind}-${a.id}`)}
+            onPick={pick}
             showAssignee={showAssignee}
           />
 
@@ -680,7 +690,7 @@ function DagRapportView({
   );
 }
 
-/** Entreprenörens vy: bara tilldelade ärenden, med livscykelknapparna. */
+/** Entreprenörens vy: bara tilldelade ärenden, klick går direkt till ärendets sida. */
 export function EntreprenorDagRapport() {
   const { arenden, isLoading, error } = useMyArenden();
 
@@ -692,8 +702,8 @@ export function EntreprenorDagRapport() {
       copy={{
         lead: "dina tilldelade ärenden",
         oppnaTitle: "Öppna ärenden",
-        oppnaSubtitle: "Ärenden du har öppnat och arbetar med — avsluta dem här när de är klara",
-        oppnaEmpty: "Inga öppna ärenden just nu. Öppna ett ärende i listan nedan för att börja.",
+        oppnaSubtitle: "Ärenden som förvaltaren har öppnat och som du arbetar med",
+        oppnaEmpty: "Inga öppna ärenden just nu.",
         allaSubtitle: "Alla ärenden som är tilldelade dig, sorterade på deadline och därefter prioritet",
         allaEmpty: "Du har inga tilldelade ärenden.",
         nothingToDo: "Inget att göra just nu — nya ärenden dyker upp här så fort du blir tilldelad ett.",
