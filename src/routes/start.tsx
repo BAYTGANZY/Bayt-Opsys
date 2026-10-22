@@ -6,11 +6,12 @@ import {
   CalendarCheckIn01Icon,
   Chatting01Icon,
   ViewIcon,
+  GridViewIcon,
   ArrowRight01Icon,
 } from "@hugeicons/core-free-icons";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { canAccess } from "@/lib/permissions";
+import { canAccess, homeForRole } from "@/lib/permissions";
 import { TEKNIK_NAV_ICON } from "@/lib/teknik-config";
 import { PRESENTATION_NAV_ICON } from "@/lib/presentation-config";
 const baytLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
@@ -21,12 +22,23 @@ export const Route = createFileRoute("/start")({
   beforeLoad: async () => {
     const { data } = await supabase.auth.getSession();
     if (!data.session) throw redirect({ to: "/login" });
+    // Styrelse och entreprenörer har egna startsidor: skicka dem dit oavsett hur de kom hit.
+    const { data: p } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", data.session.user.id)
+      .maybeSingle();
+    const role = (p?.role as string | undefined) ?? null;
+    if (role === "styrelse" || role === "entreprenor") {
+      throw redirect({ to: homeForRole(role) as never });
+    }
   },
   head: () => ({ meta: [{ title: "Snabbåtkomst — BAYT" }] }),
   component: StartPage,
 });
 
 const TILES = [
+  { to: "/styrelse", label: "Start", icon: GridViewIcon },
   { to: "/dag-rapport", label: "Dag Rapport", icon: CalendarCheckIn01Icon },
   { to: "/dashboard", label: "Översikt", icon: DashboardSquare01Icon },
   { to: "/chatt", label: "Chatt", icon: Chatting01Icon },
@@ -82,7 +94,6 @@ const STYLES = `
     padding: 8px 0 24px;
   }
 
-  /* Desktop: 3 kort på första raden, 2 bredare på andra */
   .start-tiles {
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -114,7 +125,6 @@ const STYLES = `
     -webkit-tap-highlight-color: transparent;
   }
   .start-tile:nth-child(n+4) { grid-column: span 3; }
-  /* Sex eller fler rutor (admin): tre per rad. */
   .start-tiles-six .start-tile:nth-child(n+4) { grid-column: span 2; }
   .start-tile::before {
     content: "";
