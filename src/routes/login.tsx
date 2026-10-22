@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router"
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { homeForRole } from "@/lib/permissions";
 import { LOGO_ON_DARK } from "@/lib/logo";
 
 type Search = { error?: string };
@@ -27,10 +28,21 @@ function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!loading && session) {
-      // already logged in; route guard will handle role
-      navigate({ to: "/start" });
-    }
+    if (loading || !session) return;
+    // Redan inloggad: skicka till rollens egen hemsida.
+    let cancelled = false;
+    supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", session.user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        navigate({ to: homeForRole(data?.role as string | null | undefined) as never });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [loading, session, navigate]);
 
   const onSubmit = async (e: FormEvent) => {
@@ -58,7 +70,7 @@ function LoginPage() {
       setSubmitting(false);
       return;
     }
-    navigate({ to: "/start" });
+    navigate({ to: homeForRole(profile.role) as never });
   };
 
   const onReset = async (e: FormEvent) => {
