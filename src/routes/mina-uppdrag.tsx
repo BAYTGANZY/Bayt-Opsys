@@ -109,8 +109,7 @@ function MinaUppdragPage() {
           {allowed && (
             <>
               <section className="hk-hero">
-                <img src={homeSketch} alt="" className="hk-hero-img" />
-                <div className="hk-hero-body">
+                <HeroBell />                <div className="hk-hero-body">
                   <p className="hk-hello">
                     {greeting()}
                     {firstName ? `, ${firstName}` : ""}
