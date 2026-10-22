@@ -111,10 +111,11 @@ const STYLES = `
   }
   .fp-select option { color: #1a1a1a; }
 
+  /* Bilden till vänster, symbolerna till höger. */
   .fp-body {
     flex: 1;
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
     gap: 40px;
     align-items: stretch;
     min-height: 0;
@@ -180,7 +181,6 @@ const STYLES = `
 
   @media (max-width: 1100px) {
     .fp-body { grid-template-columns: minmax(0, 1fr); gap: 24px; }
-    .fp-side { order: -1; }
     .fp-image, .fp-sketch { max-height: 240px; }
   }
   @media (max-width: 768px) {
@@ -537,25 +537,6 @@ function PresentationPage() {
 
         {allowed && !inForm && !openTile && (
           <div className="fp-body">
-            <div className="fp-grid">
-              {PRESENTATION_TILES.map((t) => (
-                <Link key={t.key} to={t.href as never} className="fp-tile">
-                  <PresentationIcon name={t.key} />
-                  <span className="fp-tile-label">{t.label}</span>
-                </Link>
-              ))}
-              {tiles.map((t) => (
-                <button key={t.id} type="button" className="fp-tile" onClick={() => setOpenId(t.id)}>
-                  <PresentationIcon name={t.icon} />
-                  <span className="fp-tile-label">{t.title}</span>
-                </button>
-              ))}
-              <button type="button" className="fp-tile fp-tile-add" onClick={() => setFormMode("new")}>
-                <PresentationIcon name="plus" />
-                <span className="fp-tile-label">Ny ruta</span>
-              </button>
-            </div>
-
             <div className="fp-side">
               {coverPath ? (
                 <SignedImage path={coverPath} alt="Fastigheten" className="fp-image" />
@@ -578,6 +559,25 @@ function PresentationPage() {
                   {setCover.isPending ? "Laddar upp…" : coverPath ? "Byt bild" : "Lägg till bild på fastigheten"}
                 </button>
               </div>
+            </div>
+
+            <div className="fp-grid">
+              {PRESENTATION_TILES.map((t) => (
+                <Link key={t.key} to={t.href as never} className="fp-tile">
+                  <PresentationIcon name={t.key} />
+                  <span className="fp-tile-label">{t.label}</span>
+                </Link>
+              ))}
+              {tiles.map((t) => (
+                <button key={t.id} type="button" className="fp-tile" onClick={() => setOpenId(t.id)}>
+                  <PresentationIcon name={t.icon} />
+                  <span className="fp-tile-label">{t.title}</span>
+                </button>
+              ))}
+              <button type="button" className="fp-tile fp-tile-add" onClick={() => setFormMode("new")}>
+                <PresentationIcon name="plus" />
+                <span className="fp-tile-label">Ny ruta</span>
+              </button>
             </div>
           </div>
         )}
