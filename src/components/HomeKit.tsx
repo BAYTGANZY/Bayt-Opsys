@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { canAccess } from "@/lib/permissions";
 import { Screensaver } from "@/components/Screensaver";
 
-// Behålls för bakåtkompatibilitet: sidorna importerar dessa, men hjälten visar ingen logga längre.
+// Behålls för bakåtkompatibilitet: sidorna importerar dessa, men hjälten visar ingen logga.
 const WORD_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="90 720 1760 490">
 <defs>
 <linearGradient id="l" gradientUnits="userSpaceOnUse" x1="0" y1="783" x2="0" y2="1152"><stop offset="0" stop-color="#7fe08a"/><stop offset="1" stop-color="#2f9a48"/></linearGradient>
@@ -25,6 +25,9 @@ const WORD_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="90 720 1760 4
 
 export const homeLogo = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(WORD_SVG)}`;
 export const homeSketch = homeLogo;
+
+// Den vita loggan som används uppe till vänster (samma som på styrelsevyn).
+const whiteLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
 
 export type Kind = "issue" | "inspection" | "project";
 
@@ -90,6 +93,7 @@ export function TopBar({
     <>
       <Screensaver />
       <div className="hk-top">
+        <img src={whiteLogo} alt="BAYT" className="hk-logo" />
         <nav className="hk-nav" aria-label="Meny">
           <Link to={"/start" as never}>Hem</Link>
           {nav.map((n) => (
@@ -172,8 +176,9 @@ export const HOME_STYLES = `
     color: #e6efd8; font-family: Inter, system-ui, sans-serif; padding: 0 0 56px;
   }
   .hk-wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
-  .hk-top { display: flex; align-items: center; gap: 12px; padding: 22px 0 14px; }
-  .hk-nav { display: flex; gap: 0; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; margin-left: -10px; }
+  .hk-top { display: flex; align-items: center; gap: 18px; padding: 22px 0 14px; }
+  .hk-logo { height: 36px; width: auto; display: block; flex-shrink: 0; }
+  .hk-nav { display: flex; gap: 0; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .hk-nav::-webkit-scrollbar { display: none; }
   .hk-nav a { padding: 8px 8px; border-radius: 8px; font-size: 13px; text-decoration: none; color: #9fb79f; white-space: nowrap; flex-shrink: 0; }
   .hk-nav a:hover { color: #fff; background: rgba(255,255,255,0.06); }
@@ -253,7 +258,8 @@ export const HOME_STYLES = `
   @media (max-width: 768px) {
     .hk-wrap { padding: 0 14px; }
     .hk-top { flex-wrap: wrap; gap: 10px; padding-top: 16px; }
-    .hk-nav { order: 3; flex-basis: 100%; margin-left: -8px; }
+    .hk-logo { height: 30px; }
+    .hk-nav { order: 3; flex-basis: 100%; }
     .hk-user { margin-left: auto; }
     .hk-user-name { display: none; }
     .hk-hero { min-height: 170px; border-radius: 18px; }
