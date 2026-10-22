@@ -159,3 +159,4 @@ function DagRapportPage() {
                   style={{
                     position: "relative", display: "inline-block",
                     width: 12, height: 12,
+                    }
