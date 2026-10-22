@@ -25,7 +25,6 @@ export const Route = createFileRoute("/mina-uppdrag")({
 });
 
 const NAV = [
-  { to: "/dag-rapport", label: "Dag Rapport" },
   { to: "/issues", label: "Felanmälningar" },
   { to: "/inspections", label: "Besiktningar" },
   { to: "/projects", label: "Projekt" },
@@ -152,9 +151,9 @@ function MinaUppdragPage() {
                   {first.length === 0 && <div className="hk-empty">Inget brådskar. 👍</div>}
                   {render(first.slice(0, 8))}
                 </Panel>
-                <Panel title="Alla aktiva uppdrag" to="/dag-rapport">
+                <Panel title="Alla aktiva uppdrag">
                   {sorted.length === 0 && <div className="hk-empty">Du har inga aktiva uppdrag.</div>}
-                  {render(sorted.slice(0, 8))}
+                  {render(sorted)}
                 </Panel>
               </div>
 
