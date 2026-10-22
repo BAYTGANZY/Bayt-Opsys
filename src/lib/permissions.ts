@@ -25,6 +25,8 @@ export type Role = "admin" | "styrelse" | "entreprenor";
 // cards link into `/properties/$id/<section>` for every per-building sub-page.
 // Leaving it out silently breaks all building navigation for that role.
 const STYRELSE_ROUTES = [
+  // Styrelsens startsida: en lugn översikt över deras fastigheter (read-only).
+  "/styrelse",
   // Läsvy: samma arbetslista som entreprenören ser, men för styrelsens egna
   // fastigheter och utan livscykelknappar (StyrelseDagRapport). Att veta vad
   // som ska utföras och när är styrelsens uppgift; att utföra det är inte det.
@@ -91,7 +93,7 @@ export const PROPERTY_SECTIONS_FOR_ROLE: Record<string, ReadonlyArray<string>> =
  */
 export const HOME_FOR_ROLE: Record<string, string> = {
   admin: "/dashboard",
-  styrelse: "/fastigheter",
+  styrelse: "/styrelse",
   entreprenor: "/dag-rapport",
 };
 
