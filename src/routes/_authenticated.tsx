@@ -27,10 +27,18 @@ export const Route = createFileRoute("/_authenticated")({
       await supabase.auth.signOut();
       throw redirect({ to: "/login", search: { error: "Åtkomst nekad." } });
     }
+    // Entreprenörer har en egen startsida (/mina-uppdrag): skicka dem dit
+    // oavsett om de kommer via bokmärke, meny eller gammal länk.
+    if (
+      profile.role === "entreprenor" &&
+      (location.pathname === "/dag-rapport" || location.pathname === "/dag-rapport/")
+    ) {
+      throw redirect({ to: "/mina-uppdrag" as never });
+    }
     // Hiding a nav link is not access control — a role must not be able to reach a
     // forbidden page by typing its URL. Bounce them to their own landing page.
     if (!canAccess(profile.role, location.pathname)) {
-      throw redirect({ to: homeForRole(profile.role) });
+      throw redirect({ to: homeForRole(profile.role) as never });
     }
   },
   component: AuthenticatedLayout,
