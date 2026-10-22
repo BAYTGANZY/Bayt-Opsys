@@ -1,8 +1,8 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { CalendarCheckIn01Icon, AlertCircleIcon } from "@hugeicons/core-free-icons";
+import { CalendarCheckIn01Icon } from "@hugeicons/core-free-icons";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -15,6 +15,19 @@ import { isEntreprenor, isStyrelse } from "@/lib/permissions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/dag-rapport")({
+  // Entreprenörer har en egen startsida (/mina-uppdrag): skicka dem dit oavsett hur de kom hit.
+  beforeLoad: async () => {
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) return;
+    const { data: p } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", data.session.user.id)
+      .maybeSingle();
+    if (p?.role === "entreprenor") {
+      throw redirect({ to: "/mina-uppdrag" as never });
+    }
+  },
   head: () => ({ meta: [{ title: "Dag Rapport — BAYT" }] }),
   component: DagRapportRoute,
 });
@@ -24,7 +37,8 @@ export const Route = createFileRoute("/_authenticated/dag-rapport")({
  *
  * For an entreprenör it is their landing page and whole working surface — only
  * ärenden assigned to them, split into "öppna" and the full deadline-ordered
- * worklist (see EntreprenorDagRapport).
+ * worklist (see EntreprenorDagRapport). Entreprenörer are now redirected to
+ * /mina-uppdrag in beforeLoad above; the component stays as a fallback.
  *
  * Styrelse gets the same worklist for the buildings they are attached to, read
  * only: they neither order the work nor do it, but they need to see what is
@@ -144,77 +158,4 @@ function DagRapportPage() {
                 <span
                   style={{
                     position: "relative", display: "inline-block",
-                    width: 12, height: 12, borderRadius: "50%", background: prio.color, flexShrink: 0,
-                  }}
-                >
-                  {overdue && (
-                    <span style={{ position: "absolute", inset: -4, borderRadius: "50%", border: `2px solid ${prio.color}`, animation: "bayt-sonar 1.4s ease-out infinite" }} />
-                  )}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "#1a1a1a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.title}</div>
-                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>
-                    {i.properties?.name ?? "—"}{i.deadline ? ` · Deadline ${i.deadline}` : ""}
-                  </div>
-                </div>
-                <div style={{ fontSize: 12, color: prio.color, fontWeight: 600, textTransform: "uppercase" }}>{i.priority}</div>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      <BottomSheet open={!!selected} onClose={() => setSelectedId(null)}>
-        {selected && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div>
-              <div style={{ fontSize: 11, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.08em" }}>Felanmälan</div>
-              <h2 style={{ margin: "4px 0 0", fontSize: 20, fontWeight: 700, color: "#1a1a1a" }}>{selected.title}</h2>
-              <div style={{ fontSize: 13, color: "#6B7280", marginTop: 4 }}>{selected.properties?.name ?? "—"}</div>
-            </div>
-            <div style={{ display: "flex", gap: 16, fontSize: 13, flexWrap: "wrap" }}>
-              <span><b>Prioritet:</b> <span style={{ color: (PRIORITY_BADGE[selected.priority] ?? PRIORITY_BADGE.normal).color }}>{selected.priority}</span></span>
-              <span><b>Status:</b> <span style={{ color: deriveIssueStatus(selected).color }}>{deriveIssueStatus(selected).label}</span></span>
-              {selected.deadline && <span style={{ color: isOverdue(selected.deadline, selected.status) ? "#DC2626" : undefined }}><b>Deadline:</b> {selected.deadline}</span>}
-              {selected.category && <span><b>Kategori:</b> {selected.category}</span>}
-            </div>
-            {selected.description && (
-              <div style={{ background: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 8, padding: 12, fontSize: 14, color: "#1a1a1a", whiteSpace: "pre-wrap" }}>
-                {selected.description}
-              </div>
-            )}
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              {LIFECYCLE_OF[selected.status] === "vilande" && (
-                <button
-                  type="button"
-                  onClick={() => updateStatus.mutate({ id: selected.id, status: STATUS_ACTIVATE, label: selected.title, propertyId: selected.property_id, apartmentId: selected.apartment_id })}
-                  disabled={updateStatus.isPending}
-                  style={{ height: 44, padding: "0 18px", background: "#3D8A30", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}
-                >
-                  Aktivera
-                </button>
-              )}
-              {LIFECYCLE_OF[selected.status] !== "avslutat" && (
-                <button
-                  type="button"
-                  onClick={() => updateStatus.mutate({ id: selected.id, status: STATUS_CLOSE, label: selected.title, propertyId: selected.property_id, apartmentId: selected.apartment_id })}
-                  disabled={updateStatus.isPending}
-                  style={{ height: 44, padding: "0 18px", background: "#fff", color: "#1a1a1a", border: "1px solid #E5E7EB", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}
-                >
-                  Avsluta
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => { setSelectedId(null); navigate({ to: "/issues/$id", params: { id: selected.id } }); }}
-                style={{ marginLeft: "auto", height: 44, padding: "0 18px", background: "transparent", color: "#3D8A30", border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
-              >
-                Öppna fullskärm →
-              </button>
-            </div>
-          </div>
-        )}
-      </BottomSheet>
-    </div>
-  );
-}
+                    width: 12, height: 12,
