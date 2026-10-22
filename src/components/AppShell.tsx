@@ -48,6 +48,7 @@ type NavSection = { label?: string; items: NavItem[] };
 const SECTIONS: NavSection[] = [
   {
     items: [
+      { to: "/styrelse", label: "Start", icon: GridViewIcon },
       { to: "/start", label: "Hem", icon: Home01Icon },
       { to: "/dag-rapport", label: "Dag Rapport", icon: CalendarCheckIn01Icon },
       { to: "/dashboard", label: "Översikt", icon: DashboardSquare01Icon },
