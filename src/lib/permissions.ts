@@ -26,7 +26,7 @@ export type Role = "admin" | "styrelse" | "entreprenor";
 // Leaving it out silently breaks all building navigation for that role.
 const STYRELSE_ROUTES = [
   // Styrelsens startsida: en lugn översikt över deras fastigheter (read-only).
-  "/styrelseoversikt",
+  "/styrelse",
   // Läsvy: samma arbetslista som entreprenören ser, men för styrelsens egna
   // fastigheter och utan livscykelknappar (StyrelseDagRapport). Att veta vad
   // som ska utföras och när är styrelsens uppgift; att utföra det är inte det.
@@ -50,6 +50,8 @@ const STYRELSE_ROUTES = [
 // Deliberately NOT listed: a nav link to a route that doesn't exist 404s in front
 // of the user. Re-add both here the same commit the pages land.
 const ENTREPRENOR_ROUTES = [
+  // Entreprenörens startsida: "vad gör jag först?".
+  "/mina-uppdrag",
   "/dag-rapport",
   // Lägenheter is reachable but NARROWER than for styrelse: canAccess only gets
   // them past the route layer, and useRecordScopeGuard then restricts them to
@@ -58,7 +60,7 @@ const ENTREPRENOR_ROUTES = [
   "/issues",
   "/inspections",
   "/projects",
-  "/properties"
+  "/properties",
   // Narrower again, same shape as Lägenheter: has_object_assignment() (RLS)
   // only returns an object the entreprenör holds an issue/inspection
   // assignment against — see property-objects-scoped-rls.sql.
@@ -92,9 +94,9 @@ export const PROPERTY_SECTIONS_FOR_ROLE: Record<string, ReadonlyArray<string>> =
  * Consumed by the `_authenticated` route guard and by useRecordScopeGuard.
  */
 export const HOME_FOR_ROLE: Record<string, string> = {
-  admin: "/dashboard",
+  admin: "/idag",
   styrelse: "/styrelse",
-  entreprenor: "/dag-rapport",
+  entreprenor: "/mina-uppdrag",
 };
 
 export function homeForRole(role: string | null | undefined): string {
