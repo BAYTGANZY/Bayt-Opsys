@@ -3,6 +3,9 @@ import { Link } from "@tanstack/react-router";
 import { supabase } from "@/lib/supabase";
 import { canAccess } from "@/lib/permissions";
 import { Screensaver } from "@/components/Screensaver";
+import { NotificationsProvider } from "@/lib/notifications";
+import { NotificationBell } from "@/components/NotificationCenter";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // Behålls för bakåtkompatibilitet: sidorna importerar dessa, men hjälten visar ingen logga.
 const WORD_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="90 720 1760 490">
@@ -77,6 +80,18 @@ export function useHomeUser() {
   return { role, name };
 }
 
+/** Samma klocka som i appens ram. Startsidorna ligger utanför ramen, så leverantören läggs här. */
+export function HomeBell() {
+  const isMobile = useIsMobile();
+  return (
+    <NotificationsProvider>
+      <div className="hk-bell">
+        <NotificationBell isMobile={isMobile} />
+      </div>
+    </NotificationsProvider>
+  );
+}
+
 export function TopBar({
   role,
   name,
@@ -103,6 +118,7 @@ export function TopBar({
           ))}
         </nav>
         <div className="hk-user">
+          {role ? <HomeBell /> : null}
           <div className="hk-user-name">
             {name ?? ""}
             <div className="hk-user-role">{roleLabel}</div>
@@ -183,6 +199,7 @@ export const HOME_STYLES = `
   .hk-nav a { padding: 8px 8px; border-radius: 8px; font-size: 13px; text-decoration: none; color: #9fb79f; white-space: nowrap; flex-shrink: 0; }
   .hk-nav a:hover { color: #fff; background: rgba(255,255,255,0.06); }
   .hk-user { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .hk-bell { display: flex; align-items: center; }
   .hk-user-name { font-size: 13px; color: #c9d6c3; text-align: right; line-height: 1.25; }
   .hk-user-role { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #7a9476; }
   .hk-out { height: 36px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; cursor: pointer; font-family: inherit; background: transparent; color: #9fb79f; border: 1px solid rgba(151,186,72,0.2); }
