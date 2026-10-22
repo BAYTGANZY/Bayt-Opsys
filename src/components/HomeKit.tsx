@@ -3,7 +3,24 @@ import { Link } from "@tanstack/react-router";
 import { supabase } from "@/lib/supabase";
 import { canAccess } from "@/lib/permissions";
 
-export const homeLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
+// BAYT-ordet som vektorgrafik (ljusgrön toning + glöd), uppmätt från originalloggan.
+const WORD_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="90 720 1760 490">
+<defs>
+<linearGradient id="l" gradientUnits="userSpaceOnUse" x1="0" y1="783" x2="0" y2="1152"><stop offset="0" stop-color="#7fe08a"/><stop offset="1" stop-color="#2f9a48"/></linearGradient>
+<linearGradient id="h" gradientUnits="userSpaceOnUse" x1="0" y1="1005" x2="0" y2="1152"><stop offset="0" stop-color="#a6f58f"/><stop offset="1" stop-color="#4fc243"/></linearGradient>
+<filter id="g" x="-10%" y="-30%" width="120%" height="160%"><feGaussianBlur stdDeviation="14"/></filter>
+<g id="w">
+<path fill-rule="evenodd" d="M150,783 H380 C470,783 505,830 505,880 C505,915 485,945 458,957 C500,970 525,1010 525,1050 C525,1110 480,1152 390,1152 H150 Z M220,848 H370 C415,848 432,865 432,890 C432,915 412,932 370,932 H220 Z M220,993 H385 C430,993 448,1015 448,1040 C448,1068 428,1090 380,1090 H220 Z"/>
+<polygon points="543,1152 797,783 1047,1152 962,1152 797,908 627,1152"/>
+<polygon points="968,783 1055,783 1199,943 1343,783 1430,783 1237,1005 1237,1152 1160,1152 1160,1005"/>
+<rect x="1448" y="783" width="332" height="65"/>
+<rect x="1580" y="848" width="70" height="304"/>
+</g>
+</defs>
+<use href="#w" fill="#3fae5a" opacity="0.45" filter="url(#g)"/>
+<use href="#w" fill="url(#l)"/>
+<polygon points="740,1152 740,1075 796,1005 852,1075 852,1152" fill="url(#h)"/>
+</svg>`;
 
 // BAYT-märket (A-formen med huset) som vektorgrafik, ljusare gröna toner så det syns mot mörk bakgrund.
 const MARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 600">
@@ -17,6 +34,7 @@ const MARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 600">
 <polygon points="270,555 270,458 343,365 416,458 416,555" fill="url(#h)"/>
 </svg>`;
 
+export const homeLogo = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(WORD_SVG)}`;
 export const homeSketch = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(MARK_SVG)}`;
 
 export type Kind = "issue" | "inspection" | "project";
@@ -163,7 +181,7 @@ export const HOME_STYLES = `
   }
   .hk-wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
   .hk-top { display: flex; align-items: center; gap: 20px; padding: 22px 0 14px; }
-  .hk-logo { height: 36px; display: block; flex-shrink: 0; }
+  .hk-logo { height: 44px; width: auto; display: block; flex-shrink: 0; }
   .hk-nav { display: flex; gap: 4px; flex: 1; overflow-x: auto; scrollbar-width: none; }
   .hk-nav::-webkit-scrollbar { display: none; }
   .hk-nav a { padding: 8px 12px; border-radius: 8px; font-size: 13.5px; text-decoration: none; color: #9fb79f; white-space: nowrap; }
@@ -248,7 +266,7 @@ export const HOME_STYLES = `
   @media (max-width: 768px) {
     .hk-wrap { padding: 0 14px; }
     .hk-top { flex-wrap: wrap; gap: 10px; padding-top: 16px; }
-    .hk-logo { height: 30px; }
+    .hk-logo { height: 34px; }
     .hk-nav { order: 3; flex-basis: 100%; }
     .hk-user { margin-left: auto; }
     .hk-user-name { display: none; }
