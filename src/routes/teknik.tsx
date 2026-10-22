@@ -27,6 +27,7 @@ const dateFmt = new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short
 
 const STYLES = `
   .tk-page {
+    position: relative;
     min-height: 100vh;
     min-height: 100dvh;
     display: flex;
@@ -37,30 +38,32 @@ const STYLES = `
     font-family: Inter, system-ui, sans-serif;
     box-sizing: border-box;
   }
+  .tk-page > * { position: relative; z-index: 1; }
   .tk-header {
-    display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
     border-bottom: 1px solid rgba(151,186,72,0.18); padding-bottom: 18px; margin-bottom: 28px;
   }
-  .tk-logo { height: 40px; display: block; }
-  .tk-header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .tk-logo { height: 40px; display: block; flex-shrink: 0; }
+  .tk-header-right { display: flex; align-items: center; gap: 12px; min-width: 0; }
   .tk-home {
-    height: 40px; padding: 0 14px; display: inline-flex; align-items: center; border-radius: 8px;
+    height: 40px; padding: 0 14px; display: inline-flex; align-items: center; border-radius: 8px; flex-shrink: 0;
     font-size: 13px; letter-spacing: 0.04em; text-decoration: none; color: #9fb79f;
     border: 1px solid rgba(151,186,72,0.18); background: transparent;
   }
   .tk-home:hover { color: #ffffff; border-color: rgba(92,184,74,0.6); }
-  .tk-title { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 28px; font-weight: 600; margin: 0 0 22px; }
   .tk-select {
     height: 40px; padding: 0 12px; border-radius: 8px; font-size: 14px; font-family: inherit;
-    background: rgba(255,255,255,0.06); color: #e6efd8; border: 1px solid rgba(255,255,255,0.14); max-width: 100%;
+    background: rgba(255,255,255,0.06); color: #e6efd8; border: 1px solid rgba(255,255,255,0.14);
+    min-width: 0; max-width: 260px; text-overflow: ellipsis;
   }
   .tk-select option { color: #1a1a1a; }
 
+  /* Översikt: som bild 1 — symboler och text till vänster, byggnaden till höger. */
   .tk-body {
     flex: 1;
     display: grid;
-    grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.7fr);
-    gap: 48px;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    gap: 40px;
     align-items: stretch;
     min-height: 0;
   }
@@ -68,23 +71,21 @@ const STYLES = `
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     grid-template-rows: repeat(3, minmax(0, 1fr));
-    border-top: 1px solid rgba(255,255,255,0.12);
-    border-left: 1px solid rgba(255,255,255,0.12);
-    min-height: 480px;
+    min-height: 460px;
   }
   .tk-tile {
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
     padding: 18px 8px; text-decoration: none; color: #d9dfdb; background: transparent;
-    border: none; border-right: 1px solid rgba(255,255,255,0.12); border-bottom: 1px solid rgba(255,255,255,0.12);
+    border: none; border-radius: 18px;
     cursor: pointer; font: inherit; transition: background 0.15s ease, color 0.15s ease;
     -webkit-tap-highlight-color: transparent;
   }
-  .tk-tile:hover { background: rgba(92,184,74,0.10); color: #ffffff; }
-  .tk-tile-label { font-size: 17px; font-weight: 500; }
-  .tk-tile-sub { font-size: 13px; color: #8aa38a; }
-  .tk-tile-sub.tk-full { color: #5CB84A; font-weight: 600; }
+  .tk-tile:hover { background: rgba(92,184,74,0.08); color: #ffffff; }
+  .tk-tile svg { width: clamp(44px, 5.2vw, 76px); height: auto; }
+  .tk-tile-label { font-size: 17px; font-weight: 500; text-align: center; }
   .tk-side { display: flex; align-items: center; justify-content: center; min-height: 0; }
-  .tk-sketch { max-width: 100%; max-height: 72vh; width: auto; height: auto; opacity: 0.9; filter: drop-shadow(0 8px 24px rgba(0,0,0,0.4)); }
+  .tk-sketch { max-width: 100%; max-height: 76vh; width: auto; height: auto; opacity: 0.9; filter: drop-shadow(0 8px 24px rgba(0,0,0,0.4)); }
+  .tk-bg-sketch { display: none; }
 
   .tk-back { background: none; border: none; color: #9fb79f; font-size: 14px; cursor: pointer; padding: 0; font-family: inherit; }
   .tk-back:hover { color: #ffffff; }
@@ -122,15 +123,24 @@ const STYLES = `
   .tk-hist h2 { font-size: 15px; font-weight: 600; margin: 0 0 8px; color: #c9d6c3; }
   .tk-hist-row { display: flex; justify-content: space-between; padding: 8px 2px; font-size: 13.5px; color: #9fb79f; border-bottom: 1px solid rgba(255,255,255,0.06); }
 
+  /* Smalare skärmar: byggnaden blir en svag bakgrund bakom symbolerna. */
   @media (max-width: 1100px) {
-    .tk-body { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+    .tk-body { grid-template-columns: minmax(0, 1fr); gap: 0; }
     .tk-side { display: none; }
+    .tk-bg-sketch {
+      display: block; position: fixed; inset: 0; width: 100%; height: 100%;
+      object-fit: contain; object-position: center; opacity: 0.14; pointer-events: none; z-index: 0;
+    }
   }
   @media (max-width: 768px) {
     .tk-page { padding: 18px 14px 40px; }
     .tk-logo { height: 32px; }
-    .tk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; min-height: 0; }
-    .tk-tile { min-height: 130px; }
+    .tk-header { margin-bottom: 18px; }
+    .tk-grid { grid-template-rows: none; grid-auto-rows: minmax(118px, auto); min-height: 0; }
+    .tk-tile { gap: 10px; padding: 14px 4px; }
+    .tk-tile svg { width: 42px; }
+    .tk-tile-label { font-size: 13.5px; }
+    .tk-select { max-width: 150px; }
     .tk-row { flex-wrap: wrap; }
     .tk-note { flex: 1 1 100%; margin-left: 40px; }
   }
@@ -446,6 +456,8 @@ function TeknikPage() {
     <>
       <style>{STYLES}</style>
       <div className="tk-page">
+        {allowed && !section && <img src={buildingSketch} alt="" className="tk-bg-sketch" aria-hidden />}
+
         <div className="tk-header">
           <img src={baytLogo} alt="BAYT" className="tk-logo" />
           <div className="tk-header-right">
@@ -479,41 +491,30 @@ function TeknikPage() {
         )}
 
         {allowed && !section && (
-          <>
-            <h1 className="tk-title">Teknik</h1>
-            <div className="tk-body">
-              <div className="tk-grid">
-                {TEKNIK_SECTIONS.map((s) => {
-                  const p = progress[s.key];
-                  const inner = (
-                    <>
-                      <TeknikIcon name={s.key} />
-                      <span className="tk-tile-label">{s.label}</span>
-                      {s.kind === "checklist" ? (
-                        <span className={`tk-tile-sub${p && p.total > 0 && p.done === p.total ? " tk-full" : ""}`}>
-                          {p ? `${p.done}/${p.total}` : ""}
-                        </span>
-                      ) : (
-                        <span className="tk-tile-sub">Öppna</span>
-                      )}
-                    </>
-                  );
-                  return s.kind === "link" ? (
-                    <Link key={s.key} to={s.href as never} className="tk-tile">
-                      {inner}
-                    </Link>
-                  ) : (
-                    <button key={s.key} type="button" className="tk-tile" onClick={() => setSectionKey(s.key)}>
-                      {inner}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="tk-side">
-                <img src={buildingSketch} alt="" className="tk-sketch" />
-              </div>
+          <div className="tk-body">
+            <div className="tk-grid">
+              {TEKNIK_SECTIONS.map((s) => {
+                const inner = (
+                  <>
+                    <TeknikIcon name={s.key} />
+                    <span className="tk-tile-label">{s.label}</span>
+                  </>
+                );
+                return s.kind === "link" ? (
+                  <Link key={s.key} to={s.href as never} className="tk-tile">
+                    {inner}
+                  </Link>
+                ) : (
+                  <button key={s.key} type="button" className="tk-tile" onClick={() => setSectionKey(s.key)}>
+                    {inner}
+                  </button>
+                );
+              })}
             </div>
-          </>
+            <div className="tk-side">
+              <img src={buildingSketch} alt="" className="tk-sketch" />
+            </div>
+          </div>
         )}
 
         {allowed && section && section.kind === "checklist" && (
