@@ -88,7 +88,6 @@ export function TopBar({
   const nav = items.filter((n) => canAccess(role, n.to));
   return (
     <div className="hk-top">
-      <img src={homeLogo} alt="BAYT" className="hk-logo" />
       <nav className="hk-nav" aria-label="Meny">
         {nav.map((n) => (
           <Link key={n.to} to={n.to as never}>
@@ -169,11 +168,10 @@ export const HOME_STYLES = `
     color: #e6efd8; font-family: Inter, system-ui, sans-serif; padding: 0 0 56px;
   }
   .hk-wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
-  .hk-top { display: flex; align-items: center; gap: 20px; padding: 22px 0 14px; }
-  .hk-logo { height: 44px; width: auto; display: block; flex-shrink: 0; }
-  .hk-nav { display: flex; gap: 4px; flex: 1; overflow-x: auto; scrollbar-width: none; }
+  .hk-top { display: flex; align-items: center; gap: 16px; padding: 22px 0 14px; }
+  .hk-nav { display: flex; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; margin-left: -12px; }
   .hk-nav::-webkit-scrollbar { display: none; }
-  .hk-nav a { padding: 8px 12px; border-radius: 8px; font-size: 13.5px; text-decoration: none; color: #9fb79f; white-space: nowrap; }
+  .hk-nav a { padding: 8px 10px; border-radius: 8px; font-size: 13.5px; text-decoration: none; color: #9fb79f; white-space: nowrap; flex-shrink: 0; }
   .hk-nav a:hover { color: #fff; background: rgba(255,255,255,0.06); }
   .hk-user { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
   .hk-user-name { font-size: 13px; color: #c9d6c3; text-align: right; line-height: 1.25; }
@@ -266,8 +264,7 @@ export const HOME_STYLES = `
   @media (max-width: 768px) {
     .hk-wrap { padding: 0 14px; }
     .hk-top { flex-wrap: wrap; gap: 10px; padding-top: 16px; }
-    .hk-logo { height: 34px; }
-    .hk-nav { order: 3; flex-basis: 100%; }
+    .hk-nav { order: 3; flex-basis: 100%; margin-left: -10px; }
     .hk-user { margin-left: auto; }
     .hk-user-name { display: none; }
     .hk-hero { min-height: 220px; border-radius: 18px; }
