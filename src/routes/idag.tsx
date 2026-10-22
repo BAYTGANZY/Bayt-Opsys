@@ -188,7 +188,6 @@ function IdagPage() {
   const resolved = scoped.filter((e) => e.lifecycle === "avslutat" && e.updatedAt && new Date(e.updatedAt).getTime() >= cutoff);
 
   const waiting = new Set([...attention, ...review, ...fresh].map(keyOf)).size;
-  const firstName = name?.trim().split(/\s+/)[0] ?? "";
   const headline = waiting === 0 ? "Inget väntar på dig." : `${waiting} ${waiting === 1 ? "sak väntar" : "saker väntar"} på dig.`;
   const sub = [
     attention.length > 0 ? `${attention.length} kräver åtgärd` : null,
@@ -229,10 +228,7 @@ function IdagPage() {
               <section className="hk-hero">
                 <img src={homeSketch} alt="" className="hk-hero-img" />
                 <div className="hk-hero-body">
-                  <p className="hk-hello">
-                    {greeting()}
-                    {firstName ? `, ${firstName}` : ""}
-                  </p>
+                  <p className="hk-hello">{greeting()}</p>
                   <h1 className={`hk-headline${attention.length > 0 ? " bad" : ""}`}>{loading ? "Hämtar läget…" : headline}</h1>
                   <p className="hk-sub">{loading ? "" : sub || "Allt är avstämt för tillfället."}</p>
                 </div>
