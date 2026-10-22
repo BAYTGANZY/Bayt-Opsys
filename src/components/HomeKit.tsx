@@ -4,7 +4,20 @@ import { supabase } from "@/lib/supabase";
 import { canAccess } from "@/lib/permissions";
 
 export const homeLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
-export const homeSketch = `${import.meta.env.BASE_URL}assets/building-sketch-2.png`;
+
+// BAYT-märket (A-formen med huset) som vektorgrafik, ljusare gröna toner så det syns mot mörk bakgrund.
+const MARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 600">
+<defs>
+<linearGradient id="a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4fae5c"/><stop offset="1" stop-color="#1f7a3a"/></linearGradient>
+<linearGradient id="h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7ee06a"/><stop offset="1" stop-color="#3fae3a"/></linearGradient>
+<filter id="g" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="22"/></filter>
+</defs>
+<polygon points="10,555 343,75 670,555 557,555 343,240 123,555" fill="#3fae5a" opacity="0.4" filter="url(#g)"/>
+<polygon points="10,555 343,75 670,555 557,555 343,240 123,555" fill="url(#a)"/>
+<polygon points="270,555 270,458 343,365 416,458 416,555" fill="url(#h)"/>
+</svg>`;
+
+export const homeSketch = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(MARK_SVG)}`;
 
 export type Kind = "issue" | "inspection" | "project";
 
@@ -162,8 +175,11 @@ export const HOME_STYLES = `
   .hk-out:hover { color: #fff; border-color: rgba(92,184,74,0.6); }
 
   .hk-hero { position: relative; border-radius: 22px; overflow: hidden; margin-top: 8px; min-height: 250px; display: flex; align-items: flex-end; }
-  .hk-hero-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: right center; opacity: 0.35; }
-  .hk-hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(11,29,23,0.96) 0%, rgba(11,29,23,0.7) 50%, rgba(11,29,23,0.2) 100%); }
+  .hk-hero-img {
+    position: absolute; inset: 0; width: 100%; height: 100%; box-sizing: border-box;
+    padding: 26px 64px 26px 0; object-fit: contain; object-position: right center; opacity: 0.95;
+  }
+  .hk-hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(11,29,23,0.96) 0%, rgba(11,29,23,0.55) 45%, rgba(11,29,23,0) 75%); }
   .hk-hero-body { position: relative; z-index: 1; padding: 38px 44px; max-width: 780px; }
   .hk-hello { color: #5CB84A; font-size: 17px; font-weight: 600; margin: 0 0 8px; }
   .hk-headline { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 42px; line-height: 1.1; font-weight: 600; margin: 0 0 12px; }
@@ -237,6 +253,7 @@ export const HOME_STYLES = `
     .hk-user { margin-left: auto; }
     .hk-user-name { display: none; }
     .hk-hero { min-height: 220px; border-radius: 18px; }
+    .hk-hero-img { padding: 18px 18px 18px 0; opacity: 0.4; }
     .hk-hero-body { padding: 26px 22px; }
     .hk-headline { font-size: 28px; }
     .hk-sub { font-size: 14px; }
