@@ -26,7 +26,7 @@ export type Role = "admin" | "styrelse" | "entreprenor";
 // Leaving it out silently breaks all building navigation for that role.
 const STYRELSE_ROUTES = [
   // Styrelsens startsida: en lugn översikt över deras fastigheter (read-only).
-  "/styrelse",
+  "/styrelseoversikt",
   // Läsvy: samma arbetslista som entreprenören ser, men för styrelsens egna
   // fastigheter och utan livscykelknappar (StyrelseDagRapport). Att veta vad
   // som ska utföras och när är styrelsens uppgift; att utföra det är inte det.
