@@ -11,7 +11,7 @@ import {
   PresentationIcon,
 } from "@/lib/presentation-config";
 
-const baytLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
+const baytLogo = `${import.meta.env.BASE_URL}assets/bayt-logo-green.png`;
 const buildingSketch = `${import.meta.env.BASE_URL}assets/building-sketch-2.png`;
 
 const BUCKET = "presentation-files";
@@ -79,6 +79,11 @@ function SignedImage({
   return <img src={q.data} alt={alt} className={className} />;
 }
 
+const INK = "#0D2B1E";
+const GREEN = "#3D8A30";
+const MUTED = "#6B7280";
+const LINE = "#E3E7E2";
+
 const STYLES = `
   .fp-page {
     position: relative;
@@ -86,112 +91,115 @@ const STYLES = `
     min-height: 100dvh;
     display: flex;
     flex-direction: column;
-    background: radial-gradient(ellipse at top, #1b3a33 0%, #0e1f1a 75%);
-    color: #e6efd8;
-    padding: 28px 40px 36px;
+    background: linear-gradient(180deg, #FFFFFF 0%, #F1F3F0 100%);
+    color: ${INK};
+    padding: 24px 40px 36px;
     font-family: Inter, system-ui, sans-serif;
     box-sizing: border-box;
   }
   .fp-header {
-    display: flex; align-items: center; justify-content: space-between; gap: 16px;
-    border-bottom: 1px solid rgba(151,186,72,0.18); padding-bottom: 18px; margin-bottom: 28px;
+    display: flex; align-items: center; justify-content: flex-end; gap: 12px;
+    padding-bottom: 16px; margin-bottom: 20px; border-bottom: 1px solid ${LINE};
   }
-  .fp-logo { height: 40px; display: block; flex-shrink: 0; }
-  .fp-header-right { display: flex; align-items: center; gap: 12px; min-width: 0; }
   .fp-home {
     height: 40px; padding: 0 14px; display: inline-flex; align-items: center; border-radius: 8px; flex-shrink: 0;
-    font-size: 13px; letter-spacing: 0.04em; text-decoration: none; color: #9fb79f;
-    border: 1px solid rgba(151,186,72,0.18); background: transparent;
+    font-size: 13px; letter-spacing: 0.04em; text-decoration: none; color: ${MUTED};
+    border: 1px solid ${LINE}; background: #fff;
   }
-  .fp-home:hover { color: #ffffff; border-color: rgba(92,184,74,0.6); }
+  .fp-home:hover { color: ${INK}; border-color: ${GREEN}; }
   .fp-select {
     height: 40px; padding: 0 12px; border-radius: 8px; font-size: 14px; font-family: inherit;
-    background: rgba(255,255,255,0.06); color: #e6efd8; border: 1px solid rgba(255,255,255,0.14);
-    min-width: 0; max-width: 260px; text-overflow: ellipsis;
+    background: #fff; color: ${INK}; border: 1px solid ${LINE};
+    min-width: 0; max-width: 280px; text-overflow: ellipsis;
   }
-  .fp-select option { color: #1a1a1a; }
 
-  /* Bilden till vänster, symbolerna till höger. */
+  /* Bilden till vänster, loggan och symbolerna till höger. */
   .fp-body {
     flex: 1;
     display: grid;
-    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
-    gap: 40px;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 48px;
     align-items: stretch;
     min-height: 0;
   }
+  .fp-menu { display: flex; flex-direction: column; min-width: 0; }
+  .fp-logo { height: 64px; width: auto; align-self: flex-start; margin: 0 0 12px 8px; display: block; }
   .fp-grid {
+    flex: 1;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-auto-rows: minmax(150px, 1fr);
+    grid-auto-rows: minmax(140px, 1fr);
     align-content: stretch;
   }
   .fp-tile {
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
-    padding: 18px 8px; text-decoration: none; color: #d9dfdb; background: transparent;
-    border: none; border-radius: 18px; cursor: pointer; font: inherit;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    padding: 16px 8px; text-decoration: none; color: ${INK}; background: transparent;
+    border: none; border-radius: 16px; cursor: pointer; font: inherit;
     transition: background 0.15s ease, color 0.15s ease; -webkit-tap-highlight-color: transparent;
   }
-  .fp-tile:hover { background: rgba(92,184,74,0.08); color: #ffffff; }
-  .fp-tile svg { width: clamp(44px, 5.2vw, 76px); height: auto; }
-  .fp-tile-label { font-size: 17px; font-weight: 500; text-align: center; }
-  .fp-tile-add { color: #7f9a80; }
-  .fp-tile-add svg { opacity: 0.8; }
+  .fp-tile:hover { background: rgba(61,138,48,0.09); color: ${GREEN}; }
+  .fp-tile svg { width: clamp(40px, 4.4vw, 64px); height: auto; color: ${INK}; }
+  .fp-tile:hover svg { color: ${GREEN}; }
+  .fp-tile-label { font-size: 16px; font-weight: 500; text-align: center; }
+  .fp-tile-add { color: ${MUTED}; }
+  .fp-tile-add svg { color: ${MUTED}; opacity: 0.85; }
 
   .fp-side { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; min-height: 0; }
   .fp-image {
-    max-width: 100%; max-height: 74vh; width: auto; height: auto; border-radius: 18px; display: block;
-    box-shadow: 0 12px 36px rgba(0,0,0,0.45);
+    max-width: 100%; max-height: 74vh; width: auto; height: auto; border-radius: 6px; display: block;
+    box-shadow: 0 10px 30px rgba(13,43,30,0.18);
   }
-  .fp-sketch { max-width: 100%; max-height: 74vh; width: auto; height: auto; opacity: 0.9; filter: drop-shadow(0 8px 24px rgba(0,0,0,0.4)); }
+  .fp-sketch { max-width: 100%; max-height: 66vh; width: auto; height: auto; filter: invert(1); opacity: 0.35; }
   .fp-side-actions { display: flex; gap: 10px; }
 
-  .fp-back { background: none; border: none; color: #9fb79f; font-size: 14px; cursor: pointer; padding: 0; font-family: inherit; }
-  .fp-back:hover { color: #ffffff; }
+  .fp-back { background: none; border: none; color: ${MUTED}; font-size: 14px; cursor: pointer; padding: 0; font-family: inherit; }
+  .fp-back:hover { color: ${INK}; }
   .fp-panel { max-width: 920px; }
-  .fp-panel-head { display: flex; align-items: center; gap: 16px; margin: 16px 0 18px; color: #d9dfdb; }
-  .fp-panel-head h1 { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 30px; margin: 0; font-weight: 600; color: #e6efd8; }
-  .fp-text { font-size: 19px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; color: #e6efd8; }
-  .fp-tile-image { max-width: 100%; max-height: 60vh; border-radius: 16px; margin-top: 20px; display: block; }
+  .fp-panel-head { display: flex; align-items: center; gap: 16px; margin: 16px 0 18px; color: ${INK}; }
+  .fp-panel-head h1 { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 30px; margin: 0; font-weight: 600; color: ${INK}; }
+  .fp-text { font-size: 19px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; color: #1F2A37; }
+  .fp-tile-image { max-width: 100%; max-height: 60vh; border-radius: 10px; margin-top: 20px; display: block; box-shadow: 0 8px 24px rgba(13,43,30,0.15); }
 
   .fp-btn {
     height: 40px; padding: 0 16px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit;
-    background: rgba(255,255,255,0.06); color: #e6efd8; border: 1px solid rgba(255,255,255,0.16);
+    background: #fff; color: ${INK}; border: 1px solid ${LINE};
   }
-  .fp-btn.fp-primary { background: #3D8A30; border-color: #3D8A30; color: #fff; }
-  .fp-btn.fp-danger { color: #e9a0a0; border-color: rgba(233,160,160,0.4); }
+  .fp-btn:hover { border-color: ${GREEN}; }
+  .fp-btn.fp-primary { background: ${GREEN}; border-color: ${GREEN}; color: #fff; }
+  .fp-btn.fp-danger { color: #B91C1C; border-color: #F1C0C0; }
   .fp-btn:disabled { opacity: 0.6; cursor: not-allowed; }
   .fp-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 22px; align-items: center; }
 
   .fp-form { display: grid; gap: 16px; }
-  .fp-label { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #8aa38a; margin-bottom: 6px; display: block; }
+  .fp-label { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: ${MUTED}; margin-bottom: 6px; display: block; }
   .fp-input, .fp-textarea {
     width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px; font-size: 15px; font-family: inherit;
-    background: rgba(255,255,255,0.06); color: #e6efd8; border: 1px solid rgba(255,255,255,0.14);
+    background: #fff; color: ${INK}; border: 1px solid ${LINE};
   }
   .fp-input { height: 42px; padding-top: 0; padding-bottom: 0; }
   .fp-textarea { resize: vertical; line-height: 1.5; }
   .fp-icons { display: flex; flex-wrap: wrap; gap: 8px; }
   .fp-icon-choice {
     width: 56px; height: 56px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;
-    background: rgba(255,255,255,0.05); color: #c9d6c3; border: 1px solid rgba(255,255,255,0.12);
+    background: #fff; color: ${INK}; border: 1px solid ${LINE};
   }
-  .fp-icon-choice[aria-pressed="true"] { border-color: #5CB84A; background: rgba(92,184,74,0.18); color: #ffffff; }
+  .fp-icon-choice[aria-pressed="true"] { border-color: ${GREEN}; background: rgba(61,138,48,0.12); color: ${GREEN}; }
   .fp-icon-choice svg { width: 28px; height: 28px; }
 
   @media (max-width: 1100px) {
     .fp-body { grid-template-columns: minmax(0, 1fr); gap: 24px; }
     .fp-image, .fp-sketch { max-height: 240px; }
+    .fp-logo { align-self: center; margin: 0 0 8px; }
   }
   @media (max-width: 768px) {
-    .fp-page { padding: 18px 14px 40px; }
-    .fp-logo { height: 32px; }
-    .fp-header { margin-bottom: 18px; }
-    .fp-grid { grid-auto-rows: minmax(118px, auto); }
-    .fp-tile { gap: 10px; padding: 14px 4px; }
-    .fp-tile svg { width: 42px; }
-    .fp-tile-label { font-size: 13.5px; }
-    .fp-select { max-width: 150px; }
+    .fp-page { padding: 16px 14px 40px; }
+    .fp-logo { height: 48px; }
+    .fp-header { margin-bottom: 14px; }
+    .fp-grid { grid-auto-rows: minmax(112px, auto); }
+    .fp-tile { gap: 8px; padding: 12px 4px; }
+    .fp-tile svg { width: 38px; }
+    .fp-tile-label { font-size: 13px; }
+    .fp-select { max-width: 170px; }
     .fp-panel-head h1 { font-size: 24px; }
     .fp-text { font-size: 17px; }
   }
@@ -459,36 +467,33 @@ function PresentationPage() {
       <style>{STYLES}</style>
       <div className="fp-page">
         <div className="fp-header">
-          <img src={baytLogo} alt="BAYT" className="fp-logo" />
-          <div className="fp-header-right">
-            {allowed && (
-              <select
-                className="fp-select"
-                value={propertyId}
-                onChange={(e) => {
-                  setPropertyId(e.target.value);
-                  setOpenId(null);
-                  setFormMode(null);
-                }}
-                aria-label="Fastighet"
-              >
-                {properties.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            )}
-            <Link to="/start" className="fp-home">
-              ← Start
-            </Link>
-          </div>
+          {allowed && (
+            <select
+              className="fp-select"
+              value={propertyId}
+              onChange={(e) => {
+                setPropertyId(e.target.value);
+                setOpenId(null);
+                setFormMode(null);
+              }}
+              aria-label="Fastighet"
+            >
+              {properties.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          )}
+          <Link to="/start" className="fp-home">
+            ← Start
+          </Link>
         </div>
 
-        {role === undefined && <div style={{ color: "#8aa38a", fontSize: 14 }}>Laddar…</div>}
+        {role === undefined && <div style={{ color: MUTED, fontSize: 14 }}>Laddar…</div>}
 
         {role !== undefined && !allowed && (
-          <div style={{ color: "#c9d6c3", fontSize: 15 }}>Du har inte behörighet till den här sidan.</div>
+          <div style={{ color: INK, fontSize: 15 }}>Du har inte behörighet till den här sidan.</div>
         )}
 
         {allowed && inForm && (
@@ -561,23 +566,26 @@ function PresentationPage() {
               </div>
             </div>
 
-            <div className="fp-grid">
-              {PRESENTATION_TILES.map((t) => (
-                <Link key={t.key} to={t.href as never} className="fp-tile">
-                  <PresentationIcon name={t.key} />
-                  <span className="fp-tile-label">{t.label}</span>
-                </Link>
-              ))}
-              {tiles.map((t) => (
-                <button key={t.id} type="button" className="fp-tile" onClick={() => setOpenId(t.id)}>
-                  <PresentationIcon name={t.icon} />
-                  <span className="fp-tile-label">{t.title}</span>
+            <div className="fp-menu">
+              <img src={baytLogo} alt="BAYT" className="fp-logo" />
+              <div className="fp-grid">
+                {PRESENTATION_TILES.map((t) => (
+                  <Link key={t.key} to={t.href as never} className="fp-tile">
+                    <PresentationIcon name={t.key} />
+                    <span className="fp-tile-label">{t.label}</span>
+                  </Link>
+                ))}
+                {tiles.map((t) => (
+                  <button key={t.id} type="button" className="fp-tile" onClick={() => setOpenId(t.id)}>
+                    <PresentationIcon name={t.icon} />
+                    <span className="fp-tile-label">{t.title}</span>
+                  </button>
+                ))}
+                <button type="button" className="fp-tile fp-tile-add" onClick={() => setFormMode("new")}>
+                  <PresentationIcon name="plus" />
+                  <span className="fp-tile-label">Ny ruta</span>
                 </button>
-              ))}
-              <button type="button" className="fp-tile fp-tile-add" onClick={() => setFormMode("new")}>
-                <PresentationIcon name="plus" />
-                <span className="fp-tile-label">Ny ruta</span>
-              </button>
+              </div>
             </div>
           </div>
         )}
