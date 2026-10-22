@@ -38,7 +38,6 @@ const STYLES = `
     font-family: Inter, system-ui, sans-serif;
     box-sizing: border-box;
   }
-  .tk-page > * { position: relative; z-index: 1; }
   .tk-header {
     display: flex; align-items: center; justify-content: space-between; gap: 16px;
     border-bottom: 1px solid rgba(151,186,72,0.18); padding-bottom: 18px; margin-bottom: 28px;
@@ -58,7 +57,7 @@ const STYLES = `
   }
   .tk-select option { color: #1a1a1a; }
 
-  /* Översikt: som bild 1 — symboler och text till vänster, byggnaden till höger. */
+  /* Översikt: symboler och text till vänster, byggnaden till höger — på alla skärmstorlekar. */
   .tk-body {
     flex: 1;
     display: grid;
@@ -83,9 +82,8 @@ const STYLES = `
   .tk-tile:hover { background: rgba(92,184,74,0.08); color: #ffffff; }
   .tk-tile svg { width: clamp(44px, 5.2vw, 76px); height: auto; }
   .tk-tile-label { font-size: 17px; font-weight: 500; text-align: center; }
-  .tk-side { display: flex; align-items: center; justify-content: center; min-height: 0; }
+  .tk-side { display: flex; align-items: center; justify-content: center; min-height: 0; min-width: 0; }
   .tk-sketch { max-width: 100%; max-height: 76vh; width: auto; height: auto; opacity: 0.9; filter: drop-shadow(0 8px 24px rgba(0,0,0,0.4)); }
-  .tk-bg-sketch { display: none; }
 
   .tk-back { background: none; border: none; color: #9fb79f; font-size: 14px; cursor: pointer; padding: 0; font-family: inherit; }
   .tk-back:hover { color: #ffffff; }
@@ -123,24 +121,27 @@ const STYLES = `
   .tk-hist h2 { font-size: 15px; font-weight: 600; margin: 0 0 8px; color: #c9d6c3; }
   .tk-hist-row { display: flex; justify-content: space-between; padding: 8px 2px; font-size: 13.5px; color: #9fb79f; border-bottom: 1px solid rgba(255,255,255,0.06); }
 
-  /* Smalare skärmar: byggnaden blir en svag bakgrund bakom symbolerna. */
+  /* iPad: samma upplägg som datorn, bara lite tätare. */
   @media (max-width: 1100px) {
-    .tk-body { grid-template-columns: minmax(0, 1fr); gap: 0; }
-    .tk-side { display: none; }
-    .tk-bg-sketch {
-      display: block; position: fixed; inset: 0; width: 100%; height: 100%;
-      object-fit: contain; object-position: center; opacity: 0.14; pointer-events: none; z-index: 0;
-    }
+    .tk-page { padding: 24px 28px 32px; }
+    .tk-body { gap: 24px; }
+    .tk-tile-label { font-size: 16px; }
   }
+
+  /* Mobil: fortfarande symboler till vänster och byggnad till höger, men kompakt. */
   @media (max-width: 768px) {
-    .tk-page { padding: 18px 14px 40px; }
-    .tk-logo { height: 32px; }
-    .tk-header { margin-bottom: 18px; }
-    .tk-grid { grid-template-rows: none; grid-auto-rows: minmax(118px, auto); min-height: 0; }
-    .tk-tile { gap: 10px; padding: 14px 4px; }
-    .tk-tile svg { width: 42px; }
-    .tk-tile-label { font-size: 13.5px; }
-    .tk-select { max-width: 150px; }
+    .tk-page { padding: 16px 12px 28px; }
+    .tk-logo { height: 30px; }
+    .tk-header { margin-bottom: 14px; padding-bottom: 12px; gap: 8px; }
+    .tk-header-right { gap: 8px; }
+    .tk-select { max-width: 130px; height: 36px; font-size: 13px; }
+    .tk-home { height: 36px; padding: 0 10px; font-size: 12px; }
+    .tk-body { grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.6fr); gap: 4px; }
+    .tk-grid { grid-template-rows: repeat(3, minmax(96px, 1fr)); min-height: 0; }
+    .tk-tile { gap: 8px; padding: 10px 2px; border-radius: 12px; }
+    .tk-tile svg { width: 30px; }
+    .tk-tile-label { font-size: 11.5px; }
+    .tk-sketch { max-height: 56vh; }
     .tk-row { flex-wrap: wrap; }
     .tk-note { flex: 1 1 100%; margin-left: 40px; }
   }
@@ -456,8 +457,6 @@ function TeknikPage() {
     <>
       <style>{STYLES}</style>
       <div className="tk-page">
-        {allowed && !section && <img src={buildingSketch} alt="" className="tk-bg-sketch" aria-hidden />}
-
         <div className="tk-header">
           <img src={baytLogo} alt="BAYT" className="tk-logo" />
           <div className="tk-header-right">
