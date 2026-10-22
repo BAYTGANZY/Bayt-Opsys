@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/lib/supabase";
 import { canAccess } from "@/lib/permissions";
+import { Screensaver } from "@/components/Screensaver";
 
 // BAYT-ordet som vektorgrafik (ljusgrön toning + glöd), uppmätt från originalloggan.
 const WORD_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="90 720 1760 490">
@@ -87,32 +88,35 @@ export function TopBar({
 }) {
   const nav = items.filter((n) => canAccess(role, n.to));
   return (
-    <div className="hk-top">
-      <nav className="hk-nav" aria-label="Meny">
-        <Link to={"/start" as never}>Hem</Link>
-        {nav.map((n) => (
-          <Link key={n.to} to={n.to as never}>
-            {n.label}
-          </Link>
-        ))}
-      </nav>
-      <div className="hk-user">
-        <div className="hk-user-name">
-          {name ?? ""}
-          <div className="hk-user-role">{roleLabel}</div>
+    <>
+      <Screensaver />
+      <div className="hk-top">
+        <nav className="hk-nav" aria-label="Meny">
+          <Link to={"/start" as never}>Hem</Link>
+          {nav.map((n) => (
+            <Link key={n.to} to={n.to as never}>
+              {n.label}
+            </Link>
+          ))}
+        </nav>
+        <div className="hk-user">
+          <div className="hk-user-name">
+            {name ?? ""}
+            <div className="hk-user-role">{roleLabel}</div>
+          </div>
+          <button
+            type="button"
+            className="hk-out"
+            onClick={async () => {
+              await supabase.auth.signOut();
+              window.location.href = "/login";
+            }}
+          >
+            Logga ut
+          </button>
         </div>
-        <button
-          type="button"
-          className="hk-out"
-          onClick={async () => {
-            await supabase.auth.signOut();
-            window.location.href = "/login";
-          }}
-        >
-          Logga ut
-        </button>
       </div>
-    </div>
+    </>
   );
 }
 
