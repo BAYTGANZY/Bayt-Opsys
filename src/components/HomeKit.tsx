@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { canAccess } from "@/lib/permissions";
 import { Screensaver } from "@/components/Screensaver";
 
-// BAYT-ordet som vektorgrafik (ljusgrön toning + glöd), uppmätt från originalloggan.
+// Behålls för bakåtkompatibilitet: sidorna importerar dessa, men hjälten visar ingen logga längre.
 const WORD_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="90 720 1760 490">
 <defs>
 <linearGradient id="l" gradientUnits="userSpaceOnUse" x1="0" y1="783" x2="0" y2="1152"><stop offset="0" stop-color="#7fe08a"/><stop offset="1" stop-color="#2f9a48"/></linearGradient>
@@ -24,7 +24,6 @@ const WORD_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="90 720 1760 4
 </svg>`;
 
 export const homeLogo = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(WORD_SVG)}`;
-// Hjältens bild: hela ordet BAYT (pulserar via CSS).
 export const homeSketch = homeLogo;
 
 export type Kind = "issue" | "inspection" | "project";
@@ -173,10 +172,10 @@ export const HOME_STYLES = `
     color: #e6efd8; font-family: Inter, system-ui, sans-serif; padding: 0 0 56px;
   }
   .hk-wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
-  .hk-top { display: flex; align-items: center; gap: 16px; padding: 22px 0 14px; }
-  .hk-nav { display: flex; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; margin-left: -12px; }
+  .hk-top { display: flex; align-items: center; gap: 12px; padding: 22px 0 14px; }
+  .hk-nav { display: flex; gap: 0; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; margin-left: -10px; }
   .hk-nav::-webkit-scrollbar { display: none; }
-  .hk-nav a { padding: 8px 10px; border-radius: 8px; font-size: 13.5px; text-decoration: none; color: #9fb79f; white-space: nowrap; flex-shrink: 0; }
+  .hk-nav a { padding: 8px 8px; border-radius: 8px; font-size: 13px; text-decoration: none; color: #9fb79f; white-space: nowrap; flex-shrink: 0; }
   .hk-nav a:hover { color: #fff; background: rgba(255,255,255,0.06); }
   .hk-user { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
   .hk-user-name { font-size: 13px; color: #c9d6c3; text-align: right; line-height: 1.25; }
@@ -184,23 +183,9 @@ export const HOME_STYLES = `
   .hk-out { height: 36px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; cursor: pointer; font-family: inherit; background: transparent; color: #9fb79f; border: 1px solid rgba(151,186,72,0.2); }
   .hk-out:hover { color: #fff; border-color: rgba(92,184,74,0.6); }
 
-  .hk-hero { position: relative; border-radius: 22px; overflow: hidden; margin-top: 8px; min-height: 250px; display: flex; align-items: flex-end; }
-  .hk-hero-img {
-    position: absolute; right: 56px; top: 50%; width: 40%; max-width: 480px; height: auto; z-index: 1;
-    pointer-events: none; transform-origin: center; transform: translateY(-50%);
-    animation: hkBeat 4s ease-in-out infinite;
-  }
-  @keyframes hkBeat {
-    0%   { transform: translateY(-50%) scale(1);     filter: drop-shadow(0 0 8px rgba(80,200,100,0.22)) brightness(1); }
-    14%  { transform: translateY(-50%) scale(1.03);  filter: drop-shadow(0 0 18px rgba(110,240,130,0.45)) brightness(1.12); }
-    28%  { transform: translateY(-50%) scale(1.01);  filter: drop-shadow(0 0 11px rgba(80,200,100,0.28)) brightness(1.03); }
-    42%  { transform: translateY(-50%) scale(1.035); filter: drop-shadow(0 0 22px rgba(130,255,140,0.55)) brightness(1.15); }
-    68%  { transform: translateY(-50%) scale(1);     filter: drop-shadow(0 0 8px rgba(80,200,100,0.22)) brightness(1); }
-    100% { transform: translateY(-50%) scale(1);     filter: drop-shadow(0 0 8px rgba(80,200,100,0.22)) brightness(1); }
-  }
-  @media (prefers-reduced-motion: reduce) { .hk-hero-img { animation: none; } }
-  .hk-hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(11,29,23,0.9) 0%, rgba(11,29,23,0.35) 45%, rgba(11,29,23,0) 65%); }
-  .hk-hero-body { position: relative; z-index: 2; padding: 38px 44px; max-width: 780px; }
+  .hk-hero { position: relative; border-radius: 22px; overflow: hidden; margin-top: 8px; min-height: 200px; display: flex; align-items: flex-end; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
+  .hk-hero-img { display: none; }
+  .hk-hero-body { position: relative; z-index: 2; padding: 38px 44px; max-width: 880px; }
   .hk-hello { color: #5CB84A; font-size: 17px; font-weight: 600; margin: 0 0 8px; }
   .hk-headline { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 42px; line-height: 1.1; font-weight: 600; margin: 0 0 12px; }
   .hk-headline.bad { color: #ffb4b4; }
@@ -263,17 +248,15 @@ export const HOME_STYLES = `
   @media (max-width: 1100px) {
     .hk-kpis, .hk-kpis.four { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .hk-headline { font-size: 34px; }
-    .hk-hero-img { width: 44%; right: 32px; }
   }
   @media (max-width: 860px) { .hk-cols { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 768px) {
     .hk-wrap { padding: 0 14px; }
     .hk-top { flex-wrap: wrap; gap: 10px; padding-top: 16px; }
-    .hk-nav { order: 3; flex-basis: 100%; margin-left: -10px; }
+    .hk-nav { order: 3; flex-basis: 100%; margin-left: -8px; }
     .hk-user { margin-left: auto; }
     .hk-user-name { display: none; }
-    .hk-hero { min-height: 220px; border-radius: 18px; }
-    .hk-hero-img { width: 70%; right: 16px; opacity: 0.35; }
+    .hk-hero { min-height: 170px; border-radius: 18px; }
     .hk-hero-body { padding: 26px 22px; }
     .hk-headline { font-size: 28px; }
     .hk-sub { font-size: 14px; }
