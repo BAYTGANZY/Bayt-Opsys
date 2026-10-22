@@ -3,11 +3,13 @@ import { Link } from "@tanstack/react-router";
 import { supabase } from "@/lib/supabase";
 import { canAccess } from "@/lib/permissions";
 import { Screensaver } from "@/components/Screensaver";
-import { NotificationsProvider } from "@/lib/notifications";
+import { NotificationsProvider, useNotifications } from "@/lib/notifications";
 import { NotificationBell } from "@/components/NotificationCenter";
+import { useAkutIssues } from "@/components/AkutWatcher";
+import { useArendeNotifications } from "@/hooks/useArendeNotifications";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-// Behålls för bakåtkompatibilitet: sidorna importerar dessa, men hjälten visar ingen logga.
+// Behålls för bakåtkompatibilitet: sidorna kan fortfarande importera dessa.
 const WORD_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="90 720 1760 490">
 <defs>
 <linearGradient id="l" gradientUnits="userSpaceOnUse" x1="0" y1="783" x2="0" y2="1152"><stop offset="0" stop-color="#7fe08a"/><stop offset="1" stop-color="#2f9a48"/></linearGradient>
@@ -80,14 +82,29 @@ export function useHomeUser() {
   return { role, name };
 }
 
-/** Samma klocka som i appens ram. Startsidorna ligger utanför ramen, så leverantören läggs här. */
-export function HomeBell() {
+function HeroBellInner() {
   const isMobile = useIsMobile();
+  const { unreadCount } = useNotifications();
+  const arende = useArendeNotifications();
+  const akut = useAkutIssues();
+  const total = unreadCount + arende.unreadCount + akut.length;
   return (
-    <NotificationsProvider>
-      <div className="hk-bell">
+    <div className="hk-herobell">
+      <div className="hk-bellring">
         <NotificationBell isMobile={isMobile} />
       </div>
+      <div className="hk-bell-label">
+        {total > 0 ? `${total} ${total === 1 ? "ny notis" : "nya notiser"}` : "Inga nya notiser"}
+      </div>
+    </div>
+  );
+}
+
+/** Stor klocka i hjälten. Samma klocka som i appens ram; leverantören läggs här eftersom startsidorna ligger utanför ramen. */
+export function HeroBell() {
+  return (
+    <NotificationsProvider>
+      <HeroBellInner />
     </NotificationsProvider>
   );
 }
@@ -118,7 +135,6 @@ export function TopBar({
           ))}
         </nav>
         <div className="hk-user">
-          {role ? <HomeBell /> : null}
           <div className="hk-user-name">
             {name ?? ""}
             <div className="hk-user-role">{roleLabel}</div>
@@ -199,19 +215,37 @@ export const HOME_STYLES = `
   .hk-nav a { padding: 8px 8px; border-radius: 8px; font-size: 13px; text-decoration: none; color: #9fb79f; white-space: nowrap; flex-shrink: 0; }
   .hk-nav a:hover { color: #fff; background: rgba(255,255,255,0.06); }
   .hk-user { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-  .hk-bell { display: flex; align-items: center; }
   .hk-user-name { font-size: 13px; color: #c9d6c3; text-align: right; line-height: 1.25; }
   .hk-user-role { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #7a9476; }
   .hk-out { height: 36px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; cursor: pointer; font-family: inherit; background: transparent; color: #9fb79f; border: 1px solid rgba(151,186,72,0.2); }
   .hk-out:hover { color: #fff; border-color: rgba(92,184,74,0.6); }
 
-  .hk-hero { position: relative; border-radius: 22px; overflow: hidden; margin-top: 8px; min-height: 200px; display: flex; align-items: flex-end; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
+  .hk-hero { position: relative; border-radius: 22px; overflow: visible; margin-top: 8px; min-height: 220px; display: flex; align-items: center; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); }
   .hk-hero-img { display: none; }
-  .hk-hero-body { position: relative; z-index: 2; padding: 38px 44px; max-width: 880px; }
+  .hk-hero-body { position: relative; z-index: 2; padding: 38px 44px; max-width: calc(100% - 260px); }
   .hk-hello { color: #5CB84A; font-size: 17px; font-weight: 600; margin: 0 0 8px; }
   .hk-headline { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 42px; line-height: 1.1; font-weight: 600; margin: 0 0 12px; }
   .hk-headline.bad { color: #ffb4b4; }
   .hk-sub { font-size: 15.5px; line-height: 1.55; color: #c3d1bd; margin: 0; }
+
+  /* Stor klocka i hjälten */
+  .hk-herobell { position: absolute; right: 56px; top: 50%; transform: translateY(-50%); z-index: 5; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .hk-bell-label { font-size: 13px; letter-spacing: 0.04em; color: #9fb79f; text-align: center; }
+  .hk-bellring button[aria-label] {
+    width: 112px !important; height: 112px !important; min-width: 112px !important; min-height: 112px !important; padding: 0 !important;
+    border-radius: 50% !important; border: 1px solid rgba(127,224,138,0.38) !important;
+    background: radial-gradient(circle at 30% 25%, rgba(127,224,138,0.24), rgba(255,255,255,0.04) 70%) !important;
+    color: #c4f2c6 !important;
+    box-shadow: 0 0 0 9px rgba(92,184,74,0.06), 0 0 0 20px rgba(92,184,74,0.03), 0 22px 44px -14px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.18) !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .hk-bellring button[aria-label]:hover { transform: scale(1.04); box-shadow: 0 0 0 9px rgba(92,184,74,0.12), 0 0 0 20px rgba(92,184,74,0.05), 0 26px 50px -14px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.22) !important; }
+  .hk-bellring button[aria-label] svg { width: 52px; height: 52px; }
+  .hk-bellring button[aria-label] > span {
+    top: 4px !important; right: 4px !important; min-width: 28px !important; height: 28px !important; border-radius: 999px !important;
+    font-size: 14px !important; border: 3px solid #0b1d17 !important; padding: 0 5px !important;
+  }
+  .hk-bellring [role="dialog"] { top: calc(100% + 16px) !important; right: 0 !important; z-index: 200 !important; }
 
   .hk-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
   .hk-action { display: inline-flex; align-items: center; height: 40px; padding: 0 16px; border-radius: 999px; font-size: 13.5px; font-weight: 600; text-decoration: none; color: #e6efd8; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); }
@@ -270,6 +304,7 @@ export const HOME_STYLES = `
   @media (max-width: 1100px) {
     .hk-kpis, .hk-kpis.four { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .hk-headline { font-size: 34px; }
+    .hk-herobell { right: 36px; }
   }
   @media (max-width: 860px) { .hk-cols { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 768px) {
@@ -279,10 +314,15 @@ export const HOME_STYLES = `
     .hk-nav { order: 3; flex-basis: 100%; }
     .hk-user { margin-left: auto; }
     .hk-user-name { display: none; }
-    .hk-hero { min-height: 170px; border-radius: 18px; }
-    .hk-hero-body { padding: 26px 22px; }
-    .hk-headline { font-size: 28px; }
+    .hk-hero { min-height: 190px; border-radius: 18px; }
+    .hk-hero-body { padding: 26px 22px; max-width: calc(100% - 120px); }
+    .hk-headline { font-size: 26px; }
     .hk-sub { font-size: 14px; }
+    .hk-herobell { right: 16px; gap: 10px; }
+    .hk-bell-label { font-size: 11.5px; max-width: 90px; }
+    .hk-bellring button[aria-label] { width: 80px !important; height: 80px !important; min-width: 80px !important; min-height: 80px !important; }
+    .hk-bellring button[aria-label] svg { width: 38px; height: 38px; }
+    .hk-bellring button[aria-label] > span { min-width: 24px !important; height: 24px !important; font-size: 12px !important; }
     .hk-kpis, .hk-kpis.four { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     .hk-kpi { padding: 14px; }
     .hk-kpi-n { font-size: 32px; }
