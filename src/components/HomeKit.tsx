@@ -89,6 +89,7 @@ export function TopBar({
   return (
     <div className="hk-top">
       <nav className="hk-nav" aria-label="Meny">
+        <Link to={"/start" as never}>Hem</Link>
         {nav.map((n) => (
           <Link key={n.to} to={n.to as never}>
             {n.label}
@@ -183,15 +184,15 @@ export const HOME_STYLES = `
   .hk-hero-img {
     position: absolute; right: 56px; top: 50%; width: 40%; max-width: 480px; height: auto; z-index: 1;
     pointer-events: none; transform-origin: center; transform: translateY(-50%);
-    animation: hkBeat 2.4s ease-in-out infinite;
+    animation: hkBeat 4s ease-in-out infinite;
   }
   @keyframes hkBeat {
-    0%   { transform: translateY(-50%) scale(1);    filter: drop-shadow(0 0 10px rgba(80,200,100,0.30)) brightness(1); }
-    12%  { transform: translateY(-50%) scale(1.05); filter: drop-shadow(0 0 30px rgba(110,240,130,0.75)) brightness(1.25); }
-    24%  { transform: translateY(-50%) scale(1.01); filter: drop-shadow(0 0 14px rgba(80,200,100,0.40)) brightness(1.05); }
-    38%  { transform: translateY(-50%) scale(1.07); filter: drop-shadow(0 0 40px rgba(130,255,140,0.90)) brightness(1.35); }
-    60%  { transform: translateY(-50%) scale(1);    filter: drop-shadow(0 0 12px rgba(80,200,100,0.30)) brightness(1); }
-    100% { transform: translateY(-50%) scale(1);    filter: drop-shadow(0 0 10px rgba(80,200,100,0.30)) brightness(1); }
+    0%   { transform: translateY(-50%) scale(1);     filter: drop-shadow(0 0 8px rgba(80,200,100,0.22)) brightness(1); }
+    14%  { transform: translateY(-50%) scale(1.03);  filter: drop-shadow(0 0 18px rgba(110,240,130,0.45)) brightness(1.12); }
+    28%  { transform: translateY(-50%) scale(1.01);  filter: drop-shadow(0 0 11px rgba(80,200,100,0.28)) brightness(1.03); }
+    42%  { transform: translateY(-50%) scale(1.035); filter: drop-shadow(0 0 22px rgba(130,255,140,0.55)) brightness(1.15); }
+    68%  { transform: translateY(-50%) scale(1);     filter: drop-shadow(0 0 8px rgba(80,200,100,0.22)) brightness(1); }
+    100% { transform: translateY(-50%) scale(1);     filter: drop-shadow(0 0 8px rgba(80,200,100,0.22)) brightness(1); }
   }
   @media (prefers-reduced-motion: reduce) { .hk-hero-img { animation: none; } }
   .hk-hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(11,29,23,0.9) 0%, rgba(11,29,23,0.35) 45%, rgba(11,29,23,0) 65%); }
