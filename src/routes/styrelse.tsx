@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { canAccess } from "@/lib/permissions";
+import { Screensaver } from "@/components/Screensaver";
 import {
   deriveIssueStatus,
   deriveInspectionStatus,
@@ -184,7 +185,7 @@ const STYLES = `
   .sv-hero-body { position: relative; z-index: 1; padding: 40px 44px; max-width: 760px; }
   .sv-hello { color: #5CB84A; font-size: 17px; font-weight: 600; margin: 0 0 8px; }
   .sv-headline { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 44px; line-height: 1.1; font-weight: 600; margin: 0 0 14px; }
-  .sv-headline.bad { color: #ffb4b4; }
+  .sv-headline.bad { color: #F2E3BC; }
   .sv-sub { font-size: 15.5px; line-height: 1.55; color: #c3d1bd; margin: 0; }
 
   .sv-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
@@ -192,8 +193,9 @@ const STYLES = `
   .sv-kpi-label { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: #8aa38a; }
   .sv-kpi-n { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 40px; font-weight: 600; line-height: 1.1; margin: 8px 0 4px; }
   .sv-kpi-sub { font-size: 12.5px; color: #8aa38a; }
-  .sv-kpi.bad { border-color: rgba(255,120,120,0.4); background: rgba(255,90,90,0.08); }
-  .sv-kpi.bad .sv-kpi-n { color: #ffb4b4; }
+  .sv-kpi.bad { border-color: #8B1A2B; background: rgba(122,20,38,0.30); }
+  .sv-kpi.bad .sv-kpi-n { color: #F2E3BC; }
+  .sv-kpi.bad .sv-kpi-sub { color: #d9c7a0; }
   .sv-kpi.good .sv-kpi-n { color: #8be07a; }
 
   .sv-h2 { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 20px; font-weight: 600; margin: 34px 0 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -221,9 +223,9 @@ const STYLES = `
   .sv-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
   .sv-badge.ok { color: #8be07a; background: rgba(61,138,48,0.35); }
   .sv-badge.warn { color: #ffd37a; background: rgba(210,150,20,0.3); }
-  .sv-badge.bad { color: #ffb4b4; background: rgba(220,60,60,0.35); }
+  .sv-badge.bad { color: #F5E6C4; background: #7A1426; }
 
-  .sv-filter { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; font-size: 13.5px; color: #c3d1bd; flex-wrap: wrap; }
+  .sv-filter { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 13.5px; color: #c3d1bd; flex-wrap: wrap; }
   .sv-filter button { height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(92,184,74,0.5); background: rgba(92,184,74,0.12); color: #cfe9c8; cursor: pointer; font: inherit; font-size: 12.5px; }
 
   .sv-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
@@ -241,7 +243,7 @@ const STYLES = `
   .sv-row-sub { font-size: 12.5px; color: #8aa38a; margin-top: 2px; }
   .sv-row-right { flex-shrink: 0; text-align: right; display: grid; gap: 6px; justify-items: end; }
   .sv-chip { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
-  .sv-chip-bad { color: #ffb4b4; background: rgba(220,60,60,0.22); }
+  .sv-chip-bad { color: #F5E6C4; background: #7A1426; }
   .sv-chip-warn { color: #ffd37a; background: rgba(210,150,20,0.2); }
   .sv-chip-ok { color: #8be07a; background: rgba(61,138,48,0.25); }
   .sv-chip-muted { color: #8aa38a; background: rgba(255,255,255,0.06); }
@@ -434,7 +436,7 @@ function StyrelsePage() {
     const n = selectedProp ? 1 : properties.length;
     parts.push(selectedProp ? selectedProp.name : `${n} ${n === 1 ? "fastighet" : "fastigheter"}`);
     parts.push(`${openIssues.length} ${openIssues.length === 1 ? "öppen felanmälan" : "öppna felanmälningar"}`);
-    parts.push(`${projects.length} ${projects.length === 1 ? "pågående projekt" : "pågående projekt"}`);
+    parts.push(`${projects.length} pågående projekt`);
     if (upcoming90.length > 0) parts.push(`${upcoming90.length} ${upcoming90.length === 1 ? "kontroll" : "kontroller"} de närmaste 90 dagarna`);
     return parts.join(" · ");
   })();
@@ -446,9 +448,19 @@ function StyrelsePage() {
 
   const nav = NAV.filter((n) => canAccess(role, n.to));
 
+  const selectProperty = (id: string) => {
+    setSel((cur) => (cur === id ? null : id));
+    try {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch {
+      /* ignoreras */
+    }
+  };
+
   return (
     <>
       <style>{STYLES}</style>
+      <Screensaver />
       <div className="sv-page">
         <div className="sv-wrap">
           <div className="sv-top">
@@ -531,7 +543,7 @@ function StyrelsePage() {
                 </div>
               </div>
 
-              <h2 className="sv-h2">Fastighetsöversikt</h2>
+              <h2 className="sv-h2">Läget just nu</h2>
               {selectedProp && (
                 <div className="sv-filter">
                   <span>Visar bara {selectedProp.name}.</span>
@@ -540,33 +552,6 @@ function StyrelsePage() {
                   </button>
                 </div>
               )}
-              <div className="sv-props">
-                {perProperty.map(({ property: p, level, activeCount, projectCount, nextDue }) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    className="sv-prop"
-                    aria-pressed={sel === p.id}
-                    onClick={() => setSel((cur) => (cur === p.id ? null : p.id))}
-                  >
-                    {p.image_url ? <img src={p.image_url} alt="" /> : <img src={sketch} alt="" className="sv-sketch" />}
-                    <span className="sv-prop-badge">
-                      <span className={`sv-badge ${level}`}>{LEVEL_LABEL[level]}</span>
-                    </span>
-                    <span className="sv-prop-body">
-                      <div className="sv-prop-name">{p.name}</div>
-                      {p.address && <div className="sv-prop-addr">{p.address}</div>}
-                      <div className="sv-prop-stats">
-                        <span>{activeCount} aktiva ärenden</span>
-                        <span>{projectCount} projekt</span>
-                        <span>Nästa kontroll: {nextDue ? fmtDate(nextDue) : "—"}</span>
-                      </div>
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              <h2 className="sv-h2">Läget just nu</h2>
               <div className="sv-cols">
                 <Panel title="Kräver uppmärksamhet" to="/issues">
                   {needsAttention.length === 0 && <div className="sv-empty">Inget är försenat eller akut. 👍</div>}
@@ -651,6 +636,33 @@ function StyrelsePage() {
                     />
                   ))}
                 </Panel>
+              </div>
+
+              <h2 className="sv-h2">Fastighetsöversikt</h2>
+              <div className="sv-props">
+                {perProperty.map(({ property: p, level, activeCount, projectCount, nextDue }) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className="sv-prop"
+                    aria-pressed={sel === p.id}
+                    onClick={() => selectProperty(p.id)}
+                  >
+                    {p.image_url ? <img src={p.image_url} alt="" /> : <img src={sketch} alt="" className="sv-sketch" />}
+                    <span className="sv-prop-badge">
+                      <span className={`sv-badge ${level}`}>{LEVEL_LABEL[level]}</span>
+                    </span>
+                    <span className="sv-prop-body">
+                      <div className="sv-prop-name">{p.name}</div>
+                      {p.address && <div className="sv-prop-addr">{p.address}</div>}
+                      <div className="sv-prop-stats">
+                        <span>{activeCount} aktiva ärenden</span>
+                        <span>{projectCount} projekt</span>
+                        <span>Nästa kontroll: {nextDue ? fmtDate(nextDue) : "—"}</span>
+                      </div>
+                    </span>
+                  </button>
+                ))}
               </div>
 
               <p className="sv-note">
