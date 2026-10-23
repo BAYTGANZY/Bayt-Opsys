@@ -2,17 +2,8 @@ import { createFileRoute, redirect, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { useMyArenden, arendeHref, arendeKindLabel } from "@/hooks/useMyArenden";
-import {
-  HOME_STYLES,
-  TopBar,
-  Panel,
-  Row,
-  useHomeUser,
-  HeroBell,
-  greeting,
-  fmtDate,
-  daysChip,
-} from "@/components/HomeKit";
+import { HOME_STYLES, TopBar, Panel, Row, useHomeUser, greeting, fmtDate, daysChip } from "@/components/HomeKit";
+import { Hero } from "@/components/HeroKit";
 
 export const Route = createFileRoute("/mina-uppdrag")({
   ssr: false,
@@ -66,6 +57,8 @@ function MinaUppdragPage() {
         ? `${soon.length} ${soon.length === 1 ? "förfaller" : "förfaller"} inom sju dagar. Börja uppifrån.`
         : "Inget brådskar de närmaste dagarna.";
 
+  const top = overdue[0] ?? first[0] ?? sorted[0] ?? null;
+
   const render = (list: typeof sorted) =>
     list.map((a) => {
       const chip = daysChip(a.status.daysLeft);
@@ -108,42 +101,33 @@ function MinaUppdragPage() {
 
           {allowed && (
             <>
-              <section className="hk-hero">
-                <HeroBell />
-                <div className="hk-hero-body">
-                  <p className="hk-hello">
-                    {greeting()}
-                    {firstName ? `, ${firstName}` : ""}
-                  </p>
-                  <h1 className={`hk-headline${overdue.length > 0 ? " bad" : ""}`}>{isLoading ? "Hämtar dina uppdrag…" : headline}</h1>
-                  <p className="hk-sub">{isLoading ? "" : sub}</p>
-                </div>
-              </section>
+              <Hero
+                hello={`${greeting()}${firstName ? `, ${firstName}` : ""}`}
+                headline={headline}
+                bad={overdue.length > 0}
+                sub={sub}
+                loading={isLoading}
+                next={
+                  top
+                    ? {
+                        to: arendeHref(top),
+                        label: "Gör först",
+                        title: top.title,
+                        sub: `${arendeKindLabel(top.kind)}${top.propertyName ? ` · ${top.propertyName}` : ""}`,
+                        chip: daysChip(top.status.daysLeft),
+                      }
+                    : null
+                }
+                emptyNext="Inga uppdrag just nu."
+                tiles={[
+                  { label: "Aktiva uppdrag", n: active.length },
+                  { label: "Försenade", n: overdue.length, tone: overdue.length > 0 ? "bad" : undefined },
+                  { label: "Inom 7 dagar", n: soon.length, tone: soon.length > 0 ? "warn" : undefined },
+                  { label: "Avslutade", n: done.length, tone: "good" },
+                ]}
+              />
 
               {error && <div className="hk-empty">Kunde inte hämta dina uppdrag: {error.message}</div>}
-
-              <div className="hk-kpis four">
-                <div className="hk-kpi">
-                  <div className="hk-kpi-label">Aktiva uppdrag</div>
-                  <div className="hk-kpi-n">{active.length}</div>
-                  <div className="hk-kpi-sub">Tilldelade dig</div>
-                </div>
-                <div className={`hk-kpi${overdue.length > 0 ? " bad" : ""}`}>
-                  <div className="hk-kpi-label">Försenade</div>
-                  <div className="hk-kpi-n">{overdue.length}</div>
-                  <div className="hk-kpi-sub">{overdue.length > 0 ? "Ta dem först" : "Inga försenade"}</div>
-                </div>
-                <div className={`hk-kpi${soon.length > 0 ? " warn" : ""}`}>
-                  <div className="hk-kpi-label">Inom 7 dagar</div>
-                  <div className="hk-kpi-n">{soon.length}</div>
-                  <div className="hk-kpi-sub">Förfaller snart</div>
-                </div>
-                <div className="hk-kpi good">
-                  <div className="hk-kpi-label">Avslutade</div>
-                  <div className="hk-kpi-n">{done.length}</div>
-                  <div className="hk-kpi-sub">Totalt hos BAYT</div>
-                </div>
-              </div>
 
               <h2 className="hk-h2">Dina uppdrag</h2>
               <div className="hk-cols">
