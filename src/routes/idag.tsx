@@ -155,7 +155,7 @@ const IDAG_STYLES = `
     position: relative; margin-top: 8px; border-radius: 26px; overflow: hidden; min-height: 600px;
     background: radial-gradient(ellipse at 30% 45%, #21503f 0%, #0f2a21 55%, #0b1d17 100%);
     border: 1px solid rgba(255,255,255,0.08);
-    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 400px); grid-template-rows: 1fr; gap: 28px; align-items: start;
+    display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); grid-template-rows: 1fr; gap: 28px; align-items: start;
     padding: 40px 44px 96px; perspective: 1200px;
   }
   .id-photo { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; }
@@ -163,12 +163,12 @@ const IDAG_STYLES = `
   @keyframes idDayNight { 0%, 25% { opacity: 0; } 75%, 100% { opacity: 1; } }
   .id-shade {
     position: absolute; inset: 0; z-index: 1; pointer-events: none;
-    background: linear-gradient(90deg, rgba(8,22,17,0.55) 0%, rgba(8,22,17,0.30) 45%, rgba(8,22,17,0.70) 100%),
+    background: linear-gradient(90deg, rgba(8,22,17,0.70) 0%, rgba(8,22,17,0.30) 55%, rgba(8,22,17,0.55) 100%),
                 linear-gradient(0deg, rgba(8,22,17,0.85) 0%, rgba(8,22,17,0) 38%);
   }
   .id-col-l, .id-col-r { position: relative; z-index: 2; }
-  .id-col-l { grid-column: 1; grid-row: 1; }
-  .id-col-r { grid-column: 2; grid-row: 1; display: grid; gap: 14px; }
+  .id-col-l { grid-column: 1; grid-row: 1; display: grid; gap: 14px; }
+  .id-col-r { grid-column: 2; grid-row: 1; }
 
   .id-glass {
     background: rgba(14,31,26,0.58); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
@@ -177,7 +177,7 @@ const IDAG_STYLES = `
     transform: perspective(1000px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
     transition: transform 0.25s ease-out;
   }
-  .id-col-r .id-glass { transform: perspective(1000px) rotateX(calc(var(--rx, 0deg) * -0.8)) rotateY(calc(var(--ry, 0deg) * -0.8)); }
+  .id-col-l .id-glass { transform: perspective(1000px) rotateX(calc(var(--rx, 0deg) * -0.8)) rotateY(calc(var(--ry, 0deg) * -0.8)); }
 
   .id-main { padding: 22px 26px; }
   .id-hello { color: #5CB84A; font-size: 15px; font-weight: 600; margin: 0 0 6px; }
@@ -185,11 +185,11 @@ const IDAG_STYLES = `
   .id-headline.bad { color: #F2E3BC; }
   .id-sub { font-size: 14.5px; line-height: 1.55; color: #c9d6c3; margin: 0; }
 
-  .id-bellslot { display: flex; justify-content: flex-start; padding-left: 6px; }
-  .id-bellslot .hk-herobell { position: static; transform: none; flex-direction: row; gap: 12px; }
+  .id-bellslot { display: flex; justify-content: flex-end; padding-right: 6px; }
+  .id-bellslot .hk-herobell { position: static; transform: none; flex-direction: row-reverse; gap: 12px; }
   .id-bellslot .hk-bell-label { display: block; }
   .id-bellslot .hk-bellring { position: relative; }
-  .id-bellslot .hk-bellring [role="dialog"] { top: calc(100% + 14px) !important; left: 0 !important; right: auto !important; }
+  .id-bellslot .hk-bellring [role="dialog"] { top: calc(100% + 14px) !important; right: 0 !important; left: auto !important; }
   .id-bellslot .hk-bellring button[aria-label] { width: 72px !important; height: 72px !important; min-width: 72px !important; min-height: 72px !important; }
   .id-bellslot .hk-bellring button[aria-label] svg { width: 34px; height: 34px; }
   .id-bellslot .hk-bellring button[aria-label] > span { min-width: 24px !important; height: 24px !important; font-size: 12px !important; }
@@ -233,10 +233,10 @@ const IDAG_STYLES = `
     .id-main { padding: 20px; }
     .id-headline { font-size: 28px; }
     .id-props { left: 14px; right: 14px; bottom: 16px; }
-    .id-glass, .id-col-r .id-glass { transform: none; }
+    .id-glass, .id-col-l .id-glass { transform: none; }
   }
   @media (hover: none), (prefers-reduced-motion: reduce) {
-    .id-glass, .id-col-r .id-glass { transform: none !important; transition: none; }
+    .id-glass, .id-col-l .id-glass { transform: none !important; transition: none; }
   }
   @media (prefers-reduced-motion: reduce) { .id-photo.night { animation: none; opacity: 0; } }
 `;
@@ -352,12 +352,6 @@ function IdagPage() {
                 <div className="id-shade" />
 
                 <div className="id-col-l">
-                  <div className="id-bellslot">
-                    <HeroBell />
-                  </div>
-                </div>
-
-                <div className="id-col-r">
                   <div className="id-glass id-main">
                     <p className="id-hello">{greeting()}</p>
                     <h1 className={`id-headline${attention.length > 0 ? " bad" : ""}`}>{loading ? "Hämtar läget…" : headline}</h1>
@@ -401,6 +395,12 @@ function IdagPage() {
                       <div className="id-tile-l">Avklarat, 30 dagar</div>
                       <div className="id-tile-n">{resolved.length}</div>
                     </div>
+                  </div>
+                </div>
+
+                <div className="id-col-r">
+                  <div className="id-bellslot">
+                    <HeroBell />
                   </div>
                 </div>
 
