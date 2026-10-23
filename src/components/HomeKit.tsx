@@ -225,7 +225,7 @@ export const HOME_STYLES = `
   .hk-hero-body { position: relative; z-index: 2; padding: 38px 44px; max-width: calc(100% - 260px); }
   .hk-hello { color: #5CB84A; font-size: 17px; font-weight: 600; margin: 0 0 8px; }
   .hk-headline { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 42px; line-height: 1.1; font-weight: 600; margin: 0 0 12px; }
-  .hk-headline.bad { color: #ffb4b4; }
+  .hk-headline.bad { color: #F2E3BC; }
   .hk-sub { font-size: 15.5px; line-height: 1.55; color: #c3d1bd; margin: 0; }
 
   /* Stor klocka i hjälten */
@@ -258,8 +258,9 @@ export const HOME_STYLES = `
   .hk-kpi-label { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: #8aa38a; }
   .hk-kpi-n { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 40px; font-weight: 600; line-height: 1.1; margin: 8px 0 4px; }
   .hk-kpi-sub { font-size: 12.5px; color: #8aa38a; }
-  .hk-kpi.bad { border-color: rgba(255,120,120,0.4); background: rgba(255,90,90,0.08); }
-  .hk-kpi.bad .hk-kpi-n { color: #ffb4b4; }
+  .hk-kpi.bad { border-color: #8B1A2B; background: rgba(122,20,38,0.30); }
+  .hk-kpi.bad .hk-kpi-n { color: #F2E3BC; }
+  .hk-kpi.bad .hk-kpi-sub { color: #d9c7a0; }
   .hk-kpi.warn { border-color: rgba(255,200,90,0.4); background: rgba(210,150,20,0.08); }
   .hk-kpi.warn .hk-kpi-n { color: #ffd37a; }
   .hk-kpi.good .hk-kpi-n { color: #8be07a; }
@@ -279,7 +280,7 @@ export const HOME_STYLES = `
   .hk-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
   .hk-badge.ok { color: #8be07a; background: rgba(61,138,48,0.35); }
   .hk-badge.warn { color: #ffd37a; background: rgba(210,150,20,0.3); }
-  .hk-badge.bad { color: #ffb4b4; background: rgba(220,60,60,0.35); }
+  .hk-badge.bad { color: #F5E6C4; background: #7A1426; }
   .hk-filter { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 13.5px; color: #c3d1bd; flex-wrap: wrap; }
   .hk-filter button { height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(92,184,74,0.5); background: rgba(92,184,74,0.12); color: #cfe9c8; cursor: pointer; font: inherit; font-size: 12.5px; }
 
@@ -295,7 +296,7 @@ export const HOME_STYLES = `
   .hk-row-sub { font-size: 12.5px; color: #8aa38a; margin-top: 2px; }
   .hk-row-right { flex-shrink: 0; text-align: right; display: grid; gap: 6px; justify-items: end; }
   .hk-chip { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
-  .hk-chip-bad { color: #ffb4b4; background: rgba(220,60,60,0.22); }
+  .hk-chip-bad { color: #F5E6C4; background: #7A1426; }
   .hk-chip-warn { color: #ffd37a; background: rgba(210,150,20,0.2); }
   .hk-chip-ok { color: #8be07a; background: rgba(61,138,48,0.25); }
   .hk-chip-muted { color: #8aa38a; background: rgba(255,255,255,0.06); }
