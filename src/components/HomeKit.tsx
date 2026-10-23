@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/lib/supabase";
 import { canAccess } from "@/lib/permissions";
@@ -31,6 +31,9 @@ export const homeSketch = homeLogo;
 
 // Den vita loggan som används uppe till vänster (samma som på styrelsevyn).
 const whiteLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
+
+// Dessa val ligger alltid synliga i menyn. Resten hamnar under "Mer" när menyn är lång.
+const PRIMARY_NAV = new Set(["/dag-rapport", "/fastigheter", "/issues", "/inspections", "/projects", "/chatt"]);
 
 export type Kind = "issue" | "inspection" | "project";
 
@@ -108,19 +111,59 @@ export function TopBar({
   roleLabel: string;
 }) {
   const nav = items.filter((n) => canAccess(role, n.to));
+  const split = nav.length > 7;
+  const primary = split ? nav.filter((n) => PRIMARY_NAV.has(n.to)) : nav;
+  const more = split ? nav.filter((n) => !PRIMARY_NAV.has(n.to)) : [];
+
+  const [open, setOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   return (
     <>
       <Screensaver />
       <div className="hk-top">
         <img src={whiteLogo} alt="BAYT" className="hk-logo" />
-        <nav className="hk-nav" aria-label="Meny">
-          <Link to={"/start" as never}>Hem</Link>
-          {nav.map((n) => (
-            <Link key={n.to} to={n.to as never}>
-              {n.label}
-            </Link>
-          ))}
-        </nav>
+        <div className="hk-navwrap">
+          <nav className="hk-nav" aria-label="Meny">
+            <Link to={"/start" as never}>Hem</Link>
+            {primary.map((n) => (
+              <Link key={n.to} to={n.to as never}>
+                {n.label}
+              </Link>
+            ))}
+          </nav>
+          {more.length > 0 && (
+            <div className="hk-more" ref={moreRef}>
+              <button type="button" className="hk-more-btn" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+                Mer <span aria-hidden="true">▾</span>
+              </button>
+              {open && (
+                <div className="hk-more-pop" role="menu">
+                  {more.map((n) => (
+                    <Link key={n.to} to={n.to as never} onClick={() => setOpen(false)} role="menuitem">
+                      {n.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         <div className="hk-user">
           <div className="hk-user-name">
             {name ?? ""}
@@ -205,12 +248,26 @@ export const HOME_STYLES = `
     .hk-wrap > :last-child:not(.hk-top) { margin-bottom: auto; }
   }
 
-  .hk-top { display: flex; align-items: center; gap: 18px; padding: 22px 0 14px; }
+  .hk-top { display: flex; align-items: center; gap: 18px; padding: 22px 0 14px; position: relative; z-index: 50; }
   .hk-logo { height: 36px; width: auto; display: block; flex-shrink: 0; }
-  .hk-nav { display: flex; gap: 0; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .hk-navwrap { display: flex; align-items: center; gap: 2px; flex: 1; min-width: 0; }
+  .hk-nav { display: flex; gap: 0; min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .hk-nav::-webkit-scrollbar { display: none; }
-  .hk-nav a { padding: 8px 8px; border-radius: 8px; font-size: 13px; text-decoration: none; color: #9fb79f; white-space: nowrap; flex-shrink: 0; }
+  .hk-nav a { padding: 8px 10px; border-radius: 8px; font-size: 13.5px; text-decoration: none; color: #9fb79f; white-space: nowrap; flex-shrink: 0; }
   .hk-nav a:hover { color: #fff; background: rgba(255,255,255,0.06); }
+
+  .hk-more { position: relative; flex-shrink: 0; }
+  .hk-more-btn { padding: 8px 10px; border-radius: 8px; border: none; background: transparent; font: inherit; font-size: 13.5px; color: #9fb79f; cursor: pointer; white-space: nowrap; }
+  .hk-more-btn:hover, .hk-more-btn[aria-expanded="true"] { color: #fff; background: rgba(255,255,255,0.08); }
+  .hk-more-pop {
+    position: absolute; top: calc(100% + 8px); left: 0; min-width: 190px; padding: 6px; z-index: 300;
+    background: rgba(14,31,26,0.96); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.14); border-radius: 14px; box-shadow: 0 20px 44px -16px rgba(0,0,0,0.75);
+    display: grid; gap: 2px;
+  }
+  .hk-more-pop a { padding: 10px 12px; border-radius: 9px; font-size: 14px; text-decoration: none; color: #d9e6d3; }
+  .hk-more-pop a:hover { background: rgba(92,184,74,0.16); color: #fff; }
+
   .hk-user { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
   .hk-user-name { font-size: 13px; color: #c9d6c3; text-align: right; line-height: 1.25; }
   .hk-user-role { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #7a9476; }
@@ -309,7 +366,9 @@ export const HOME_STYLES = `
     .hk-wrap { padding: 0 14px; }
     .hk-top { flex-wrap: wrap; gap: 10px; padding-top: 16px; }
     .hk-logo { height: 30px; }
-    .hk-nav { order: 3; flex-basis: 100%; }
+    .hk-navwrap { order: 3; flex-basis: 100%; }
+    .hk-nav { flex: 1; }
+    .hk-more-pop { left: auto; right: 0; }
     .hk-user { margin-left: auto; }
     .hk-user-name { display: none; }
     .hk-hero { min-height: 190px; border-radius: 18px; }
