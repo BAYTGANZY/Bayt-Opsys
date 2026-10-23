@@ -25,7 +25,9 @@ import {
   KIND_PATH,
   type Kind,
 } from "@/components/HomeKit";
-import { Building3D } from "@/components/Building3D";
+
+const DAY_IMG = `${import.meta.env.BASE_URL}assets/hero-day.jpg`;
+const NIGHT_IMG = `${import.meta.env.BASE_URL}assets/hero-night.jpg`;
 
 export const Route = createFileRoute("/idag")({
   ssr: false,
@@ -150,39 +152,48 @@ function levelOf(entries: Entry[]): Level {
 
 const IDAG_STYLES = `
   .id-hero {
-    position: relative; margin-top: 8px; border-radius: 26px; overflow: hidden; min-height: 560px;
+    position: relative; margin-top: 8px; border-radius: 26px; overflow: hidden; min-height: 600px;
     background: radial-gradient(ellipse at 30% 45%, #21503f 0%, #0f2a21 55%, #0b1d17 100%);
     border: 1px solid rgba(255,255,255,0.08);
-    display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: 28px; align-items: stretch;
-    padding: 40px 44px 92px; perspective: 1200px;
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 400px); grid-template-rows: 1fr; gap: 28px; align-items: start;
+    padding: 40px 44px 96px; perspective: 1200px;
   }
-  .id-hero::before {
-    content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
-    background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
-    background-size: 44px 44px; mask-image: radial-gradient(ellipse at 35% 50%, #000 0%, transparent 75%);
-    -webkit-mask-image: radial-gradient(ellipse at 35% 50%, #000 0%, transparent 75%);
+  .id-photo { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; }
+  .id-photo.night { opacity: 0; animation: idDayNight 18s ease-in-out infinite alternate; }
+  @keyframes idDayNight { 0%, 25% { opacity: 0; } 75%, 100% { opacity: 1; } }
+  .id-shade {
+    position: absolute; inset: 0; z-index: 1; pointer-events: none;
+    background: linear-gradient(90deg, rgba(8,22,17,0.55) 0%, rgba(8,22,17,0.30) 45%, rgba(8,22,17,0.70) 100%),
+                linear-gradient(0deg, rgba(8,22,17,0.85) 0%, rgba(8,22,17,0) 38%);
   }
-  .id-hero > * { position: relative; z-index: 1; }
-
-  .id-left { position: relative; display: flex; flex-direction: column; min-height: 440px; }
-  .id-scene { position: absolute; inset: 0; z-index: 0; }
+  .id-col-l, .id-col-r { position: relative; z-index: 2; }
+  .id-col-l { grid-column: 1; grid-row: 1; }
+  .id-col-r { grid-column: 2; grid-row: 1; display: grid; gap: 14px; }
 
   .id-glass {
-    background: rgba(14,31,26,0.55); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+    background: rgba(14,31,26,0.58); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
     border: 1px solid rgba(255,255,255,0.14); border-radius: 22px;
     box-shadow: 0 24px 50px -20px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.12);
     transform: perspective(1000px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
     transition: transform 0.25s ease-out;
   }
-  .id-right .id-glass { transform: perspective(1000px) rotateX(calc(var(--rx, 0deg) * -0.8)) rotateY(calc(var(--ry, 0deg) * -0.8)); }
+  .id-col-r .id-glass { transform: perspective(1000px) rotateX(calc(var(--rx, 0deg) * -0.8)) rotateY(calc(var(--ry, 0deg) * -0.8)); }
 
-  .id-main { position: relative; z-index: 2; padding: 26px 30px; max-width: 460px; }
-  .id-hello { color: #5CB84A; font-size: 16px; font-weight: 600; margin: 0 0 6px; }
-  .id-headline { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 38px; line-height: 1.08; font-weight: 600; margin: 0 0 10px; }
+  .id-main { padding: 22px 26px; }
+  .id-hello { color: #5CB84A; font-size: 15px; font-weight: 600; margin: 0 0 6px; }
+  .id-headline { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 32px; line-height: 1.1; font-weight: 600; margin: 0 0 10px; }
   .id-headline.bad { color: #F2E3BC; }
-  .id-sub { font-size: 15px; line-height: 1.55; color: #c9d6c3; margin: 0; }
+  .id-sub { font-size: 14.5px; line-height: 1.55; color: #c9d6c3; margin: 0; }
 
-  .id-right { display: grid; gap: 14px; align-content: center; }
+  .id-bellslot { display: flex; justify-content: flex-start; padding-left: 6px; }
+  .id-bellslot .hk-herobell { position: static; transform: none; flex-direction: row; gap: 12px; }
+  .id-bellslot .hk-bell-label { display: block; }
+  .id-bellslot .hk-bellring { position: relative; }
+  .id-bellslot .hk-bellring [role="dialog"] { top: calc(100% + 14px) !important; left: 0 !important; right: auto !important; }
+  .id-bellslot .hk-bellring button[aria-label] { width: 72px !important; height: 72px !important; min-width: 72px !important; min-height: 72px !important; }
+  .id-bellslot .hk-bellring button[aria-label] svg { width: 34px; height: 34px; }
+  .id-bellslot .hk-bellring button[aria-label] > span { min-width: 24px !important; height: 24px !important; font-size: 12px !important; }
+
   .id-next { padding: 20px 22px; display: block; text-decoration: none; color: inherit; }
   .id-next:hover { border-color: rgba(92,184,74,0.6); }
   .id-next-label { font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #9fb79f; }
@@ -194,55 +205,48 @@ const IDAG_STYLES = `
   .id-tile { padding: 14px 16px; border-radius: 18px; }
   .id-tile-l { font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: #9fb79f; }
   .id-tile-n { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 32px; font-weight: 600; line-height: 1.1; margin-top: 4px; }
-  .id-tile.bad { border-color: #8B1A2B; background: rgba(122,20,38,0.45); }
+  .id-tile.bad { border-color: #8B1A2B; background: rgba(122,20,38,0.5); }
   .id-tile.bad .id-tile-n { color: #F2E3BC; }
   .id-tile.warn .id-tile-n { color: #ffd37a; }
   .id-tile.good .id-tile-n { color: #8be07a; }
 
   .id-props { position: absolute; left: 44px; right: 44px; bottom: 26px; z-index: 3; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  .id-props-label { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #b9c8b4; margin-right: 4px; }
+  .id-props-label { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #d3e0cf; margin-right: 4px; }
   .id-chip {
     display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 16px; border-radius: 999px; cursor: pointer; font: inherit;
-    font-size: 13px; font-weight: 600; color: #e6efd8; background: rgba(14,31,26,0.6); border: 1px solid rgba(255,255,255,0.16);
+    font-size: 13px; font-weight: 600; color: #e6efd8; background: rgba(14,31,26,0.62); border: 1px solid rgba(255,255,255,0.18);
     -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   }
   .id-chip:hover { border-color: rgba(92,184,74,0.7); }
-  .id-chip[aria-pressed="true"] { border-color: #5CB84A; background: rgba(61,138,48,0.45); }
+  .id-chip[aria-pressed="true"] { border-color: #5CB84A; background: rgba(61,138,48,0.5); }
   .id-dot { width: 8px; height: 8px; border-radius: 50%; background: #8be07a; }
   .id-dot.warn { background: #ffd37a; }
   .id-dot.bad { background: #C2334D; }
 
-  .id-hero .hk-herobell { top: 24px; right: 28px; transform: none; gap: 6px; }
-  .id-hero .hk-bell-label { display: none; }
-  .id-hero .hk-bellring button[aria-label] { width: 64px !important; height: 64px !important; min-width: 64px !important; min-height: 64px !important; }
-  .id-hero .hk-bellring button[aria-label] svg { width: 30px; height: 30px; }
-  .id-hero .hk-bellring button[aria-label] > span { min-width: 22px !important; height: 22px !important; font-size: 11px !important; }
-
   @media (max-width: 1100px) {
-    .id-hero { grid-template-columns: minmax(0, 1fr); padding: 36px 28px 100px; min-height: 0; }
-    .id-left { min-height: 0; }
-    .id-scene { position: relative; inset: auto; height: 320px; order: 2; }
-    .id-main { max-width: none; }
+    .id-hero { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; padding: 32px 28px 100px; min-height: 0; }
+    .id-col-l, .id-col-r { grid-column: 1; grid-row: auto; }
     .id-props { left: 28px; right: 28px; }
   }
   @media (max-width: 768px) {
-    .id-hero { padding: 76px 14px 110px; border-radius: 20px; }
-    .id-main { padding: 20px 20px; }
+    .id-hero { padding: 24px 14px 110px; border-radius: 20px; }
+    .id-main { padding: 20px; }
     .id-headline { font-size: 28px; }
-    .id-scene { height: 260px; }
     .id-props { left: 14px; right: 14px; bottom: 16px; }
-    .id-hero .hk-herobell { top: 14px; right: 14px; }
-    .id-glass, .id-right .id-glass { transform: none; }
+    .id-glass, .id-col-r .id-glass { transform: none; }
   }
   @media (hover: none), (prefers-reduced-motion: reduce) {
-    .id-glass, .id-right .id-glass { transform: none !important; transition: none; }
+    .id-glass, .id-col-r .id-glass { transform: none !important; transition: none; }
   }
+  @media (prefers-reduced-motion: reduce) { .id-photo.night { animation: none; opacity: 0; } }
 `;
 
 function IdagPage() {
   const { role, name } = useHomeUser();
   const allowed = role === "admin";
   const [sel, setSel] = useState<string | null>(null);
+  const [noDay, setNoDay] = useState(false);
+  const [noNight, setNoNight] = useState(false);
   const heroRef = useRef<HTMLElement | null>(null);
 
   const propsQ = useQuery({
@@ -343,20 +347,23 @@ function IdagPage() {
           {allowed && (
             <>
               <section ref={heroRef} className="id-hero" onMouseMove={onMove} onMouseLeave={onLeave}>
-                <HeroBell />
+                {!noDay && <img src={DAY_IMG} alt="" className="id-photo" onError={() => setNoDay(true)} />}
+                {!noNight && <img src={NIGHT_IMG} alt="" className="id-photo night" onError={() => setNoNight(true)} />}
+                <div className="id-shade" />
 
-                <div className="id-left">
-                  <div className="id-scene">
-                    <Building3D />
+                <div className="id-col-l">
+                  <div className="id-bellslot">
+                    <HeroBell />
                   </div>
+                </div>
+
+                <div className="id-col-r">
                   <div className="id-glass id-main">
                     <p className="id-hello">{greeting()}</p>
                     <h1 className={`id-headline${attention.length > 0 ? " bad" : ""}`}>{loading ? "Hämtar läget…" : headline}</h1>
                     <p className="id-sub">{loading ? "" : sub || "Allt är avstämt för tillfället."}</p>
                   </div>
-                </div>
 
-                <div className="id-right">
                   {next ? (
                     <Link to={`/${KIND_PATH[next.kind]}/${next.id}` as never} className="id-glass id-next">
                       <div className="id-next-label">Nästa upp</div>
