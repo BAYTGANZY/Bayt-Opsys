@@ -195,6 +195,16 @@ export const HOME_STYLES = `
     color: #e6efd8; font-family: Inter, system-ui, sans-serif; padding: 0 0 56px;
   }
   .hk-wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
+
+  /* Dator och iPad: toppraden ligger kvar överst, allt under den centreras lodrätt. */
+  @media (min-width: 769px) {
+    .hk-wrap { display: flex; flex-direction: column; min-height: calc(100vh - 56px); min-height: calc(100dvh - 56px); }
+    .hk-wrap > .hk-top { flex: none; margin-bottom: 8px; }
+    .hk-wrap > .hk-top ~ * { flex: none; }
+    .hk-wrap > .hk-top + * { margin-top: auto !important; }
+    .hk-wrap > :last-child:not(.hk-top) { margin-bottom: auto; }
+  }
+
   .hk-top { display: flex; align-items: center; gap: 18px; padding: 22px 0 14px; }
   .hk-logo { height: 36px; width: auto; display: block; flex-shrink: 0; }
   .hk-nav { display: flex; gap: 0; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
