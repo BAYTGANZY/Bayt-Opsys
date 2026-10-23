@@ -1,9 +1,7 @@
 import { createFileRoute, redirect, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { canAccess } from "@/lib/permissions";
-import { Screensaver } from "@/components/Screensaver";
 import {
   deriveIssueStatus,
   deriveInspectionStatus,
@@ -13,9 +11,20 @@ import {
   type DerivedStatus,
 } from "@/lib/issue-tokens";
 import { inspectionTypeLabel } from "@/lib/inspection-tokens";
-
-const logo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
-const sketch = `${import.meta.env.BASE_URL}assets/building-sketch-2.png`;
+import {
+  HOME_STYLES,
+  TopBar,
+  Panel,
+  Row,
+  useHomeUser,
+  greeting,
+  fmtDate,
+  daysChip,
+  KIND_LABEL,
+  KIND_PATH,
+  type Kind,
+} from "@/components/HomeKit";
+import { Hero } from "@/components/HeroKit";
 
 export const Route = createFileRoute("/styrelse")({
   ssr: false,
@@ -27,13 +36,12 @@ export const Route = createFileRoute("/styrelse")({
   component: StyrelsePage,
 });
 
-type Kind = "issue" | "inspection" | "project";
 type Lifecycle = "vilande" | "oppet" | "avslutat";
 type Level = "ok" | "warn" | "bad";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Row = Record<string, any>;
+type Row_ = Record<string, any>;
 
-type Property = { id: string; name: string; address: string | null; image_url: string | null };
+type Property = { id: string; name: string; address: string | null };
 
 type Entry = {
   kind: Kind;
@@ -44,13 +52,10 @@ type Entry = {
   status: DerivedStatus;
   akut: boolean;
   updatedAt: string | null;
-  startDate: string | null;
   endDate: string | null;
 };
 
 const TABLE: Record<Kind, string> = { issue: "issues", inspection: "inspections", project: "projects" };
-const PATH: Record<Kind, string> = { issue: "issues", inspection: "inspections", project: "projects" };
-const KIND_LABEL: Record<Kind, string> = { issue: "Felanmälan", inspection: "Kontroll", project: "Projekt" };
 const LEVEL_LABEL: Record<Level, string> = { ok: "Under kontroll", warn: "Uppmärksamhet", bad: "Åtgärd krävs" };
 
 const NAV: Array<{ to: string; label: string }> = [
@@ -64,14 +69,7 @@ const NAV: Array<{ to: string; label: string }> = [
   { to: "/installningar", label: "Inställningar" },
 ];
 
-const dateFmt = new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short", year: "numeric" });
-function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  const d = new Date(iso.length <= 10 ? `${iso}T00:00:00` : iso);
-  return Number.isNaN(d.getTime()) ? "—" : dateFmt.format(d);
-}
-
-function lifecycleFor(kind: Kind, row: Row): Lifecycle {
+function lifecycleFor(kind: Kind, row: Row_): Lifecycle {
   const map = LIFECYCLE_OF as Record<string, Lifecycle>;
   if (kind === "issue") return map[String(row.status ?? "")] ?? "vilande";
   if (row.arende_status) return map[String(row.arende_status)] ?? "vilande";
@@ -80,7 +78,7 @@ function lifecycleFor(kind: Kind, row: Row): Lifecycle {
   return legacy === "klar" || legacy === "avbruten" ? "avslutat" : "oppet";
 }
 
-function toEntries(kind: Kind, rows: Row[]): Entry[] {
+function toEntries(kind: Kind, rows: Row_[]): Entry[] {
   return rows.map((row) => {
     let status: DerivedStatus;
     let title: string;
@@ -88,12 +86,7 @@ function toEntries(kind: Kind, rows: Row[]): Entry[] {
     if (kind === "issue") {
       const prio = derivePriority(row.deadline || null, { from: row.created_at });
       akut = prio.key === "akut";
-      status = deriveIssueStatus({
-        status: row.status,
-        priority: prio.key,
-        created_at: row.created_at,
-        deadline: row.deadline || null,
-      });
+      status = deriveIssueStatus({ status: row.status, priority: prio.key, created_at: row.created_at, deadline: row.deadline || null });
       title = row.title || "Felanmälan";
     } else if (kind === "inspection") {
       status = deriveInspectionStatus({
@@ -122,14 +115,26 @@ function toEntries(kind: Kind, rows: Row[]): Entry[] {
       status,
       akut,
       updatedAt: (row.updated_at as string | null) ?? (row.created_at as string | null) ?? null,
-      startDate: (row.start_date as string | null) ?? null,
       endDate: (row.end_date as string | null) ?? null,
     };
   });
 }
 
+function useKind(kind: Kind, enabled: boolean) {
+  return useQuery({
+    queryKey: ["sv-items", kind],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await supabase.from(TABLE[kind]).select("*");
+      if (error) throw error;
+      return toEntries(kind, (data ?? []) as Row_[]);
+    },
+  });
+}
+
 const isActive = (e: Entry) => e.lifecycle !== "avslutat";
 const isOverdue = (e: Entry) => isActive(e) && e.status.daysLeft != null && e.status.daysLeft < 0;
+const keyOf = (e: Entry) => `${e.kind}-${e.id}`;
 
 function levelOf(entries: Entry[]): Level {
   const active = entries.filter(isActive);
@@ -138,243 +143,28 @@ function levelOf(entries: Entry[]): Level {
   return "ok";
 }
 
-function timeProgress(e: Entry): number | null {
-  if (!e.startDate || !e.endDate) return null;
-  const s = new Date(`${e.startDate}T00:00:00`).getTime();
-  const en = new Date(`${e.endDate}T00:00:00`).getTime();
-  if (!(en > s)) return null;
-  return Math.max(0, Math.min(100, Math.round(((Date.now() - s) / (en - s)) * 100)));
-}
-
-function daysChip(daysLeft: number | null): { text: string; cls: string } {
-  if (daysLeft == null) return { text: "Ingen tidsgräns", cls: "sv-chip-muted" };
-  if (daysLeft < 0) return { text: `${-daysLeft} ${-daysLeft === 1 ? "dag" : "dagar"} försenad`, cls: "sv-chip-bad" };
-  if (daysLeft === 0) return { text: "Idag", cls: "sv-chip-warn" };
-  if (daysLeft <= 30) return { text: `${daysLeft} dagar`, cls: "sv-chip-warn" };
-  return { text: `${daysLeft} dagar`, cls: "sv-chip-ok" };
-}
-
-const STYLES = `
-  .sv-page {
-    min-height: 100vh; min-height: 100dvh; box-sizing: border-box; max-width: 100vw; overflow-x: hidden;
-    background: radial-gradient(ellipse at top, #15332c 0%, #0b1d17 70%);
-    color: #e6efd8; font-family: Inter, system-ui, sans-serif; padding: 0 0 56px;
-  }
-  .sv-wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
-  .sv-top { display: flex; align-items: center; gap: 20px; padding: 22px 0 14px; }
-  .sv-logo { height: 36px; display: block; flex-shrink: 0; }
-  .sv-nav { display: flex; gap: 4px; flex: 1; overflow-x: auto; scrollbar-width: none; }
-  .sv-nav::-webkit-scrollbar { display: none; }
-  .sv-nav a {
-    padding: 8px 12px; border-radius: 8px; font-size: 13.5px; text-decoration: none; color: #9fb79f; white-space: nowrap;
-  }
-  .sv-nav a:hover { color: #fff; background: rgba(255,255,255,0.06); }
-  .sv-user { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-  .sv-user-name { font-size: 13px; color: #c9d6c3; text-align: right; line-height: 1.25; }
-  .sv-user-role { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #7a9476; }
-  .sv-out {
-    height: 36px; padding: 0 12px; border-radius: 8px; font-size: 12.5px; cursor: pointer; font-family: inherit;
-    background: transparent; color: #9fb79f; border: 1px solid rgba(151,186,72,0.2);
-  }
-  .sv-out:hover { color: #fff; border-color: rgba(92,184,74,0.6); }
-
-  .sv-hero { position: relative; border-radius: 22px; overflow: hidden; margin-top: 8px; min-height: 270px; display: flex; align-items: flex-end; }
-  .sv-hero-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  .sv-hero-img.sv-sketch { object-fit: contain; object-position: right center; opacity: 0.35; }
-  .sv-hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(11,29,23,0.96) 0%, rgba(11,29,23,0.78) 45%, rgba(11,29,23,0.25) 100%); }
-  .sv-hero-body { position: relative; z-index: 1; padding: 40px 44px; max-width: 760px; }
-  .sv-hello { color: #5CB84A; font-size: 17px; font-weight: 600; margin: 0 0 8px; }
-  .sv-headline { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 44px; line-height: 1.1; font-weight: 600; margin: 0 0 14px; }
-  .sv-headline.bad { color: #F2E3BC; }
-  .sv-sub { font-size: 15.5px; line-height: 1.55; color: #c3d1bd; margin: 0; }
-
-  .sv-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
-  .sv-kpi { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09); border-radius: 16px; padding: 18px 18px 16px; }
-  .sv-kpi-label { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: #8aa38a; }
-  .sv-kpi-n { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 40px; font-weight: 600; line-height: 1.1; margin: 8px 0 4px; }
-  .sv-kpi-sub { font-size: 12.5px; color: #8aa38a; }
-  .sv-kpi.bad { border-color: #8B1A2B; background: rgba(122,20,38,0.30); }
-  .sv-kpi.bad .sv-kpi-n { color: #F2E3BC; }
-  .sv-kpi.bad .sv-kpi-sub { color: #d9c7a0; }
-  .sv-kpi.good .sv-kpi-n { color: #8be07a; }
-
-  .sv-h2 { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 20px; font-weight: 600; margin: 34px 0 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .sv-link { font-size: 13px; font-weight: 500; color: #5CB84A; text-decoration: none; font-family: Inter, system-ui, sans-serif; }
-  .sv-link:hover { text-decoration: underline; }
-
-  .sv-props { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-  .sv-prop {
-    position: relative; text-align: left; font: inherit; color: #fff; cursor: pointer; border-radius: 18px; overflow: hidden;
-    border: 1px solid rgba(255,255,255,0.1); background: #0d2b1e; padding: 0; aspect-ratio: 16 / 10; display: block;
-    transition: transform 0.15s ease, border-color 0.15s ease;
-  }
-  .sv-prop:hover { transform: translateY(-2px); border-color: rgba(92,184,74,0.7); }
-  .sv-prop[aria-pressed="true"] { border-color: #5CB84A; box-shadow: 0 0 0 2px rgba(92,184,74,0.45); }
-  .sv-prop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  .sv-prop img.sv-sketch { object-fit: contain; opacity: 0.35; padding: 12px; }
-  .sv-prop::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(8,22,17,0.95) 0%, rgba(8,22,17,0.15) 60%, rgba(8,22,17,0.45) 100%); }
-  .sv-prop-badge { position: absolute; top: 12px; right: 12px; z-index: 2; }
-  .sv-prop-body { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: 14px 16px; }
-  .sv-prop-name { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 18px; font-weight: 600; }
-  .sv-prop-addr { font-size: 12.5px; color: #b9c8b4; margin-top: 2px; }
-  .sv-prop-stats { display: flex; gap: 14px; margin-top: 10px; font-size: 12.5px; color: #d3e0cf; flex-wrap: wrap; }
-
-  .sv-badge { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; backdrop-filter: blur(4px); }
-  .sv-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-  .sv-badge.ok { color: #8be07a; background: rgba(61,138,48,0.35); }
-  .sv-badge.warn { color: #ffd37a; background: rgba(210,150,20,0.3); }
-  .sv-badge.bad { color: #F5E6C4; background: #7A1426; }
-
-  .sv-filter { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 13.5px; color: #c3d1bd; flex-wrap: wrap; }
-  .sv-filter button { height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(92,184,74,0.5); background: rgba(92,184,74,0.12); color: #cfe9c8; cursor: pointer; font: inherit; font-size: 12.5px; }
-
-  .sv-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
-  .sv-panel { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09); border-radius: 18px; padding: 6px 0; min-width: 0; }
-  .sv-panel-head { padding: 14px 18px 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .sv-panel-title { font-size: 15px; font-weight: 600; }
-  .sv-empty { padding: 18px; color: #8aa38a; font-size: 14px; }
-  .sv-row {
-    display: flex; align-items: center; gap: 14px; padding: 13px 18px; text-decoration: none; color: inherit;
-    border-top: 1px solid rgba(255,255,255,0.06);
-  }
-  a.sv-row:hover { background: rgba(255,255,255,0.05); }
-  .sv-row-main { flex: 1; min-width: 0; }
-  .sv-row-title { font-size: 14.5px; font-weight: 600; overflow-wrap: anywhere; }
-  .sv-row-sub { font-size: 12.5px; color: #8aa38a; margin-top: 2px; }
-  .sv-row-right { flex-shrink: 0; text-align: right; display: grid; gap: 6px; justify-items: end; }
-  .sv-chip { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
-  .sv-chip-bad { color: #F5E6C4; background: #7A1426; }
-  .sv-chip-warn { color: #ffd37a; background: rgba(210,150,20,0.2); }
-  .sv-chip-ok { color: #8be07a; background: rgba(61,138,48,0.25); }
-  .sv-chip-muted { color: #8aa38a; background: rgba(255,255,255,0.06); }
-  .sv-bar { width: 120px; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.1); overflow: hidden; }
-  .sv-bar > div { height: 100%; background: #5CB84A; }
-  .sv-note { margin-top: 26px; font-size: 12.5px; color: #6f8a70; line-height: 1.5; }
-
-  @media (max-width: 1100px) {
-    .sv-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .sv-headline { font-size: 36px; }
-  }
-  @media (max-width: 860px) {
-    .sv-cols { grid-template-columns: minmax(0, 1fr); }
-  }
-  @media (max-width: 768px) {
-    .sv-wrap { padding: 0 14px; }
-    .sv-top { flex-wrap: wrap; gap: 10px; padding-top: 16px; }
-    .sv-logo { height: 30px; }
-    .sv-nav { order: 3; flex-basis: 100%; }
-    .sv-user { margin-left: auto; }
-    .sv-user-name { display: none; }
-    .sv-hero { min-height: 240px; border-radius: 18px; }
-    .sv-hero-body { padding: 26px 22px; }
-    .sv-headline { font-size: 28px; }
-    .sv-sub { font-size: 14px; }
-    .sv-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-    .sv-kpi { padding: 14px; }
-    .sv-kpi-n { font-size: 32px; }
-    .sv-row { flex-wrap: wrap; padding: 12px 14px; }
-    .sv-row-right { width: 100%; grid-auto-flow: column; justify-content: space-between; justify-items: start; }
-    .sv-bar { width: 90px; }
-  }
-`;
-
-function Panel({
-  title,
-  to,
-  children,
-}: {
-  title: string;
-  to?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="sv-panel">
-      <div className="sv-panel-head">
-        <div className="sv-panel-title">{title}</div>
-        {to && (
-          <Link to={to as never} className="sv-link">
-            Visa alla
-          </Link>
-        )}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function EntryRow({
-  e,
-  propName,
-  right,
-}: {
-  e: Entry;
-  propName: string;
-  right: React.ReactNode;
-}) {
-  return (
-    <Link to={`/${PATH[e.kind]}/${e.id}` as never} className="sv-row">
-      <div className="sv-row-main">
-        <div className="sv-row-title">{e.title}</div>
-        <div className="sv-row-sub">
-          {KIND_LABEL[e.kind]} · {propName}
-        </div>
-      </div>
-      <div className="sv-row-right">{right}</div>
-    </Link>
-  );
-}
-
 function StyrelsePage() {
-  const [role, setRole] = useState<string | null | undefined>(undefined);
-  const [name, setName] = useState<string | null>(null);
-  const [sel, setSel] = useState<string | null>(null);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!data.session) {
-        setRole(null);
-        return;
-      }
-      const { data: p } = await supabase
-        .from("profiles")
-        .select("role, full_name")
-        .eq("id", data.session.user.id)
-        .maybeSingle();
-      setRole((p?.role as string | undefined) ?? null);
-      setName((p?.full_name as string | undefined) ?? null);
-    });
-  }, []);
-
+  const { role, name } = useHomeUser();
   const allowed = role === "styrelse" || role === "admin";
+  const [sel, setSel] = useState<string | null>(null);
 
   const propsQ = useQuery({
     queryKey: ["sv-properties"],
     enabled: allowed,
     queryFn: async () => {
-      const { data, error } = await supabase.from("properties").select("id, name, address, image_url").order("name");
+      const { data, error } = await supabase.from("properties").select("id, name, address").order("name");
       if (error) throw error;
       return (data ?? []) as Property[];
     },
   });
-
-  const kindQ = (kind: Kind) =>
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    useQuery({
-      queryKey: ["sv-items", kind],
-      enabled: allowed,
-      queryFn: async () => {
-        const { data, error } = await supabase.from(TABLE[kind]).select("*");
-        if (error) throw error;
-        return toEntries(kind, (data ?? []) as Row[]);
-      },
-    });
-  const issuesQ = kindQ("issue");
-  const inspectionsQ = kindQ("inspection");
-  const projectsQ = kindQ("project");
+  const issuesQ = useKind("issue", allowed);
+  const inspectionsQ = useKind("inspection", allowed);
+  const projectsQ = useKind("project", allowed);
 
   const properties = propsQ.data ?? [];
   const propMap = useMemo(() => new Map(properties.map((p) => [p.id, p])), [properties]);
   const propName = (id: string | null) => (id ? propMap.get(id)?.name ?? "—" : "—");
+  const loading = propsQ.isLoading || issuesQ.isLoading || inspectionsQ.isLoading || projectsQ.isLoading;
 
   const all = useMemo(
     () =>
@@ -384,29 +174,8 @@ function StyrelsePage() {
     [issuesQ.data, inspectionsQ.data, projectsQ.data, propMap],
   );
   const scoped = useMemo(() => (sel ? all.filter((e) => e.propertyId === sel) : all), [all, sel]);
-
-  const loading = propsQ.isLoading || issuesQ.isLoading || inspectionsQ.isLoading || projectsQ.isLoading;
-
-  const perProperty = useMemo(
-    () =>
-      properties.map((p) => {
-        const entries = all.filter((e) => e.propertyId === p.id);
-        const active = entries.filter(isActive);
-        const nextInspection = active
-          .filter((e) => e.kind === "inspection" && e.status.dueDate)
-          .sort((a, b) => (a.status.dueDate ?? "").localeCompare(b.status.dueDate ?? ""))[0];
-        return {
-          property: p,
-          level: levelOf(entries),
-          activeCount: active.filter((e) => e.kind !== "project").length,
-          projectCount: active.filter((e) => e.kind === "project").length,
-          nextDue: nextInspection?.status.dueDate ?? null,
-        };
-      }),
-    [properties, all],
-  );
-
   const active = scoped.filter(isActive);
+
   const needsAttention = active
     .filter((e) => isOverdue(e) || e.akut)
     .sort((a, b) => (a.status.daysLeft ?? 9999) - (b.status.daysLeft ?? 9999));
@@ -416,173 +185,134 @@ function StyrelsePage() {
     .sort((a, b) => (a.status.dueDate ?? "").localeCompare(b.status.dueDate ?? ""));
   const upcoming90 = upcoming.filter((e) => e.status.daysLeft != null && e.status.daysLeft >= 0 && e.status.daysLeft <= 90);
   const projects = active.filter((e) => e.kind === "project");
+  const openIssues = active.filter((e) => e.kind === "issue");
   const cutoff = Date.now() - 30 * 86400000;
   const resolved = scoped
     .filter((e) => e.lifecycle === "avslutat" && e.updatedAt && new Date(e.updatedAt).getTime() >= cutoff)
     .sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
-  const openIssues = active.filter((e) => e.kind === "issue");
 
   const selectedProp = sel ? propMap.get(sel) ?? null : null;
-  const heroProp = selectedProp ?? properties.find((p) => p.image_url) ?? null;
-  const heroImg = heroProp?.image_url ?? null;
+  const firstName = role === "styrelse" ? name?.trim().split(/\s+/)[0] ?? "" : "";
 
-  const firstName = name?.trim().split(/\s+/)[0] ?? "";
   const headline =
     needsAttention.length > 0
       ? `${needsAttention.length} ${needsAttention.length === 1 ? "sak kräver" : "saker kräver"} din uppmärksamhet.`
       : "Allt är under kontroll.";
-  const subline = (() => {
-    const parts: string[] = [];
-    const n = selectedProp ? 1 : properties.length;
-    parts.push(selectedProp ? selectedProp.name : `${n} ${n === 1 ? "fastighet" : "fastigheter"}`);
-    parts.push(`${openIssues.length} ${openIssues.length === 1 ? "öppen felanmälan" : "öppna felanmälningar"}`);
-    parts.push(`${projects.length} pågående projekt`);
-    if (upcoming90.length > 0) parts.push(`${upcoming90.length} ${upcoming90.length === 1 ? "kontroll" : "kontroller"} de närmaste 90 dagarna`);
-    return parts.join(" · ");
-  })();
+  const sub = [
+    selectedProp ? selectedProp.name : `${properties.length} ${properties.length === 1 ? "fastighet" : "fastigheter"}`,
+    `${openIssues.length} ${openIssues.length === 1 ? "öppen felanmälan" : "öppna felanmälningar"}`,
+    `${projects.length} pågående projekt`,
+    upcoming90.length > 0 ? `${upcoming90.length} ${upcoming90.length === 1 ? "kontroll" : "kontroller"} de närmaste 90 dagarna` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    window.location.href = "/login";
-  };
+  const nextItem = needsAttention[0] ?? upcoming[0] ?? null;
+  const nextChip = nextItem
+    ? nextItem.akut && !isOverdue(nextItem)
+      ? { text: "Akut", cls: "hk-chip-bad" }
+      : daysChip(nextItem.status.daysLeft)
+    : null;
 
-  const nav = NAV.filter((n) => canAccess(role, n.to));
-
-  const selectProperty = (id: string) => {
-    setSel((cur) => (cur === id ? null : id));
-    try {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch {
-      /* ignoreras */
-    }
-  };
+  const perProperty = properties.map((p) => ({ p, level: levelOf(all.filter((e) => e.propertyId === p.id)) }));
+  const entriesOf = (p: Property) => all.filter((e) => e.propertyId === p.id && isActive(e));
 
   return (
     <>
-      <style>{STYLES}</style>
-      <Screensaver />
-      <div className="sv-page">
-        <div className="sv-wrap">
-          <div className="sv-top">
-            <img src={logo} alt="BAYT" className="sv-logo" />
-            <nav className="sv-nav" aria-label="Meny">
-              {nav.map((n) => (
-                <Link key={n.to} to={n.to as never}>
-                  {n.label}
-                </Link>
-              ))}
-            </nav>
-            <div className="sv-user">
-              <div className="sv-user-name">
-                {name ?? ""}
-                <div className="sv-user-role">{role === "styrelse" ? "Styrelse" : role === "admin" ? "Förhandsvisning" : ""}</div>
-              </div>
-              <button type="button" className="sv-out" onClick={handleLogout}>
-                Logga ut
-              </button>
-            </div>
-          </div>
+      <style>{HOME_STYLES}</style>
+      <div className="hk-page">
+        <div className="hk-wrap">
+          <TopBar role={role} name={name} items={NAV} roleLabel={role === "admin" ? "Förhandsvisning" : "Styrelse"} />
 
-          {role === undefined && <div className="sv-empty">Laddar…</div>}
-
+          {role === undefined && <div className="hk-empty">Laddar…</div>}
           {role !== undefined && !allowed && (
-            <div className="sv-empty">
+            <div className="hk-empty">
               Den här sidan är till för styrelse och fastighetsägare.{" "}
-              <Link to={"/start" as never} className="sv-link">
+              <Link to={"/start" as never} className="hk-link">
                 Till startsidan
               </Link>
             </div>
           )}
 
           {allowed && !loading && properties.length === 0 && (
-            <div className="sv-empty">Inga fastigheter är kopplade till ditt konto ännu. Kontakta förvaltaren.</div>
+            <div className="hk-empty">Inga fastigheter är kopplade till ditt konto ännu. Kontakta förvaltaren.</div>
           )}
 
           {allowed && properties.length > 0 && (
             <>
-              <section className="sv-hero">
-                {heroImg ? (
-                  <img src={heroImg} alt="" className="sv-hero-img" />
-                ) : (
-                  <img src={sketch} alt="" className="sv-hero-img sv-sketch" />
-                )}
-                <div className="sv-hero-body">
-                  <p className="sv-hello">Välkommen{firstName ? `, ${firstName}` : ""}</p>
-                  <h1 className={`sv-headline${needsAttention.length > 0 ? " bad" : ""}`}>{loading ? "Hämtar läget…" : headline}</h1>
-                  <p className="sv-sub">{loading ? "" : subline}</p>
-                </div>
-              </section>
+              <Hero
+                hello={`${greeting()}${firstName ? `, ${firstName}` : ""}`}
+                headline={headline}
+                bad={needsAttention.length > 0}
+                sub={sub}
+                loading={loading}
+                next={
+                  nextItem
+                    ? {
+                        to: `/${KIND_PATH[nextItem.kind]}/${nextItem.id}`,
+                        label: needsAttention.length > 0 ? "Kräver uppmärksamhet" : "Nästa kontroll",
+                        title: nextItem.title,
+                        sub: `${KIND_LABEL[nextItem.kind]} · ${propName(nextItem.propertyId)}`,
+                        chip: nextChip,
+                      }
+                    : null
+                }
+                emptyNext="Inget kräver åtgärd just nu. 👍"
+                tiles={[
+                  { label: "Fastigheter", n: selectedProp ? 1 : properties.length },
+                  { label: "Öppna felanmälningar", n: openIssues.length, tone: overdueCount > 0 ? "bad" : undefined },
+                  { label: "Pågående projekt", n: projects.length },
+                  { label: "Kontroller, 90 dagar", n: upcoming90.length },
+                  { label: "Avklarat, 30 dagar", n: resolved.length, tone: "good", wide: true },
+                ]}
+                chips={perProperty.map(({ p, level }) => ({ id: p.id, name: p.name, level }))}
+                selected={sel}
+                onSelect={(id) => setSel((c) => (c === id ? null : id))}
+              />
 
-              <div className="sv-kpis">
-                <div className="sv-kpi">
-                  <div className="sv-kpi-label">Fastigheter</div>
-                  <div className="sv-kpi-n">{selectedProp ? 1 : properties.length}</div>
-                  <div className="sv-kpi-sub">{selectedProp ? selectedProp.name : "I din portfölj"}</div>
-                </div>
-                <div className={`sv-kpi${overdueCount > 0 ? " bad" : ""}`}>
-                  <div className="sv-kpi-label">Öppna felanmälningar</div>
-                  <div className="sv-kpi-n">{openIssues.length}</div>
-                  <div className="sv-kpi-sub">
-                    {overdueCount > 0 ? `${overdueCount} försenade` : "Inga försenade"}
-                  </div>
-                </div>
-                <div className="sv-kpi">
-                  <div className="sv-kpi-label">Pågående projekt</div>
-                  <div className="sv-kpi-n">{projects.length}</div>
-                  <div className="sv-kpi-sub">Aktiva just nu</div>
-                </div>
-                <div className="sv-kpi">
-                  <div className="sv-kpi-label">Kommande kontroller</div>
-                  <div className="sv-kpi-n">{upcoming90.length}</div>
-                  <div className="sv-kpi-sub">Inom 90 dagar</div>
-                </div>
-                <div className="sv-kpi good">
-                  <div className="sv-kpi-label">Avklarat</div>
-                  <div className="sv-kpi-n">{resolved.length}</div>
-                  <div className="sv-kpi-sub">Senaste 30 dagarna</div>
-                </div>
-              </div>
-
-              <h2 className="sv-h2">Läget just nu</h2>
               {selectedProp && (
-                <div className="sv-filter">
+                <div className="hk-filter" style={{ marginTop: 14 }}>
                   <span>Visar bara {selectedProp.name}.</span>
                   <button type="button" onClick={() => setSel(null)}>
                     Visa alla fastigheter
                   </button>
                 </div>
               )}
-              <div className="sv-cols">
+
+              <h2 className="hk-h2">Läget just nu</h2>
+              <div className="hk-cols">
                 <Panel title="Kräver uppmärksamhet" to="/issues">
-                  {needsAttention.length === 0 && <div className="sv-empty">Inget är försenat eller akut. 👍</div>}
+                  {needsAttention.length === 0 && <div className="hk-empty">Inget är försenat eller akut. 👍</div>}
                   {needsAttention.slice(0, 8).map((e) => {
-                    const chip = e.akut && !isOverdue(e) ? { text: "Akut", cls: "sv-chip-bad" } : daysChip(e.status.daysLeft);
+                    const chip = e.akut && !isOverdue(e) ? { text: "Akut", cls: "hk-chip-bad" } : daysChip(e.status.daysLeft);
                     return (
-                      <EntryRow
-                        key={`${e.kind}-${e.id}`}
-                        e={e}
-                        propName={propName(e.propertyId)}
-                        right={<span className={`sv-chip ${chip.cls}`}>{chip.text}</span>}
+                      <Row
+                        key={keyOf(e)}
+                        to={`/${KIND_PATH[e.kind]}/${e.id}`}
+                        title={e.title}
+                        sub={`${KIND_LABEL[e.kind]} · ${propName(e.propertyId)}`}
+                        right={<span className={`hk-chip ${chip.cls}`}>{chip.text}</span>}
                       />
                     );
                   })}
                 </Panel>
 
                 <Panel title="Kommande kontroller" to="/inspections">
-                  {upcoming.length === 0 && <div className="sv-empty">Inga kontroller är planerade.</div>}
+                  {upcoming.length === 0 && <div className="hk-empty">Inga kontroller är planerade.</div>}
                   {upcoming.slice(0, 8).map((e) => {
                     const chip = daysChip(e.status.daysLeft);
                     return (
-                      <EntryRow
-                        key={`${e.kind}-${e.id}`}
-                        e={e}
-                        propName={propName(e.propertyId)}
+                      <Row
+                        key={keyOf(e)}
+                        to={`/${KIND_PATH[e.kind]}/${e.id}`}
+                        title={e.title}
+                        sub={propName(e.propertyId)}
                         right={
                           <>
-                            <span className="sv-row-sub" style={{ margin: 0 }}>
+                            <span className="hk-row-sub" style={{ margin: 0 }}>
                               {fmtDate(e.status.dueDate)}
                             </span>
-                            <span className={`sv-chip ${chip.cls}`}>{chip.text}</span>
+                            <span className={`hk-chip ${chip.cls}`}>{chip.text}</span>
                           </>
                         }
                       />
@@ -591,44 +321,38 @@ function StyrelsePage() {
                 </Panel>
 
                 <Panel title="Pågående projekt" to="/projects">
-                  {projects.length === 0 && <div className="sv-empty">Inga projekt pågår just nu.</div>}
-                  {projects.slice(0, 8).map((e) => {
-                    const pct = timeProgress(e);
-                    return (
-                      <EntryRow
-                        key={`${e.kind}-${e.id}`}
-                        e={e}
-                        propName={propName(e.propertyId)}
-                        right={
-                          pct == null ? (
-                            <span className="sv-chip sv-chip-muted">Ingen tidplan</span>
-                          ) : (
-                            <>
-                              <span className="sv-row-sub" style={{ margin: 0 }}>
-                                Klart {fmtDate(e.endDate)}
-                              </span>
-                              <span className="sv-bar" title={`${pct}% av tiden har gått`}>
-                                <div style={{ width: `${pct}%` }} />
-                              </span>
-                            </>
-                          )
-                        }
-                      />
-                    );
-                  })}
+                  {projects.length === 0 && <div className="hk-empty">Inga projekt pågår just nu.</div>}
+                  {projects.slice(0, 8).map((e) => (
+                    <Row
+                      key={keyOf(e)}
+                      to={`/${KIND_PATH[e.kind]}/${e.id}`}
+                      title={e.title}
+                      sub={propName(e.propertyId)}
+                      right={
+                        e.endDate ? (
+                          <span className="hk-row-sub" style={{ margin: 0 }}>
+                            Klart {fmtDate(e.endDate)}
+                          </span>
+                        ) : (
+                          <span className="hk-chip hk-chip-muted">Ingen tidplan</span>
+                        )
+                      }
+                    />
+                  ))}
                 </Panel>
 
                 <Panel title="Avklarat senaste 30 dagarna">
-                  {resolved.length === 0 && <div className="sv-empty">Inget avslutat den senaste månaden.</div>}
+                  {resolved.length === 0 && <div className="hk-empty">Inget avslutat den senaste månaden.</div>}
                   {resolved.slice(0, 8).map((e) => (
-                    <EntryRow
-                      key={`${e.kind}-${e.id}`}
-                      e={e}
-                      propName={propName(e.propertyId)}
+                    <Row
+                      key={keyOf(e)}
+                      to={`/${KIND_PATH[e.kind]}/${e.id}`}
+                      title={e.title}
+                      sub={`${KIND_LABEL[e.kind]} · ${propName(e.propertyId)}`}
                       right={
                         <>
-                          <span className="sv-chip sv-chip-ok">Avslutad</span>
-                          <span className="sv-row-sub" style={{ margin: 0 }}>
+                          <span className="hk-chip hk-chip-ok">Avslutad</span>
+                          <span className="hk-row-sub" style={{ margin: 0 }}>
                             {fmtDate(e.updatedAt)}
                           </span>
                         </>
@@ -638,36 +362,42 @@ function StyrelsePage() {
                 </Panel>
               </div>
 
-              <h2 className="sv-h2">Fastighetsöversikt</h2>
-              <div className="sv-props">
-                {perProperty.map(({ property: p, level, activeCount, projectCount, nextDue }) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    className="sv-prop"
-                    aria-pressed={sel === p.id}
-                    onClick={() => selectProperty(p.id)}
-                  >
-                    {p.image_url ? <img src={p.image_url} alt="" /> : <img src={sketch} alt="" className="sv-sketch" />}
-                    <span className="sv-prop-badge">
-                      <span className={`sv-badge ${level}`}>{LEVEL_LABEL[level]}</span>
-                    </span>
-                    <span className="sv-prop-body">
-                      <div className="sv-prop-name">{p.name}</div>
-                      {p.address && <div className="sv-prop-addr">{p.address}</div>}
-                      <div className="sv-prop-stats">
-                        <span>{activeCount} aktiva ärenden</span>
-                        <span>{projectCount} projekt</span>
-                        <span>Nästa kontroll: {nextDue ? fmtDate(nextDue) : "—"}</span>
+              <h2 className="hk-h2">Fastigheter</h2>
+              <div className="hk-props">
+                {perProperty.map(({ p, level }) => {
+                  const list = entriesOf(p);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className="hk-prop"
+                      aria-pressed={sel === p.id}
+                      onClick={() => {
+                        setSel((c) => (c === p.id ? null : p.id));
+                        try {
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        } catch {
+                          /* ignoreras */
+                        }
+                      }}
+                    >
+                      <div className="hk-prop-top">
+                        <div className="hk-prop-name">{p.name}</div>
+                        <span className={`hk-badge ${level}`}>{LEVEL_LABEL[level]}</span>
                       </div>
-                    </span>
-                  </button>
-                ))}
+                      {p.address && <div className="hk-row-sub">{p.address}</div>}
+                      <div className="hk-prop-stats">
+                        <span>{list.filter((e) => e.kind !== "project").length} aktiva ärenden</span>
+                        <span>{list.filter((e) => e.kind === "project").length} projekt</span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
 
-              <p className="sv-note">
-                Siffrorna hämtas direkt ur portalen. Projektens stapel visar hur stor del av tidplanen som har gått,
-                och "avklarat" räknar ärenden som avslutats eller senast ändrats de senaste 30 dagarna.
+              <p className="hk-note">
+                Siffrorna hämtas direkt ur portalen. "Avklarat" räknar ärenden som avslutats eller senast ändrats de
+                senaste 30 dagarna.
               </p>
             </>
           )}
