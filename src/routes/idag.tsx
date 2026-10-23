@@ -25,8 +25,7 @@ import {
   KIND_PATH,
   type Kind,
 } from "@/components/HomeKit";
-
-const sketch = `${import.meta.env.BASE_URL}assets/building-sketch-2.png`;
+import { Building3D } from "@/components/Building3D";
 
 export const Route = createFileRoute("/idag")({
   ssr: false,
@@ -56,7 +55,7 @@ type Entry = {
   updatedAt: string | null;
 };
 
-type Property = { id: string; name: string; image_url: string | null };
+type Property = { id: string; name: string };
 
 const TABLE: Record<Kind, string> = { issue: "issues", inspection: "inspections", project: "projects" };
 
@@ -151,18 +150,22 @@ function levelOf(entries: Entry[]): Level {
 
 const IDAG_STYLES = `
   .id-hero {
-    position: relative; margin-top: 8px; border-radius: 26px; overflow: hidden; min-height: 540px;
-    background: #0b1d17 center / cover no-repeat; border: 1px solid rgba(255,255,255,0.08);
-    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); gap: 28px; align-items: center;
-    padding: 56px 44px 96px; perspective: 1200px;
+    position: relative; margin-top: 8px; border-radius: 26px; overflow: hidden; min-height: 560px;
+    background: radial-gradient(ellipse at 30% 45%, #21503f 0%, #0f2a21 55%, #0b1d17 100%);
+    border: 1px solid rgba(255,255,255,0.08);
+    display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: 28px; align-items: stretch;
+    padding: 40px 44px 92px; perspective: 1200px;
   }
   .id-hero::before {
-    content: ""; position: absolute; inset: 0; z-index: 0;
-    background: linear-gradient(90deg, rgba(8,22,17,0.88) 0%, rgba(8,22,17,0.55) 55%, rgba(8,22,17,0.7) 100%),
-                linear-gradient(0deg, rgba(8,22,17,0.85) 0%, rgba(8,22,17,0) 40%);
+    content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+    background-size: 44px 44px; mask-image: radial-gradient(ellipse at 35% 50%, #000 0%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse at 35% 50%, #000 0%, transparent 75%);
   }
-  .id-hero.id-sketch { background-size: contain; background-position: right center; }
   .id-hero > * { position: relative; z-index: 1; }
+
+  .id-left { position: relative; display: flex; flex-direction: column; min-height: 440px; }
+  .id-scene { position: absolute; inset: 0; z-index: 0; }
 
   .id-glass {
     background: rgba(14,31,26,0.55); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
@@ -173,13 +176,13 @@ const IDAG_STYLES = `
   }
   .id-right .id-glass { transform: perspective(1000px) rotateX(calc(var(--rx, 0deg) * -0.8)) rotateY(calc(var(--ry, 0deg) * -0.8)); }
 
-  .id-main { padding: 34px 36px; max-width: 640px; }
-  .id-hello { color: #5CB84A; font-size: 17px; font-weight: 600; margin: 0 0 8px; }
-  .id-headline { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 44px; line-height: 1.08; font-weight: 600; margin: 0 0 12px; }
+  .id-main { position: relative; z-index: 2; padding: 26px 30px; max-width: 460px; }
+  .id-hello { color: #5CB84A; font-size: 16px; font-weight: 600; margin: 0 0 6px; }
+  .id-headline { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 38px; line-height: 1.08; font-weight: 600; margin: 0 0 10px; }
   .id-headline.bad { color: #F2E3BC; }
-  .id-sub { font-size: 15.5px; line-height: 1.55; color: #c9d6c3; margin: 0; }
+  .id-sub { font-size: 15px; line-height: 1.55; color: #c9d6c3; margin: 0; }
 
-  .id-right { display: grid; gap: 14px; }
+  .id-right { display: grid; gap: 14px; align-content: center; }
   .id-next { padding: 20px 22px; display: block; text-decoration: none; color: inherit; }
   .id-next:hover { border-color: rgba(92,184,74,0.6); }
   .id-next-label { font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #9fb79f; }
@@ -196,7 +199,7 @@ const IDAG_STYLES = `
   .id-tile.warn .id-tile-n { color: #ffd37a; }
   .id-tile.good .id-tile-n { color: #8be07a; }
 
-  .id-props { position: absolute; left: 44px; right: 44px; bottom: 28px; z-index: 2; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .id-props { position: absolute; left: 44px; right: 44px; bottom: 26px; z-index: 3; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   .id-props-label { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #b9c8b4; margin-right: 4px; }
   .id-chip {
     display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 16px; border-radius: 999px; cursor: pointer; font: inherit;
@@ -216,14 +219,17 @@ const IDAG_STYLES = `
   .id-hero .hk-bellring button[aria-label] > span { min-width: 22px !important; height: 22px !important; font-size: 11px !important; }
 
   @media (max-width: 1100px) {
-    .id-hero { grid-template-columns: minmax(0, 1fr); padding: 48px 28px 100px; min-height: 0; }
+    .id-hero { grid-template-columns: minmax(0, 1fr); padding: 36px 28px 100px; min-height: 0; }
+    .id-left { min-height: 0; }
+    .id-scene { position: relative; inset: auto; height: 320px; order: 2; }
     .id-main { max-width: none; }
     .id-props { left: 28px; right: 28px; }
   }
   @media (max-width: 768px) {
     .id-hero { padding: 76px 14px 110px; border-radius: 20px; }
-    .id-main { padding: 22px 20px; }
-    .id-headline { font-size: 30px; }
+    .id-main { padding: 20px 20px; }
+    .id-headline { font-size: 28px; }
+    .id-scene { height: 260px; }
     .id-props { left: 14px; right: 14px; bottom: 16px; }
     .id-hero .hk-herobell { top: 14px; right: 14px; }
     .id-glass, .id-right .id-glass { transform: none; }
@@ -240,10 +246,10 @@ function IdagPage() {
   const heroRef = useRef<HTMLElement | null>(null);
 
   const propsQ = useQuery({
-    queryKey: ["idag-properties-img"],
+    queryKey: ["idag-properties"],
     enabled: allowed,
     queryFn: async () => {
-      const { data, error } = await supabase.from("properties").select("id, name, image_url").order("name");
+      const { data, error } = await supabase.from("properties").select("id, name").order("name");
       if (error) throw error;
       return (data ?? []) as Property[];
     },
@@ -285,9 +291,6 @@ function IdagPage() {
   ]
     .filter(Boolean)
     .join(" · ");
-
-  const heroProp = (sel ? properties.find((p) => p.id === sel) : null) ?? properties.find((p) => p.image_url) ?? null;
-  const heroImg = heroProp?.image_url ?? null;
 
   const next = attention[0] ?? review[0] ?? fresh[0] ?? null;
   const nextChip = next
@@ -339,19 +342,18 @@ function IdagPage() {
 
           {allowed && (
             <>
-              <section
-                ref={heroRef}
-                className={`id-hero${heroImg ? "" : " id-sketch"}`}
-                style={{ backgroundImage: `url(${heroImg ?? sketch})` }}
-                onMouseMove={onMove}
-                onMouseLeave={onLeave}
-              >
+              <section ref={heroRef} className="id-hero" onMouseMove={onMove} onMouseLeave={onLeave}>
                 <HeroBell />
 
-                <div className="id-glass id-main">
-                  <p className="id-hello">{greeting()}</p>
-                  <h1 className={`id-headline${attention.length > 0 ? " bad" : ""}`}>{loading ? "Hämtar läget…" : headline}</h1>
-                  <p className="id-sub">{loading ? "" : sub || "Allt är avstämt för tillfället."}</p>
+                <div className="id-left">
+                  <div className="id-scene">
+                    <Building3D />
+                  </div>
+                  <div className="id-glass id-main">
+                    <p className="id-hello">{greeting()}</p>
+                    <h1 className={`id-headline${attention.length > 0 ? " bad" : ""}`}>{loading ? "Hämtar läget…" : headline}</h1>
+                    <p className="id-sub">{loading ? "" : sub || "Allt är avstämt för tillfället."}</p>
+                  </div>
                 </div>
 
                 <div className="id-right">
