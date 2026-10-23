@@ -8,7 +8,7 @@ import {
   Panel,
   Row,
   useHomeUser,
-  homeSketch,
+  HeroBell,
   greeting,
   fmtDate,
   daysChip,
@@ -109,7 +109,8 @@ function MinaUppdragPage() {
           {allowed && (
             <>
               <section className="hk-hero">
-                <HeroBell />                <div className="hk-hero-body">
+                <HeroBell />
+                <div className="hk-hero-body">
                   <p className="hk-hello">
                     {greeting()}
                     {firstName ? `, ${firstName}` : ""}
