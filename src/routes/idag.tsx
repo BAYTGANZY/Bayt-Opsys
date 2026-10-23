@@ -17,7 +17,7 @@ import {
   Panel,
   Row,
   useHomeUser,
-  homeSketch,
+  HeroBell,
   greeting,
   fmtDate,
   daysChip,
@@ -226,7 +226,8 @@ function IdagPage() {
           {allowed && (
             <>
               <section className="hk-hero">
-                <HeroBell />                <div className="hk-hero-body">
+                <HeroBell />
+                <div className="hk-hero-body">
                   <p className="hk-hello">{greeting()}</p>
                   <h1 className={`hk-headline${attention.length > 0 ? " bad" : ""}`}>{loading ? "Hämtar läget…" : headline}</h1>
                   <p className="hk-sub">{loading ? "" : sub || "Allt är avstämt för tillfället."}</p>
