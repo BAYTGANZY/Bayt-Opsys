@@ -3,10 +3,8 @@ import { Link } from "@tanstack/react-router";
 import { supabase } from "@/lib/supabase";
 import { canAccess } from "@/lib/permissions";
 import { Screensaver } from "@/components/Screensaver";
-import { NotificationsProvider, useNotifications } from "@/lib/notifications";
+import { NotificationsProvider } from "@/lib/notifications";
 import { NotificationBell } from "@/components/NotificationCenter";
-import { useAkutIssues } from "@/components/AkutWatcher";
-import { useArendeNotifications } from "@/hooks/useArendeNotifications";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 // Behålls för bakåtkompatibilitet: sidorna kan fortfarande importera dessa.
@@ -82,29 +80,18 @@ export function useHomeUser() {
   return { role, name };
 }
 
-function HeroBellInner() {
-  const isMobile = useIsMobile();
-  const { unreadCount } = useNotifications();
-  const arende = useArendeNotifications();
-  const akut = useAkutIssues();
-  const total = unreadCount + arende.unreadCount + akut.length;
-  return (
-    <div className="hk-herobell">
-      <div className="hk-bellring">
-        <NotificationBell isMobile={isMobile} />
-      </div>
-      <div className="hk-bell-label">
-        {total > 0 ? `${total} ${total === 1 ? "ny notis" : "nya notiser"}` : "Inga nya notiser"}
-      </div>
-    </div>
-  );
-}
-
-/** Stor klocka i hjälten. Samma klocka som i appens ram; leverantören läggs här eftersom startsidorna ligger utanför ramen. */
+/** Stor klocka i hjälten. Samma klocka som i appens ram; leverantören läggs här eftersom startsidorna ligger utanför ramen.
+ *  Klockan äger själv sina realtime-prenumerationer, så inga hooks anropas här (annars krockar kanalerna). */
 export function HeroBell() {
+  const isMobile = useIsMobile();
   return (
     <NotificationsProvider>
-      <HeroBellInner />
+      <div className="hk-herobell">
+        <div className="hk-bellring">
+          <NotificationBell isMobile={isMobile} />
+        </div>
+        <div className="hk-bell-label">Notiser</div>
+      </div>
     </NotificationsProvider>
   );
 }
