@@ -35,6 +35,55 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 type FileRow = { id: string; file_name: string; mime: string | null; url: string | null };
 
+/** Filnamn ur en länk, utan tidsstämpelprefix (1792871771353-namn.png → namn.png). */
+function nameFromUrl(u: string): string {
+  try {
+    const last = decodeURIComponent(u.split("?")[0].split("/").pop() ?? "");
+    return last.replace(/^\d{10,}-/, "") || "Fil";
+  } catch {
+    return "Fil";
+  }
+}
+
+function mimeFromName(name: string): string | null {
+  const ext = name.toLowerCase().split(".").pop() ?? "";
+  if (["jpg", "jpeg"].includes(ext)) return "image/jpeg";
+  if (ext === "png") return "image/png";
+  if (ext === "gif") return "image/gif";
+  if (ext === "webp") return "image/webp";
+  if (ext === "heic") return "image/heic";
+  if (ext === "pdf") return "application/pdf";
+  return null;
+}
+
+function FileGrid({ files }: { files: FileRow[] }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8 }}>
+      {files.map((f) => {
+        const isImage = (f.mime ?? "").startsWith("image/");
+        return (
+          <a
+            key={f.id}
+            href={f.url ?? undefined}
+            target="_blank"
+            rel="noreferrer"
+            style={{ display: "block", border: `1px solid ${C.border}`, borderRadius: 8, overflow: "hidden", textDecoration: "none", color: C.text, fontSize: 12 }}
+          >
+            {isImage && f.url ? (
+              <img src={f.url} alt={f.file_name} style={{ width: "100%", height: 80, objectFit: "cover", display: "block" }} />
+            ) : (
+              <div style={{ height: 80, display: "flex", alignItems: "center", justifyContent: "center", background: C.wash, fontWeight: 600 }}>
+                {(f.mime ?? "") === "application/pdf" ? "PDF" : "Öppna"}
+              </div>
+            )}
+            <div style={{ padding: "4px 6px", overflowWrap: "anywhere" }}>{f.file_name}</div>
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
 export function EntreprenorView({ kind, id }: { kind: Kind; id: string }) {
   const qc = useQueryClient();
   const { profile } = useAuth();
@@ -55,6 +104,7 @@ export function EntreprenorView({ kind, id }: { kind: Kind; id: string }) {
     },
   });
 
+  // Entreprenörens egna uppladdningar
   const filesQ = useQuery({
     queryKey: ["entreprenor-files", kind, id],
     queryFn: async (): Promise<FileRow[]> => {
@@ -74,9 +124,49 @@ export function EntreprenorView({ kind, id }: { kind: Kind; id: string }) {
     },
   });
 
+  // Bilder och filer som förvaltaren har lagt till på ärendet
+  const adminFilesQ = useQuery({
+    queryKey: ["entreprenor-admin-files", kind, id],
+    queryFn: async (): Promise<FileRow[]> => {
+      const toRows = (rows: any[] | null, field: string): FileRow[] =>
+        (rows ?? [])
+          .map((r) => {
+            const link = String(r[field] ?? "");
+            if (!link.startsWith("http")) return null;
+            const name = nameFromUrl(link);
+            return { id: String(r.id), file_name: name, mime: mimeFromName(name), url: link } as FileRow;
+          })
+          .filter((x): x is FileRow => x !== null);
+
+      if (kind === "project") {
+        const { data, error } = await supabase
+          .from("project_images")
+          .select("id, url")
+          .eq("project_id", id)
+          .order("created_at", { ascending: false });
+        return error ? [] : toRows(data, "url");
+      }
+      if (kind === "issue") {
+        const { data, error } = await supabase
+          .from("issue_images")
+          .select("id, url")
+          .eq("issue_id", id)
+          .order("created_at", { ascending: false });
+        return error ? [] : toRows(data, "url");
+      }
+      const { data, error } = await supabase
+        .from("inspection_protocols")
+        .select("id, protocol_url")
+        .eq("inspection_id", id)
+        .order("created_at", { ascending: false });
+      return error ? [] : toRows(data, "protocol_url");
+    },
+  });
+
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ["entreprenor-arende", kind, id] });
     void qc.invalidateQueries({ queryKey: ["entreprenor-files", kind, id] });
+    void qc.invalidateQueries({ queryKey: ["entreprenor-admin-files", kind, id] });
   };
 
   const saveNote = useMutation({
@@ -157,6 +247,7 @@ export function EntreprenorView({ kind, id }: { kind: Kind; id: string }) {
   const noteValue = note ?? r.contractor_note ?? "";
   const doneAt = r.contractor_done_at as string | null;
   const files = filesQ.data ?? [];
+  const adminFiles = adminFilesQ.data ?? [];
 
   const box: React.CSSProperties = {
     width: "100%", border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 12px",
@@ -195,6 +286,15 @@ export function EntreprenorView({ kind, id }: { kind: Kind; id: string }) {
             <div style={{ fontSize: 14, color: C.text, lineHeight: 1.55, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{description}</div>
           </div>
         ) : null}
+
+        {adminFiles.length > 0 && (
+          <div style={{ display: "grid", gap: 8, marginTop: 4 }}>
+            <div style={{ fontSize: 11, color: C.secondary, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              Bilder och filer från förvaltaren
+            </div>
+            <FileGrid files={adminFiles} />
+          </div>
+        )}
       </div>
 
       <div style={{ background: "#fff", border: `1px solid ${C.border}`, borderRadius: 12, padding: 18, display: "grid", gap: 12 }}>
@@ -218,7 +318,7 @@ export function EntreprenorView({ kind, id }: { kind: Kind; id: string }) {
         </button>
 
         <div style={{ display: "grid", gap: 8 }}>
-          <div style={{ fontSize: 13, color: C.text }}>Bilder och filer</div>
+          <div style={{ fontSize: 13, color: C.text }}>Dina bilder och filer</div>
           <input ref={inputRef} type="file" accept={ALLOWED.join(",")} multiple onChange={onPick} style={{ display: "none" }} />
           <button
             type="button"
@@ -229,24 +329,7 @@ export function EntreprenorView({ kind, id }: { kind: Kind; id: string }) {
             {uploading ? "Laddar upp…" : "Ta foto / lägg till fil"}
           </button>
           <div style={{ fontSize: 12, color: C.secondary }}>Bilder och PDF, max 10 MB per fil.</div>
-          {files.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8 }}>
-              {files.map((f) => {
-                const isImage = (f.mime ?? "").startsWith("image/");
-                return (
-                  <a key={f.id} href={f.url ?? undefined} target="_blank" rel="noreferrer"
-                    style={{ display: "block", border: `1px solid ${C.border}`, borderRadius: 8, overflow: "hidden", textDecoration: "none", color: C.text, fontSize: 12 }}>
-                    {isImage && f.url ? (
-                      <img src={f.url} alt={f.file_name} style={{ width: "100%", height: 80, objectFit: "cover", display: "block" }} />
-                    ) : (
-                      <div style={{ height: 80, display: "flex", alignItems: "center", justifyContent: "center", background: C.wash, fontWeight: 600 }}>PDF</div>
-                    )}
-                    <div style={{ padding: "4px 6px", overflowWrap: "anywhere" }}>{f.file_name}</div>
-                  </a>
-                );
-              })}
-            </div>
-          )}
+          {files.length > 0 && <FileGrid files={files} />}
         </div>
 
         {doneAt ? (
