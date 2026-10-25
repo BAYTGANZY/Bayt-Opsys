@@ -53,6 +53,21 @@ function addMonths(iso: string, months: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Filnamn ur en länk, utan tidsstämpelprefix (1792871771353-namn.png → namn.png). */
+function protocolFileName(url: string | null | undefined): string {
+  if (!url) return "Protokoll";
+  try {
+    const last = decodeURIComponent(url.split("?")[0].split("/").pop() ?? "");
+    return last.replace(/^\d{10,}-/, "") || "Protokoll";
+  } catch {
+    return "Protokoll";
+  }
+}
+
+function isImageName(name: string): boolean {
+  return /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(name);
+}
+
 export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {}) {
   const params = useParams({ strict: false }) as { id?: string };
   const id = idOverride ?? params.id!;
@@ -468,24 +483,40 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
           <div style={{ color: C.secondary, fontSize: 14 }}>Inga protokoll uppladdade</div>
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
-            {(protocols as any[]).map((p) => (
-              <div key={p.id} style={{
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-                padding: 12, border: `1px solid ${C.border}`, borderRadius: 6,
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <FileText size={18} color={C.secondary} />
-                  <div>
-                    <div style={{ fontSize: 14, color: C.text }}>{fmt(p.completed_date)}</div>
-                    <div style={{ fontSize: 12, color: C.secondary }}>{fmt(p.created_at)}</div>
+            {(protocols as any[]).map((p) => {
+              const name = protocolFileName(p.protocol_url);
+              const image = isImageName(name);
+              return (
+                <div key={p.id} style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12,
+                  padding: 12, border: `1px solid ${C.border}`, borderRadius: 6,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                    {image ? (
+                      <a href={p.protocol_url} target="_blank" rel="noreferrer" style={{ flexShrink: 0, display: "block" }}>
+                        <img
+                          src={p.protocol_url}
+                          alt={name}
+                          style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 6, border: `1px solid ${C.border}`, display: "block" }}
+                        />
+                      </a>
+                    ) : (
+                      <FileText size={22} color={C.secondary} style={{ flexShrink: 0 }} />
+                    )}
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 14, color: C.text, overflowWrap: "anywhere" }}>{name}</div>
+                      <div style={{ fontSize: 12, color: C.secondary }}>
+                        {p.completed_date ? `Utförd ${fmt(p.completed_date)} · ` : ""}Uppladdad {fmt(p.created_at)}
+                      </div>
+                    </div>
                   </div>
+                  <a href={p.protocol_url} target="_blank" rel="noreferrer"
+                    style={{ color: C.primary, fontSize: 14, fontWeight: 600, textDecoration: "none", flexShrink: 0 }}>
+                    Öppna
+                  </a>
                 </div>
-                <a href={p.protocol_url} target="_blank" rel="noreferrer"
-                  style={{ color: C.primary, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>
-                  Öppna
-                </a>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
