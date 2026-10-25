@@ -57,9 +57,12 @@ const daysUntil = (date: string | null): number | null => {
   return Math.round((t - base) / 86400000);
 };
 
-function firstLine(text: string | null | undefined, max = 90): string {
-  const t = (text ?? "").trim().split("\n")[0].replace(/\*\*/g, "").trim();
-  if (!t) return "Loggpost";
+/** Första raden i loggtexten. "X — skickat till Y (mejl)" visas utan mottagarens mejladress. */
+function logTitle(text: string | null | undefined, max = 90): string {
+  const raw = (text ?? "").trim().split("\n")[0].replace(/\*\*/g, "").trim();
+  if (!raw) return "Loggpost";
+  const m = raw.match(/^(.*?)\s+[—–-]\s+skickat till\b/i);
+  const t = m ? `${m[1].trim()} – tilldelad entreprenör` : raw;
   return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 }
 
@@ -90,51 +93,83 @@ function toneFor(daysLeft: number | null, planned: boolean): { tone: Tone; label
 }
 
 const STYLES = `
-  .kl-page { min-height: 100vh; min-height: 100dvh; background: #1f4a37; font-family: Inter, system-ui, sans-serif; color: #14221b; padding-bottom: 110px; }
-  .kl-head { max-width: 760px; margin: 0 auto; padding: 22px 22px 34px; display: flex; align-items: center; justify-content: space-between; }
-  .kl-logo { height: 34px; display: block; }
+  .kl-page { min-height: 100vh; min-height: 100dvh; background: #1c4332; font-family: Inter, system-ui, sans-serif; color: #121f18; padding-bottom: 120px; }
+  .kl-head { max-width: 760px; margin: 0 auto; padding: 28px 26px 34px; display: flex; align-items: center; justify-content: space-between; }
+  .kl-logo { height: 46px; display: block; }
   .kl-out { background: transparent; border: 1px solid rgba(255,255,255,0.28); color: #e9efe4; border-radius: 10px; height: 34px; padding: 0 12px; font: inherit; font-size: 12.5px; cursor: pointer; }
-  .kl-sheet { max-width: 760px; margin: 0 auto; background: #f4efe3; border-radius: 34px 34px 0 0; padding: 30px 22px 40px; min-height: 70vh; }
-  .kl-title { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 34px; line-height: 1.08; font-weight: 700; margin: 0 0 10px; color: #14221b; }
-  .kl-sub { font-size: 14px; color: #5d6a60; margin: 0 0 18px; }
-  .kl-props { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 18px; }
-  .kl-chip { height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid #cfc8b4; background: #fbf8ef; font: inherit; font-size: 13px; font-weight: 600; color: #2d3b32; cursor: pointer; }
-  .kl-chip[aria-pressed="true"] { background: #1f4a37; border-color: #1f4a37; color: #fff; }
+  .kl-sheet { max-width: 760px; margin: 0 auto; background: #f1ecdd; border-radius: 44px 44px 0 0; padding: 36px 22px 44px; min-height: 70vh; }
+  .kl-title { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 40px; line-height: 1.04; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 12px; color: #121f18; max-width: 520px; }
+  .kl-sub { font-size: 15px; color: #4d5a50; margin: 0 0 22px; }
+  .kl-props { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 20px; }
+  .kl-chip { height: 36px; padding: 0 16px; border-radius: 999px; border: 1px solid #d3ccb6; background: #f8f5ec; font: inherit; font-size: 13px; font-weight: 600; color: #2d3b32; cursor: pointer; }
+  .kl-chip[aria-pressed="true"] { background: #1c4332; border-color: #1c4332; color: #fff; }
 
-  .kl-h2 { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 20px; font-weight: 700; margin: 22px 0 12px; color: #14221b; display: flex; align-items: center; gap: 10px; }
-  .kl-count { font-family: Inter, system-ui, sans-serif; font-size: 12.5px; font-weight: 600; color: #5d6a60; background: #e6dfca; border-radius: 999px; padding: 2px 10px; }
+  .kl-h2 { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 22px; font-weight: 800; margin: 26px 0 14px; color: #121f18; display: flex; align-items: center; gap: 10px; }
+  .kl-count { font-family: Inter, system-ui, sans-serif; font-size: 12.5px; font-weight: 700; color: #4d5a50; background: #e4dcc3; border-radius: 999px; padding: 2px 10px; }
 
-  .kl-big-list { display: grid; gap: 14px; }
-  .kl-big { display: block; background: #fbf9f2; border-radius: 26px; padding: 20px 20px 18px; text-decoration: none; color: inherit; box-shadow: 0 14px 28px -18px rgba(20,34,27,0.5); border: 1px solid #ece5d0; }
-  .kl-big.bad { border-color: #8B1A2B; box-shadow: 0 14px 28px -18px rgba(122,20,38,0.55); }
-  .kl-big-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-  .kl-kind { font-size: 11.5px; letter-spacing: 0.09em; text-transform: uppercase; color: #6c776f; font-weight: 700; }
-  .kl-big-title { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 21px; line-height: 1.2; font-weight: 700; overflow-wrap: anywhere; }
-  .kl-big-meta { font-size: 13.5px; color: #5d6a60; margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
-  .kl-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
-  .kl-badge.bad { background: #7A1426; color: #F5E6C4; }
-  .kl-badge.plan { background: #efe9a3; color: #5e520f; }
-  .kl-badge.ok { background: #d8ead7; color: #1f5a30; }
-  .kl-none { background: #fbf9f2; border-radius: 22px; padding: 18px; color: #5d6a60; font-size: 14.5px; }
+  .kl-list { display: grid; gap: 14px; }
+  .kl-card { display: flex; align-items: center; gap: 16px; background: #f9f6ee; border-radius: 28px; padding: 20px 18px; text-decoration: none; color: inherit; box-shadow: 0 14px 26px -18px rgba(20,34,27,0.55), 0 1px 0 rgba(255,255,255,0.8) inset; }
+  .kl-card.bad { box-shadow: 0 0 0 2px #8B1A2B, 0 14px 26px -18px rgba(122,20,38,0.5); }
+  .kl-ico { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .kl-ico.done { background: #2b7a3d; color: #fff; }
+  .kl-ico.plan { background: #efe9a3; color: #5e520f; }
+  .kl-ico.bad { background: #7A1426; color: #F5E6C4; }
+  .kl-ico.ok { background: #d8ead7; color: #1f5a30; }
+  .kl-main { flex: 1; min-width: 0; }
+  .kl-kind { font-size: 11.5px; letter-spacing: 0.09em; text-transform: uppercase; color: #6c776f; font-weight: 700; margin-bottom: 3px; }
+  .kl-ctitle { font-size: 18px; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
+  .kl-cmeta { font-size: 14px; color: #4d5a50; margin-top: 5px; }
+  .kl-tag { display: inline-block; margin-top: 8px; padding: 4px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; }
+  .kl-tag.plan { background: #efe9a3; color: #5e520f; }
+  .kl-tag.bad { background: #7A1426; color: #F5E6C4; }
+  .kl-tag.ok { background: #d8ead7; color: #1f5a30; }
+  .kl-side { display: flex; align-items: center; gap: 8px; color: #2d3b32; flex-shrink: 0; }
+  .kl-arrow { color: #7b857d; font-size: 24px; line-height: 1; }
+  .kl-none { background: #f9f6ee; border-radius: 24px; padding: 20px; color: #4d5a50; font-size: 15px; }
 
-  .kl-small-list { display: grid; gap: 0; background: #fbf9f2; border-radius: 22px; overflow: hidden; border: 1px solid #ece5d0; }
-  .kl-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; text-decoration: none; color: inherit; border-top: 1px solid #efe9d6; }
-  .kl-row:first-child { border-top: none; }
-  .kl-row:hover { background: #f6f1e3; }
-  .kl-dot { width: 22px; height: 22px; border-radius: 50%; background: #2b7a3d; color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .kl-row-main { flex: 1; min-width: 0; }
-  .kl-row-title { font-size: 14.5px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
-  .kl-row-meta { font-size: 12px; color: #6c776f; margin-top: 2px; }
-  .kl-arrow { color: #7b857d; font-size: 18px; flex-shrink: 0; }
-  .kl-more { display: block; width: 100%; margin-top: 12px; height: 42px; border-radius: 14px; border: 1px solid #cfc8b4; background: #fbf8ef; font: inherit; font-size: 14px; font-weight: 600; color: #2d3b32; cursor: pointer; }
-  .kl-empty { padding: 26px 8px; color: #5d6a60; font-size: 15px; }
+  .kl-small { display: grid; gap: 10px; }
+  .kl-card.sm { padding: 12px 14px; border-radius: 22px; gap: 12px; box-shadow: 0 10px 20px -16px rgba(20,34,27,0.5); }
+  .kl-card.sm .kl-ico { width: 36px; height: 36px; }
+  .kl-card.sm .kl-ctitle { font-size: 15px; font-weight: 700; }
+  .kl-card.sm .kl-cmeta { font-size: 12.5px; margin-top: 3px; }
 
-  .kl-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; justify-content: center; padding: 10px 14px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(0deg, #f4efe3 70%, rgba(244,239,227,0)); }
-  .kl-nav-in { width: 100%; max-width: 560px; display: grid; grid-template-columns: 1fr 1.3fr 1fr; gap: 6px; background: #ebe5d3; border-radius: 26px; padding: 8px; }
-  .kl-nav a { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 6px; border-radius: 18px; text-decoration: none; color: #2d3b32; font-size: 12.5px; font-weight: 600; }
-  .kl-nav a.on { background: #1f4a37; color: #fff; }
-  @media (min-width: 900px) { .kl-title { font-size: 40px; } }
+  .kl-more { display: block; width: 100%; margin-top: 14px; height: 46px; border-radius: 16px; border: 1px solid #d3ccb6; background: #f8f5ec; font: inherit; font-size: 14px; font-weight: 700; color: #2d3b32; cursor: pointer; }
+  .kl-empty { padding: 26px 8px; color: #4d5a50; font-size: 15px; }
+
+  .kl-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; justify-content: center; padding: 10px 14px calc(14px + env(safe-area-inset-bottom)); pointer-events: none; }
+  .kl-nav-in { pointer-events: auto; width: 100%; max-width: 560px; display: grid; grid-template-columns: 1fr 1.35fr 1fr; gap: 6px; background: #ebe5d3; border-radius: 34px; padding: 8px; box-shadow: 0 18px 36px -14px rgba(0,0,0,0.5); }
+  .kl-nav a { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 11px 6px; border-radius: 26px; text-decoration: none; color: #2d3b32; font-size: 13px; font-weight: 600; }
+  .kl-nav a.on { background: #1c4332; color: #fff; }
+  @media (max-width: 480px) { .kl-title { font-size: 34px; } .kl-ctitle { font-size: 17px; } }
 `;
+
+const IcoCheck = ({ s = 26 }: { s?: number }) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 12.5l4.5 4.5L19 7.5" />
+  </svg>
+);
+const IcoClock = ({ s = 28 }: { s?: number }) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </svg>
+);
+const IcoAlert = ({ s = 28 }: { s?: number }) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 6v8M12 18h.01" />
+  </svg>
+);
+const IcoDots = ({ s = 28 }: { s?: number }) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round">
+    <path d="M6 12h.01M12 12h.01M18 12h.01" />
+  </svg>
+);
+const IcoDoc = () => (
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="5" y="3" width="14" height="18" rx="2.5" />
+    <path d="M9 8h6M9 12h6M9 16h4" />
+  </svg>
+);
 
 function KollPage() {
   const { role, name } = useHomeUser();
@@ -287,7 +322,7 @@ function KollPage() {
       if (!date || date > today) continue;
       old.push({
         key: `log-${r.id}`,
-        title: firstLine(r.content),
+        title: logTitle(r.content),
         date,
         to: `/properties/${r.property_id}/logbook`,
         propertyId: (r.property_id as string | null) ?? null,
@@ -360,18 +395,25 @@ function KollPage() {
                 Pågår just nu <span className="kl-count">{activeShown.length}</span>
               </h2>
               {!loading && activeShown.length === 0 && <div className="kl-none">Inget pågår just nu. Allt är under kontroll. 👍</div>}
-              <div className="kl-big-list">
+              <div className="kl-list">
                 {activeShown.map((a) => (
-                  <Link key={a.key} to={a.to as never} className={`kl-big${a.tone === "bad" ? " bad" : ""}`}>
-                    <div className="kl-big-top">
-                      <span className="kl-kind">{a.kind}</span>
-                      <span className={`kl-badge ${a.tone}`}>{a.label}</span>
-                    </div>
-                    <div className="kl-big-title">{a.title}</div>
-                    <div className="kl-big-meta">
-                      {propName(a.propertyId) && <span>{propName(a.propertyId)}</span>}
-                      {a.date && <span>· {a.kind === "Kontroll" ? "Datum" : "Klart senast"} {a.date}</span>}
-                    </div>
+                  <Link key={a.key} to={a.to as never} className={`kl-card${a.tone === "bad" ? " bad" : ""}`}>
+                    <span className={`kl-ico ${a.tone}`} aria-hidden="true">
+                      {a.tone === "bad" ? <IcoAlert /> : a.tone === "plan" ? <IcoClock /> : <IcoDots />}
+                    </span>
+                    <span className="kl-main">
+                      <div className="kl-kind">{a.kind}</div>
+                      <div className="kl-ctitle">{a.title}</div>
+                      <div className="kl-cmeta">{propName(a.propertyId)}</div>
+                      <span className={`kl-tag ${a.tone}`}>
+                        {a.date ? `${a.date} · ` : ""}
+                        {a.label}
+                      </span>
+                    </span>
+                    <span className="kl-side" aria-hidden="true">
+                      <IcoDoc />
+                      <span className="kl-arrow">›</span>
+                    </span>
                   </Link>
                 ))}
               </div>
@@ -381,22 +423,21 @@ function KollPage() {
               </h2>
               {!loading && pastAll.length === 0 && <div className="kl-none">Inget i loggen ännu.</div>}
               {pastShown.length > 0 && (
-                <div className="kl-small-list">
+                <div className="kl-small">
                   {pastShown.map((p) => (
-                    <Link key={p.key} to={p.to as never} className="kl-row">
-                      <span className="kl-dot" aria-hidden="true">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M5 12.5l4.5 4.5L19 7.5" />
-                        </svg>
+                    <Link key={p.key} to={p.to as never} className="kl-card sm">
+                      <span className="kl-ico done" aria-hidden="true">
+                        <IcoCheck s={18} />
                       </span>
-                      <span className="kl-row-main">
-                        <div className="kl-row-title">{p.title}</div>
-                        <div className="kl-row-meta">
-                          {p.date}
-                          {multi && propName(p.propertyId) ? ` · ${propName(p.propertyId)}` : ""}
+                      <span className="kl-main">
+                        <div className="kl-ctitle">{p.title}</div>
+                        <div className="kl-cmeta">
+                          {p.date} · Utfört{multi && propName(p.propertyId) ? ` · ${propName(p.propertyId)}` : ""}
                         </div>
                       </span>
-                      <span className="kl-arrow" aria-hidden="true">›</span>
+                      <span className="kl-side" aria-hidden="true">
+                        <span className="kl-arrow">›</span>
+                      </span>
                     </Link>
                   ))}
                 </div>
@@ -413,19 +454,19 @@ function KollPage() {
         <nav className="kl-nav" aria-label="Meny">
           <div className="kl-nav-in">
             <Link to={"/styrelse" as never}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />
               </svg>
               Översikt
             </Link>
             <Link to={"/koll" as never} className="on">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />
               </svg>
               Loggar
             </Link>
             <Link to={"/fastigheter" as never}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
                 <path d="M14 3v5h5M9 13h6M9 17h6" />
               </svg>
