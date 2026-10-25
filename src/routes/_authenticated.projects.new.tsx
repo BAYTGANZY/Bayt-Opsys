@@ -10,7 +10,9 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { AnsvarigDropdown } from "@/components/AnsvarigDropdown";
 import { ObjectDropdown } from "@/components/ObjectDropdown";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
+import { FileDropzone } from "@/components/FileDropzone";
 import { derivePriority } from "@/lib/issue-tokens";
+import { sanitizeStorageName } from "@/lib/storage";
 
 export const Route = createFileRoute("/_authenticated/projects/new")({
   head: () => ({ meta: [{ title: "Nytt projekt — BAYT" }] }),
@@ -76,6 +78,7 @@ export function NewProjectPage({ initialPropertyId }: { initialPropertyId?: stri
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [assignedContactId, setAssignedContactId] = useState<string | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const { data: properties = [] } = useQuery({
@@ -103,7 +106,9 @@ export function NewProjectPage({ initialPropertyId }: { initialPropertyId?: stri
           arendeTitle: title,
           confirmLabel: "Skicka och spara",
         });
-        if (!gate.ok) return { id: null as string | null, mailedTo: null, mailError: null };
+        if (!gate.ok) {
+          return { id: null as string | null, mailedTo: null as string | null, mailError: null as string | null, uploadError: null as string | null };
+        }
         gateEmail = gate.email;
         gateName = gate.name;
       }
@@ -130,6 +135,28 @@ export function NewProjectPage({ initialPropertyId }: { initialPropertyId?: stri
       if (error) throw error;
       const newId = data.id as string;
 
+      // Filer laddas upp när projektet finns (vi behöver id:t). Misslyckas en
+      // fil är projektet ändå skapat, och felet visas för admin.
+      let uploadError: string | null = null;
+      if (files.length > 0 && user) {
+        try {
+          for (const f of files) {
+            const path = `${newId}/${Date.now()}-${sanitizeStorageName(f.name)}`;
+            const { error: upErr } = await supabase.storage.from("project-files").upload(path, f);
+            if (upErr) throw new Error(`Uppladdningen av ${f.name} misslyckades: ${upErr.message}`);
+            const { data: pub } = supabase.storage.from("project-files").getPublicUrl(path);
+            const { error: insErr } = await supabase.from("project_images").insert({
+              project_id: newId,
+              url: pub.publicUrl,
+              uploaded_by: user.id,
+            });
+            if (insErr) throw insErr;
+          }
+        } catch (e) {
+          uploadError = e instanceof Error ? e.message : "Filerna kunde inte laddas upp.";
+        }
+      }
+
       // Utskicket sker efter skrivningen — mejlet ska spegla det som faktiskt
       // sparades. Misslyckas det är projektet ändå skapat.
       let mailedTo: string | null = null;
@@ -152,20 +179,23 @@ export function NewProjectPage({ initialPropertyId }: { initialPropertyId?: stri
           mailError = e instanceof Error ? e.message : "E-posten kunde inte skickas.";
         }
       }
-      return { id: newId, mailedTo, mailError };
+      return { id: newId, mailedTo, mailError, uploadError };
     },
-    onSuccess: ({ id, mailedTo, mailError }) => {
+    onSuccess: ({ id, mailedTo, mailError, uploadError }) => {
       if (!id) {
         setError("Ingenting sparades — entreprenören tilldelades inte.");
         return;
       }
-      if (mailError) {
+      if (uploadError) {
+        toast.error(`Projektet sparades, men ${uploadError} Lägg till filerna på projektsidan.`);
+      } else if (mailError) {
         toast.error(`Projektet sparades, men ${mailError}`);
       } else if (mailedTo) {
         toast.success(`Sparat! Projektet skickades till ${mailedTo}.`, { style: { background: "#3D8A30", color: "#fff" } });
       } else {
         toast.success("Sparat!", { style: { background: "#3D8A30", color: "#fff" } });
       }
+      qc.invalidateQueries({ queryKey: ["project-images", id] });
       navigate({ to: "/projects/$id", params: { id } });
     },
     onError: (e: any) => setError(e.message ?? "Kunde inte spara"),
@@ -247,6 +277,22 @@ export function NewProjectPage({ initialPropertyId }: { initialPropertyId?: stri
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
           />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>Bilder och filer</label>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+            <FileDropzone
+              files={files}
+              onAdd={(picked) => setFiles((prev) => [...prev, ...picked])}
+              onRemove={(i) => setFiles((prev) => prev.filter((_, k) => k !== i))}
+            />
+            {files.length > 0 && (
+              <div style={{ fontSize: 12, color: C.secondary }}>
+                {files.length} {files.length === 1 ? "fil" : "filer"} laddas upp när du sparar projektet.
+              </div>
+            )}
+          </div>
         </div>
 
         <div style={{ marginBottom: 16 }}>
