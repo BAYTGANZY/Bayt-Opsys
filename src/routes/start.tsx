@@ -74,7 +74,8 @@ const STYLES = `
     padding-bottom: 20px;
     margin-bottom: 32px;
   }
-  .start-logo { height: 40px; }
+  .start-logolink { display: inline-flex; text-decoration: none; }
+  .start-logo { height: 40px; display: block; }
   .start-logout {
     background: transparent;
     border: 1px solid ${LINE};
@@ -273,7 +274,9 @@ function StartPage() {
         <img src={buildingSketch} alt="" className="start-bg-sketch" aria-hidden />
 
         <div className="start-header">
-          <img src={baytLogo} alt="BAYT" className="start-logo" />
+          <Link to={"/styrelse" as never} className="start-logolink" title="Till Start" aria-label="Till Start">
+            <img src={baytLogo} alt="BAYT" className="start-logo" />
+          </Link>
           <button
             className="start-logout"
             onClick={async () => {
