@@ -240,6 +240,8 @@ export function AppShell() {
   const showMiniSidebar = isMini && !open;
 
   const initial = getInitial(profile?.full_name);
+  // Loggan leder till rollens startsida: entreprenör → Snabbåtkomst, övriga → Översikt.
+  const homeTo = profile?.role === "entreprenor" ? "/start" : "/styrelse";
   const sections = sectionsForRole(profile?.role);
   // Tom karta för alla utom entreprenör — ingen extra fråga körs för dem.
   const arendeDots = useMyArendeDots();
@@ -295,7 +297,7 @@ export function AppShell() {
           }}
         >
           <Link
-            to="/start"
+            to={homeTo}
             title="Till startsidan"
             aria-label="Till startsidan"
             style={{
@@ -422,7 +424,7 @@ export function AppShell() {
             }}
           >
             <Link
-              to="/start"
+              to={homeTo}
               onClick={() => setOpen(false)}
               title="Till startsidan"
               aria-label="Till startsidan"
