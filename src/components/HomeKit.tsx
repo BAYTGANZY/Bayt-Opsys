@@ -137,7 +137,9 @@ export function TopBar({
     <>
       <Screensaver />
       <div className="hk-top">
-        <img src={whiteLogo} alt="BAYT" className="hk-logo" />
+        <Link to={"/start" as never} className="hk-logolink" title="Till Hem" aria-label="Till Hem">
+          <img src={whiteLogo} alt="BAYT" className="hk-logo" />
+        </Link>
         <div className="hk-navwrap">
           <nav className="hk-nav" aria-label="Meny">
             <Link to={"/start" as never}>Hem</Link>
@@ -249,6 +251,7 @@ export const HOME_STYLES = `
   }
 
   .hk-top { display: flex; align-items: center; gap: 18px; padding: 22px 0 14px; position: relative; z-index: 50; }
+  .hk-logolink { display: inline-flex; flex-shrink: 0; text-decoration: none; }
   .hk-logo { height: 36px; width: auto; display: block; flex-shrink: 0; }
   .hk-navwrap { display: flex; align-items: center; gap: 2px; flex: 1; min-width: 0; }
   .hk-nav { display: flex; gap: 0; min-width: 0; overflow-x: auto; scrollbar-width: none; }
