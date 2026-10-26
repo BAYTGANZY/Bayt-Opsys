@@ -18,6 +18,10 @@
  * That write access is enforced by the chat RLS policies and the
  * create_chat_conversation() RPC (see supabase-functions/chat.sql), not by
  * canEdit() — this file only controls whether the route is reachable at all.
+ *
+ * Dokument (/dokument) is open to all roles: it only lists files that belong to
+ * errands (project_images, issue_images, inspection_protocols, contractor_files),
+ * and those tables are role-scoped by RLS. It does NOT read the `documents` table.
  */
 export type Role = "admin" | "styrelse" | "entreprenor";
 
@@ -27,6 +31,8 @@ export type Role = "admin" | "styrelse" | "entreprenor";
 const STYRELSE_ROUTES = [
   // Styrelsens startsida: en lugn översikt över deras fastigheter (read-only).
   "/styrelse",
+  // Koll: lugn logg över fastigheternas läge.
+  "/koll",
   // Läsvy: samma arbetslista som entreprenören ser, men för styrelsens egna
   // fastigheter och utan livscykelknappar (StyrelseDagRapport). Att veta vad
   // som ska utföras och när är styrelsens uppgift; att utföra det är inte det.
@@ -38,6 +44,8 @@ const STYRELSE_ROUTES = [
   "/inspections",
   "/projects",
   "/loggbok",
+  // Samlade filer på styrelsens egna ärenden (rollstyrt av RLS).
+  "/dokument",
   // Objekt (hiss/vind/miljörum/…) mirrors Lägenheter: read-only, own buildings
   // only, enforced underneath by property_objects' RLS
   // (supabase-functions/property-objects-scoped-rls.sql).
@@ -61,6 +69,8 @@ const ENTREPRENOR_ROUTES = [
   "/inspections",
   "/projects",
   "/properties",
+  // Samlade filer på entreprenörens egna uppdrag (rollstyrt av RLS).
+  "/dokument",
   // Narrower again, same shape as Lägenheter: has_object_assignment() (RLS)
   // only returns an object the entreprenör holds an issue/inspection
   // assignment against — see property-objects-scoped-rls.sql.
