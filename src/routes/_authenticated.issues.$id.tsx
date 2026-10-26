@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useParams, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Upload } from "lucide-react";
+import { ArrowLeft, Upload, FileText, X, Download } from "lucide-react";
 import { FileDropzone } from "@/components/FileDropzone";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -13,7 +13,7 @@ import {
   derivePriority,
 } from "@/lib/issue-tokens";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
-import { sanitizeStorageName, useSignedFileUrls } from "@/lib/storage";
+import { sanitizeStorageName, useSignedFileUrls, storagePathFromPublicUrl } from "@/lib/storage";
 import { OppnaArendeButton } from "@/components/OppnaArendeButton";
 import { AvslutaArendeButton } from "@/components/AvslutaArendeButton";
 import { AnsvarigDropdown } from "@/components/AnsvarigDropdown";
@@ -72,6 +72,22 @@ const textareaStyle: React.CSSProperties = {
   resize: "vertical",
   fontFamily: "inherit",
 };
+
+/** Filnamn ur en länk, utan tidsstämpelprefix. */
+function fileNameFromUrl(url: string): string {
+  try {
+    const last = decodeURIComponent(url.split("?")[0].split("/").pop() ?? "");
+    return last.replace(/^\d{10,}-/, "") || "Fil";
+  } catch {
+    return "Fil";
+  }
+}
+
+function isImageUrl(url: string): boolean {
+  return /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(url.split("?")[0]);
+}
+
+type ImageRow = { id: string; url: string; created_at: string; uploaded_by: string | null };
 
 type Issue = {
   id: string;
@@ -138,11 +154,11 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("issue_images")
-        .select("id, url, created_at")
+        .select("id, url, created_at, uploaded_by")
         .eq("issue_id", id)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as ImageRow[];
     },
   });
 
@@ -369,6 +385,31 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
     }
   };
 
+  // Ta bort en fil: raden i issue_images och filen i lagringen.
+  const removeFile = useMutation({
+    mutationFn: async (img: ImageRow) => {
+      const { data: deleted, error } = await supabase
+        .from("issue_images")
+        .delete()
+        .eq("id", img.id)
+        .select("id");
+      if (error) throw error;
+      if (!deleted?.length) throw new Error("Du saknar behörighet att ta bort filen.");
+      const parsed = storagePathFromPublicUrl(img.url);
+      if (parsed) await supabase.storage.from(parsed.bucket).remove([parsed.path]);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["issue-images", id] });
+      toast.success("Filen är borttagen", { style: { background: "#3D8A30", color: "#fff" } });
+    },
+    onError: (e: any) => toast.error(e.message ?? "Kunde inte ta bort filen"),
+  });
+
+  const confirmRemove = (img: ImageRow) => {
+    if (window.confirm(`Ta bort "${fileNameFromUrl(img.url)}"? Det går inte att ångra.`)) removeFile.mutate(img);
+  };
+  const canRemove = (img: ImageRow) => profile?.role === "admin" || (!!user && img.uploaded_by === user.id);
+
   const [comment, setComment] = useState("");
   const commentMut = useMutation({
     mutationFn: async () => {
@@ -406,6 +447,19 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
   const card: React.CSSProperties = {
     background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 24,
     minWidth: 0, boxSizing: "border-box",
+  };
+
+  const allFiles = imagesQ.data ?? [];
+  const imageFiles = allFiles.filter((f) => isImageUrl(f.url));
+  const otherFiles = allFiles.filter((f) => !isImageUrl(f.url));
+
+  const linkStyle: React.CSSProperties = {
+    color: C.primary, fontSize: 13, fontWeight: 600, textDecoration: "none",
+    display: "inline-flex", alignItems: "center", gap: 4,
+  };
+  const xBtn: React.CSSProperties = {
+    border: "none", background: "transparent", color: C.error, cursor: "pointer",
+    padding: 2, display: "inline-flex",
   };
 
   return (
@@ -574,15 +628,59 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
 
           <div style={{ minWidth: 0 }}>
             <div style={labelStyle}>Bilder & filer</div>
-            {imagesQ.data && imagesQ.data.length > 0 && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8, marginBottom: 12 }}>
-                {imagesQ.data.map((img: any) => (
-                  <a key={img.id} href={resolveFileUrl(img.url)} target="_blank" rel="noreferrer">
-                    <img src={resolveFileUrl(img.url)} alt="" style={{ width: "100%", height: 120, objectFit: "cover", borderRadius: 6, border: `1px solid ${C.border}` }} />
-                  </a>
+
+            {imageFiles.length > 0 && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 10, marginBottom: 12 }}>
+                {imageFiles.map((img) => (
+                  <div key={img.id} style={{ border: `1px solid ${C.border}`, borderRadius: 8, overflow: "hidden", background: "#fff", fontSize: 12 }}>
+                    <a href={resolveFileUrl(img.url)} target="_blank" rel="noreferrer" style={{ display: "block" }}>
+                      <img
+                        src={resolveFileUrl(img.url)}
+                        alt={fileNameFromUrl(img.url)}
+                        style={{ width: "100%", height: 100, objectFit: "cover", display: "block" }}
+                        loading="lazy"
+                      />
+                    </a>
+                    <div style={{ padding: "6px 8px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <a href={resolveFileUrl(img.url)} target="_blank" rel="noreferrer" style={linkStyle}>Öppna</a>
+                      <a href={resolveFileUrl(img.url)} download={fileNameFromUrl(img.url)} style={linkStyle} title="Ladda ner">
+                        <Download size={14} />
+                      </a>
+                      {canRemove(img) && (
+                        <button type="button" title="Ta bort filen" aria-label="Ta bort filen" onClick={() => confirmRemove(img)} disabled={removeFile.isPending} style={{ ...xBtn, marginLeft: "auto" }}>
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
+
+            {otherFiles.length > 0 && (
+              <div style={{ display: "grid", gap: 8, marginBottom: 12 }}>
+                {otherFiles.map((f) => (
+                  <div key={f.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: 10, border: `1px solid ${C.border}`, borderRadius: 6 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                      <FileText size={22} color={C.secondary} style={{ flexShrink: 0 }} />
+                      <div style={{ fontSize: 14, color: C.text, overflowWrap: "anywhere" }}>{fileNameFromUrl(f.url)}</div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+                      <a href={resolveFileUrl(f.url)} target="_blank" rel="noreferrer" style={linkStyle}>Öppna</a>
+                      <a href={resolveFileUrl(f.url)} download={fileNameFromUrl(f.url)} style={linkStyle} title="Ladda ner">
+                        <Download size={14} />
+                      </a>
+                      {canRemove(f) && (
+                        <button type="button" title="Ta bort filen" aria-label="Ta bort filen" onClick={() => confirmRemove(f)} disabled={removeFile.isPending} style={xBtn}>
+                          <X size={18} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
               <FileDropzone
                 files={files}
