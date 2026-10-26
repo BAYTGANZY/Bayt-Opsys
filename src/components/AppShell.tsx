@@ -61,7 +61,6 @@ const SECTIONS: NavSection[] = [
       { to: "/fastigheter", label: "Fastigheter", icon: Building02Icon },
       { to: "/apartments", label: "Lägenheter", icon: DoorOpenIcon },
       { to: "/objects", label: "Objekt", icon: Briefcase01Icon },
-        
     ],
   },
   {
@@ -295,7 +294,10 @@ export function AppShell() {
             border: "1px solid rgba(255,255,255,0.04)",
           }}
         >
-          <div
+          <Link
+            to="/start"
+            title="Till startsidan"
+            aria-label="Till startsidan"
             style={{
               height: 56,
               display: "flex",
@@ -303,10 +305,11 @@ export function AppShell() {
               justifyContent: "center",
               width: "100%",
               padding: "0 10px",
+              textDecoration: "none",
             }}
           >
             <img src={`${import.meta.env.BASE_URL}assets/bayt-icon.png`} alt="BAYT" style={{ height: 28, width: "auto", display: "block" }} />
-          </div>
+          </Link>
           <nav
             className="bayt-sidebar-nav"
             style={{ flex: 1, paddingTop: 8, width: "100%", overflowY: "auto" }}
@@ -418,7 +421,15 @@ export function AppShell() {
               gap: 8,
             }}
           >
-            <img src={`${import.meta.env.BASE_URL}assets/bayt-logo.png`} alt="BAYT" style={{ height: 32, width: "auto", display: "block" }} />
+            <Link
+              to="/start"
+              onClick={() => setOpen(false)}
+              title="Till startsidan"
+              aria-label="Till startsidan"
+              style={{ display: "inline-flex", textDecoration: "none" }}
+            >
+              <img src={`${import.meta.env.BASE_URL}assets/bayt-logo.png`} alt="BAYT" style={{ height: 32, width: "auto", display: "block" }} />
+            </Link>
             {isMobile && (
               <button
                 onClick={() => setOpen(false)}
