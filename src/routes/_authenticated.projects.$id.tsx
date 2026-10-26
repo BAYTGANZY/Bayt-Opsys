@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useParams, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Upload } from "lucide-react";
+import { ArrowLeft, Upload, FileText, X } from "lucide-react";
 import { FileDropzone } from "@/components/FileDropzone";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -23,7 +23,7 @@ import { deriveProjectStatus, derivePriorityFromStatus } from "@/lib/issue-token
 import { gateEntreprenorEmail, notifyEntreprenorAboutArende } from "@/lib/entreprenor-notify";
 import { useRecordScopeGuard } from "@/hooks/useRecordScopeGuard";
 import { isEntreprenor, isStyrelse } from "@/lib/permissions";
-import { sanitizeStorageName, useSignedFileUrls } from "@/lib/storage";
+import { sanitizeStorageName, useSignedFileUrls, storagePathFromPublicUrl } from "@/lib/storage";
 
 export const Route = createFileRoute("/_authenticated/projects/$id")({
   head: () => ({ meta: [{ title: "Projekt — BAYT" }] }),
@@ -77,6 +77,20 @@ function formatSek(n: number | null): string {
   return new Intl.NumberFormat("sv-SE").format(n) + " SEK";
 }
 
+/** Filnamn ur en länk, utan tidsstämpelprefix (1792871771353-namn.pdf → namn.pdf). */
+function fileNameFromUrl(url: string): string {
+  try {
+    const last = decodeURIComponent(url.split("?")[0].split("/").pop() ?? "");
+    return last.replace(/^\d{10,}-/, "") || "Fil";
+  } catch {
+    return "Fil";
+  }
+}
+
+function isImageUrl(url: string): boolean {
+  return /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(url.split("?")[0]);
+}
+
 type Project = {
   id: string;
   property_id: string | null;
@@ -96,6 +110,8 @@ type Project = {
   contractor_done_at: string | null;
   properties: { name: string | null } | null;
 };
+
+type ImageRow = { id: string; url: string; created_at: string };
 
 export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) {
   const params = useParams({ strict: false }) as { id?: string };
@@ -289,6 +305,35 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
     }
   };
 
+  // Ta bort en fil: raden i project_images och filen i lagringen.
+  const removeFile = useMutation({
+    mutationFn: async (img: ImageRow) => {
+      const { data: deleted, error } = await supabase
+        .from("project_images")
+        .delete()
+        .eq("id", img.id)
+        .select("id");
+      if (error) throw error;
+      if (!deleted?.length) throw new Error("Du saknar behörighet att ta bort filen.");
+      const parsed = storagePathFromPublicUrl(img.url);
+      if (parsed) {
+        // Raden är borta; misslyckas lagringen blir filen kvar men syns inte längre.
+        await supabase.storage.from(parsed.bucket).remove([parsed.path]);
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["project-images", id] });
+      toast.success("Filen är borttagen", { style: { background: "#3D8A30", color: "#fff" } });
+    },
+    onError: (e: any) => toast.error(e.message ?? "Kunde inte ta bort filen"),
+  });
+
+  const confirmRemove = (img: ImageRow) => {
+    if (window.confirm(`Ta bort "${fileNameFromUrl(img.url)}"? Det går inte att ångra.`)) {
+      removeFile.mutate(img);
+    }
+  };
+
   const fmtDate = (s: string | null) =>
     s ? new Intl.DateTimeFormat("sv-SE").format(new Date(s)) : "—";
 
@@ -296,6 +341,7 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
   if (isEntreprenor(profile?.role)) return <EntreprenorView kind="project" id={id} />;
 
   const p = projectQ.data;
+  const canDelete = profile?.role === "admin";
 
   const derived = deriveProjectStatus({
     arende_status: (p as { arende_status?: string | null } | null)?.arende_status ?? null,
@@ -307,6 +353,27 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
     from: p?.created_at ?? null,
     dueLabel: "Slutdatum",
   });
+
+  const allFiles = (imagesQ.data ?? []) as ImageRow[];
+  const imageFiles = allFiles.filter((f) => isImageUrl(f.url));
+  const otherFiles = allFiles.filter((f) => !isImageUrl(f.url));
+
+  const xButton: React.CSSProperties = {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 26,
+    height: 26,
+    borderRadius: "50%",
+    border: "none",
+    background: "rgba(13,43,30,0.82)",
+    color: "#fff",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    padding: 0,
+  };
 
   return (
     <div style={{ background: C.bg, minHeight: "100vh", padding: isMobile ? 16 : 32 }}>
@@ -519,11 +586,11 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
           maxWidth: 640,
         }}
       >
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: C.text, margin: "0 0 16px" }}>Projektbilder</h2>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: C.text, margin: "0 0 16px" }}>Bilder och filer</h2>
 
         {!isStyrelse(profile?.role) && (
           <div style={{ marginBottom: 16 }}>
-            <label style={{ ...labelStyle, marginBottom: 8 }}>Ladda upp bild</label>
+            <label style={{ ...labelStyle, marginBottom: 8 }}>Ladda upp bild eller fil</label>
             <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
               <FileDropzone
                 files={filesList}
@@ -547,6 +614,7 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
                     fontWeight: 600,
                     cursor: uploading ? "not-allowed" : "pointer",
                     opacity: uploading ? 0.7 : 1,
+                    alignSelf: "flex-start",
                   }}
                 >
                   <Upload size={18} />
@@ -558,42 +626,118 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
         )}
 
         {imagesQ.isLoading ? (
-          <div style={{ color: C.secondary }}>Laddar bilder…</div>
-        ) : imagesQ.data && imagesQ.data.length > 0 ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 12 }}>
-            {(imagesQ.data as Array<{ id: string; url: string; created_at: string }>).map((img, i) => (
-              <button
-                key={img.id}
-                type="button"
-                onClick={() => setLightboxIdx(i)}
-                style={{
-                  display: "block",
-                  borderRadius: 6,
-                  overflow: "hidden",
-                  border: `1px solid ${C.border}`,
-                  padding: 0,
-                  background: "none",
-                  cursor: "pointer",
-                }}
-              >
-                <img
-                  src={resolveFileUrl(img.url)}
-                  alt="Projektbild"
-                  style={{ width: "100%", height: 120, objectFit: "cover", display: "block" }}
-                  loading="lazy"
-                />
-              </button>
-            ))}
-          </div>
+          <div style={{ color: C.secondary }}>Laddar filer…</div>
+        ) : allFiles.length === 0 ? (
+          <div style={{ color: C.secondary, fontSize: 14 }}>Inga filer ännu</div>
         ) : (
-          <div style={{ color: C.secondary, fontSize: 14 }}>Inga bilder ännu</div>
+          <div style={{ display: "grid", gap: 16 }}>
+            {imageFiles.length > 0 && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 12 }}>
+                {imageFiles.map((img, i) => (
+                  <div key={img.id} style={{ position: "relative" }}>
+                    <button
+                      type="button"
+                      onClick={() => setLightboxIdx(i)}
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        borderRadius: 6,
+                        overflow: "hidden",
+                        border: `1px solid ${C.border}`,
+                        padding: 0,
+                        background: "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <img
+                        src={resolveFileUrl(img.url)}
+                        alt={fileNameFromUrl(img.url)}
+                        style={{ width: "100%", height: 120, objectFit: "cover", display: "block" }}
+                        loading="lazy"
+                      />
+                    </button>
+                    {canDelete && (
+                      <button
+                        type="button"
+                        title="Ta bort bilden"
+                        aria-label="Ta bort bilden"
+                        onClick={() => confirmRemove(img)}
+                        disabled={removeFile.isPending}
+                        style={xButton}
+                      >
+                        <X size={15} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {otherFiles.length > 0 && (
+              <div style={{ display: "grid", gap: 8 }}>
+                {otherFiles.map((f) => (
+                  <div
+                    key={f.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      padding: 12,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 6,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                      <FileText size={22} color={C.secondary} style={{ flexShrink: 0 }} />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 14, color: C.text, overflowWrap: "anywhere" }}>
+                          {fileNameFromUrl(f.url)}
+                        </div>
+                        <div style={{ fontSize: 12, color: C.secondary }}>{fmtDate(f.created_at)}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+                      <a
+                        href={resolveFileUrl(f.url)}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: C.primary, fontSize: 14, fontWeight: 600, textDecoration: "none" }}
+                      >
+                        Öppna
+                      </a>
+                      {canDelete && (
+                        <button
+                          type="button"
+                          title="Ta bort filen"
+                          aria-label="Ta bort filen"
+                          onClick={() => confirmRemove(f)}
+                          disabled={removeFile.isPending}
+                          style={{
+                            border: "none",
+                            background: "transparent",
+                            color: C.error,
+                            cursor: "pointer",
+                            padding: 4,
+                            display: "inline-flex",
+                          }}
+                        >
+                          <X size={18} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
 
-      {lightboxIdx !== null && imagesQ.data && (
+      {lightboxIdx !== null && imageFiles.length > 0 && (
         <ImageLightbox
-          images={(imagesQ.data as Array<{ id: string; url: string }>).map((img) => ({
-            ...img,
+          images={imageFiles.map((img) => ({
+            id: img.id,
             url: resolveFileUrl(img.url),
           }))}
           startIndex={lightboxIdx}
