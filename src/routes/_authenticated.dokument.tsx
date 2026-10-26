@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { storagePathFromPublicUrl } from "@/lib/storage";
 import { inspectionTypeLabel } from "@/lib/inspection-tokens";
+import { MinaDokument } from "@/components/MinaDokument";
 
 export const Route = createFileRoute("/_authenticated/dokument")({
   head: () => ({ meta: [{ title: "Dokument — BAYT" }] }),
@@ -203,8 +204,7 @@ async function loadDocs(): Promise<Doc[]> {
   return docs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-function DokumentPage() {
-  const isMobile = useIsMobile();
+function ArendeFiler({ isMobile }: { isMobile: boolean }) {
   const qc = useQueryClient();
   const { user, profile } = useAuth();
   const [q, setQ] = useState("");
@@ -272,11 +272,11 @@ function DokumentPage() {
   };
 
   return (
-    <div style={{ padding: isMobile ? 16 : 32, display: "flex", flexDirection: "column", gap: 18 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: C.text, margin: 0, fontFamily: "Outfit, Inter, system-ui, sans-serif" }}>
-          Dokument
-        </h1>
+        <div style={{ fontSize: 13, color: C.secondary }}>
+          Filer som hör till dina ärenden: bilder, protokoll och bilagor. Du ser bara det du har åtkomst till.
+        </div>
         <div
           style={{
             display: "flex",
@@ -299,10 +299,6 @@ function DokumentPage() {
             style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontSize: 13, minWidth: 0, color: C.text }}
           />
         </div>
-      </div>
-
-      <div style={{ fontSize: 13, color: C.secondary }}>
-        Filer som hör till dina ärenden: bilder, protokoll och bilagor. Du ser bara det du har åtkomst till.
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -404,6 +400,40 @@ function DokumentPage() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function DokumentPage() {
+  const isMobile = useIsMobile();
+  const [tab, setTab] = useState<"arenden" | "mina">("arenden");
+
+  const tabStyle = (active: boolean): React.CSSProperties => ({
+    height: 40,
+    padding: "0 18px",
+    border: "none",
+    background: "transparent",
+    borderBottom: `3px solid ${active ? C.primary : "transparent"}`,
+    color: active ? C.text : C.secondary,
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: "pointer",
+  });
+
+  return (
+    <div style={{ padding: isMobile ? 16 : 32, display: "flex", flexDirection: "column", gap: 18 }}>
+      <h1 style={{ fontSize: 24, fontWeight: 700, color: C.text, margin: 0, fontFamily: "Outfit, Inter, system-ui, sans-serif" }}>
+        Dokument
+      </h1>
+      <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${C.border}` }}>
+        <button type="button" style={tabStyle(tab === "arenden")} onClick={() => setTab("arenden")}>
+          Ärendefiler
+        </button>
+        <button type="button" style={tabStyle(tab === "mina")} onClick={() => setTab("mina")}>
+          Mina dokument
+        </button>
+      </div>
+      {tab === "arenden" ? <ArendeFiler isMobile={isMobile} /> : <MinaDokument isMobile={isMobile} />}
     </div>
   );
 }
