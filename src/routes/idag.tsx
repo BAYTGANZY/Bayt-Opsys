@@ -1,5 +1,5 @@
 import { createFileRoute, redirect, Link } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import {
@@ -17,7 +17,6 @@ import {
   Panel,
   Row,
   useHomeUser,
-  HeroBell,
   greeting,
   fmtDate,
   daysChip,
@@ -25,9 +24,7 @@ import {
   KIND_PATH,
   type Kind,
 } from "@/components/HomeKit";
-
-const DAY_IMG = `${import.meta.env.BASE_URL}assets/hero-day.jpg`;
-const NIGHT_IMG = `${import.meta.env.BASE_URL}assets/hero-night.jpg`;
+import { Hero } from "@/components/HeroKit";
 
 export const Route = createFileRoute("/idag")({
   ssr: false,
@@ -150,104 +147,10 @@ function levelOf(entries: Entry[]): Level {
   return "ok";
 }
 
-const IDAG_STYLES = `
-  .id-hero {
-    position: relative; margin-top: 8px; border-radius: 26px; overflow: hidden; min-height: 600px;
-    background: radial-gradient(ellipse at 30% 45%, #21503f 0%, #0f2a21 55%, #0b1d17 100%);
-    border: 1px solid rgba(255,255,255,0.08);
-    display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); grid-template-rows: 1fr; gap: 28px; align-items: start;
-    padding: 40px 44px 96px; perspective: 1200px;
-  }
-  .id-photo { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; }
-  .id-photo.night { opacity: 0; animation: idDayNight 18s ease-in-out infinite alternate; }
-  @keyframes idDayNight { 0%, 25% { opacity: 0; } 75%, 100% { opacity: 1; } }
-  .id-shade {
-    position: absolute; inset: 0; z-index: 1; pointer-events: none;
-    background: linear-gradient(90deg, rgba(8,22,17,0.70) 0%, rgba(8,22,17,0.30) 55%, rgba(8,22,17,0.55) 100%),
-                linear-gradient(0deg, rgba(8,22,17,0.85) 0%, rgba(8,22,17,0) 38%);
-  }
-  .id-col-l, .id-col-r { position: relative; z-index: 2; }
-  .id-col-l { grid-column: 1; grid-row: 1; display: grid; gap: 14px; }
-  .id-col-r { grid-column: 2; grid-row: 1; }
-
-  .id-glass {
-    background: rgba(14,31,26,0.58); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.14); border-radius: 22px;
-    box-shadow: 0 24px 50px -20px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.12);
-    transform: perspective(1000px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
-    transition: transform 0.25s ease-out;
-  }
-  .id-col-l .id-glass { transform: perspective(1000px) rotateX(calc(var(--rx, 0deg) * -0.8)) rotateY(calc(var(--ry, 0deg) * -0.8)); }
-
-  .id-main { padding: 22px 26px; }
-  .id-hello { color: #5CB84A; font-size: 15px; font-weight: 600; margin: 0 0 6px; }
-  .id-headline { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 32px; line-height: 1.1; font-weight: 600; margin: 0 0 10px; }
-  .id-headline.bad { color: #F2E3BC; }
-  .id-sub { font-size: 14.5px; line-height: 1.55; color: #c9d6c3; margin: 0; }
-
-  .id-bellslot { display: flex; justify-content: flex-end; padding-right: 6px; }
-  .id-bellslot .hk-herobell { position: static; transform: none; flex-direction: row-reverse; gap: 12px; }
-  .id-bellslot .hk-bell-label { display: block; }
-  .id-bellslot .hk-bellring { position: relative; }
-  .id-bellslot .hk-bellring [role="dialog"] { top: calc(100% + 14px) !important; right: 0 !important; left: auto !important; }
-  .id-bellslot .hk-bellring button[aria-label] { width: 72px !important; height: 72px !important; min-width: 72px !important; min-height: 72px !important; }
-  .id-bellslot .hk-bellring button[aria-label] svg { width: 34px; height: 34px; }
-  .id-bellslot .hk-bellring button[aria-label] > span { min-width: 24px !important; height: 24px !important; font-size: 12px !important; }
-
-  .id-next { padding: 20px 22px; display: block; text-decoration: none; color: inherit; }
-  .id-next:hover { border-color: rgba(92,184,74,0.6); }
-  .id-next-label { font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #9fb79f; }
-  .id-next-title { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 22px; font-weight: 600; margin: 8px 0 4px; overflow-wrap: anywhere; }
-  .id-next-sub { font-size: 13px; color: #b9c8b4; margin-bottom: 12px; }
-  .id-next-empty { font-size: 14px; color: #c9d6c3; margin-top: 8px; }
-
-  .id-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .id-tile { padding: 14px 16px; border-radius: 18px; }
-  .id-tile-l { font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: #9fb79f; }
-  .id-tile-n { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 32px; font-weight: 600; line-height: 1.1; margin-top: 4px; }
-  .id-tile.bad { border-color: #8B1A2B; background: rgba(122,20,38,0.5); }
-  .id-tile.bad .id-tile-n { color: #F2E3BC; }
-  .id-tile.warn .id-tile-n { color: #ffd37a; }
-  .id-tile.good .id-tile-n { color: #8be07a; }
-
-  .id-props { position: absolute; left: 44px; right: 44px; bottom: 26px; z-index: 3; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  .id-props-label { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #d3e0cf; margin-right: 4px; }
-  .id-chip {
-    display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 16px; border-radius: 999px; cursor: pointer; font: inherit;
-    font-size: 13px; font-weight: 600; color: #e6efd8; background: rgba(14,31,26,0.62); border: 1px solid rgba(255,255,255,0.18);
-    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  }
-  .id-chip:hover { border-color: rgba(92,184,74,0.7); }
-  .id-chip[aria-pressed="true"] { border-color: #5CB84A; background: rgba(61,138,48,0.5); }
-  .id-dot { width: 8px; height: 8px; border-radius: 50%; background: #8be07a; }
-  .id-dot.warn { background: #ffd37a; }
-  .id-dot.bad { background: #C2334D; }
-
-  @media (max-width: 1100px) {
-    .id-hero { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; padding: 32px 28px 100px; min-height: 0; }
-    .id-col-l, .id-col-r { grid-column: 1; grid-row: auto; }
-    .id-props { left: 28px; right: 28px; }
-  }
-  @media (max-width: 768px) {
-    .id-hero { padding: 24px 14px 110px; border-radius: 20px; }
-    .id-main { padding: 20px; }
-    .id-headline { font-size: 28px; }
-    .id-props { left: 14px; right: 14px; bottom: 16px; }
-    .id-glass, .id-col-l .id-glass { transform: none; }
-  }
-  @media (hover: none), (prefers-reduced-motion: reduce) {
-    .id-glass, .id-col-l .id-glass { transform: none !important; transition: none; }
-  }
-  @media (prefers-reduced-motion: reduce) { .id-photo.night { animation: none; opacity: 0; } }
-`;
-
 function IdagPage() {
   const { role, name } = useHomeUser();
   const allowed = role === "admin";
   const [sel, setSel] = useState<string | null>(null);
-  const [noDay, setNoDay] = useState(false);
-  const [noNight, setNoNight] = useState(false);
-  const heroRef = useRef<HTMLElement | null>(null);
 
   const propsQ = useQuery({
     queryKey: ["idag-properties"],
@@ -310,26 +213,9 @@ function IdagPage() {
   const perProperty = properties.map((p) => ({ p, level: levelOf(all.filter((e) => e.propertyId === p.id)) }));
   const selName = sel ? propName(sel) : null;
 
-  const onMove = (e: React.MouseEvent<HTMLElement>) => {
-    const el = heroRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width - 0.5;
-    const y = (e.clientY - r.top) / r.height - 0.5;
-    el.style.setProperty("--ry", `${(x * 7).toFixed(2)}deg`);
-    el.style.setProperty("--rx", `${(-y * 6).toFixed(2)}deg`);
-  };
-  const onLeave = () => {
-    const el = heroRef.current;
-    if (!el) return;
-    el.style.setProperty("--ry", "0deg");
-    el.style.setProperty("--rx", "0deg");
-  };
-
   return (
     <>
       <style>{HOME_STYLES}</style>
-      <style>{IDAG_STYLES}</style>
       <div className="hk-page">
         <div className="hk-wrap">
           <TopBar role={role} name={name} items={NAV} roleLabel="BAYT" />
@@ -346,74 +232,35 @@ function IdagPage() {
 
           {allowed && (
             <>
-              <section ref={heroRef} className="id-hero" onMouseMove={onMove} onMouseLeave={onLeave}>
-                {!noDay && <img src={DAY_IMG} alt="" className="id-photo" onError={() => setNoDay(true)} />}
-                {!noNight && <img src={NIGHT_IMG} alt="" className="id-photo night" onError={() => setNoNight(true)} />}
-                <div className="id-shade" />
-
-                <div className="id-col-l">
-                  <div className="id-glass id-main">
-                    <p className="id-hello">{greeting()}</p>
-                    <h1 className={`id-headline${attention.length > 0 ? " bad" : ""}`}>{loading ? "Hämtar läget…" : headline}</h1>
-                    <p className="id-sub">{loading ? "" : sub || "Allt är avstämt för tillfället."}</p>
-                  </div>
-
-                  {next ? (
-                    <Link to={`/${KIND_PATH[next.kind]}/${next.id}` as never} className="id-glass id-next">
-                      <div className="id-next-label">Nästa upp</div>
-                      <div className="id-next-title">{next.title}</div>
-                      <div className="id-next-sub">
-                        {KIND_LABEL[next.kind]} · {propName(next.propertyId)}
-                      </div>
-                      {nextChip && <span className={`hk-chip ${nextChip.cls}`}>{nextChip.text}</span>}
-                    </Link>
-                  ) : (
-                    <div className="id-glass id-next">
-                      <div className="id-next-label">Nästa upp</div>
-                      <div className="id-next-empty">Inget väntar. Bra jobbat. 👍</div>
-                    </div>
-                  )}
-
-                  <div className="id-tiles">
-                    <div className={`id-glass id-tile${attention.length > 0 ? " bad" : ""}`}>
-                      <div className="id-tile-l">Kräver åtgärd</div>
-                      <div className="id-tile-n">{attention.length}</div>
-                    </div>
-                    <div className={`id-glass id-tile${review.length > 0 ? " warn" : ""}`}>
-                      <div className="id-tile-l">Att granska</div>
-                      <div className="id-tile-n">{review.length}</div>
-                    </div>
-                    <div className="id-glass id-tile">
-                      <div className="id-tile-l">Nya felanmälningar</div>
-                      <div className="id-tile-n">{fresh.length}</div>
-                    </div>
-                    <div className="id-glass id-tile">
-                      <div className="id-tile-l">Kontroller, 60 dagar</div>
-                      <div className="id-tile-n">{upcoming60.length}</div>
-                    </div>
-                    <div className="id-glass id-tile good" style={{ gridColumn: "span 2" }}>
-                      <div className="id-tile-l">Avklarat, 30 dagar</div>
-                      <div className="id-tile-n">{resolved.length}</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="id-col-r">
-                  <div className="id-bellslot">
-                    <HeroBell />
-                  </div>
-                </div>
-
-                <div className="id-props">
-                  <span className="id-props-label">Fastigheter</span>
-                  {perProperty.map(({ p, level }) => (
-                    <button key={p.id} type="button" className="id-chip" aria-pressed={sel === p.id} onClick={() => setSel((c) => (c === p.id ? null : p.id))}>
-                      <span className={`id-dot ${level === "ok" ? "" : level}`} />
-                      {p.name}
-                    </button>
-                  ))}
-                </div>
-              </section>
+              <Hero
+                hello={greeting()}
+                headline={headline}
+                bad={attention.length > 0}
+                sub={sub || "Allt är avstämt för tillfället."}
+                loading={loading}
+                next={
+                  next
+                    ? {
+                        to: `/${KIND_PATH[next.kind]}/${next.id}`,
+                        label: "Nästa upp",
+                        title: next.title,
+                        sub: `${KIND_LABEL[next.kind]} · ${propName(next.propertyId)}`,
+                        chip: nextChip,
+                      }
+                    : null
+                }
+                emptyNext="Inget väntar. Bra jobbat. 👍"
+                tiles={[
+                  { label: "Kräver åtgärd", n: attention.length, tone: attention.length > 0 ? "bad" : undefined, anchor: "panel-attention" },
+                  { label: "Att granska", n: review.length, tone: review.length > 0 ? "warn" : undefined, anchor: "panel-review" },
+                  { label: "Nya felanmälningar", n: fresh.length, to: "/issues" },
+                  { label: "Kontroller, 60 dagar", n: upcoming60.length, to: "/inspections" },
+                  { label: "Avklarat, 30 dagar", n: resolved.length, tone: "good", wide: true, to: "/loggbok" },
+                ]}
+                chips={perProperty.map(({ p, level }) => ({ id: p.id, name: p.name, level }))}
+                selected={sel}
+                onSelect={(id) => setSel((c) => (c === id ? null : id))}
+              />
 
               {selName && (
                 <div className="hk-filter" style={{ marginTop: 14 }}>
@@ -444,35 +291,39 @@ function IdagPage() {
 
               <h2 className="hk-h2">Det här väntar på dig</h2>
               <div className="hk-cols">
-                <Panel title="Kräver åtgärd" to="/issues">
-                  {attention.length === 0 && <div className="hk-empty">Inget är försenat eller akut. 👍</div>}
-                  {attention.slice(0, 7).map((e) => {
-                    const chip = e.akut && !isOverdue(e) ? { text: "Akut", cls: "hk-chip-bad" } : daysChip(e.status.daysLeft);
-                    return (
-                      <Row key={keyOf(e)} to={`/${KIND_PATH[e.kind]}/${e.id}`} title={e.title} sub={`${KIND_LABEL[e.kind]} · ${propName(e.propertyId)}`} right={<span className={`hk-chip ${chip.cls}`}>{chip.text}</span>} />
-                    );
-                  })}
-                </Panel>
+                <div id="panel-attention" style={{ minWidth: 0, scrollMarginTop: 16 }}>
+                  <Panel title="Kräver åtgärd" to="/issues">
+                    {attention.length === 0 && <div className="hk-empty">Inget är försenat eller akut. 👍</div>}
+                    {attention.slice(0, 7).map((e) => {
+                      const chip = e.akut && !isOverdue(e) ? { text: "Akut", cls: "hk-chip-bad" } : daysChip(e.status.daysLeft);
+                      return (
+                        <Row key={keyOf(e)} to={`/${KIND_PATH[e.kind]}/${e.id}`} title={e.title} sub={`${KIND_LABEL[e.kind]} · ${propName(e.propertyId)}`} right={<span className={`hk-chip ${chip.cls}`}>{chip.text}</span>} />
+                      );
+                    })}
+                  </Panel>
+                </div>
 
-                <Panel title="Att granska — entreprenören är klar">
-                  {review.length === 0 && <div className="hk-empty">Ingen väntar på ditt godkännande.</div>}
-                  {review.slice(0, 7).map((e) => (
-                    <Row
-                      key={keyOf(e)}
-                      to={`/${KIND_PATH[e.kind]}/${e.id}`}
-                      title={e.title}
-                      sub={`${KIND_LABEL[e.kind]} · ${propName(e.propertyId)}`}
-                      right={
-                        <>
-                          <span className="hk-chip hk-chip-warn">Granska</span>
-                          <span className="hk-row-sub" style={{ margin: 0 }}>
-                            Klart {fmtDate(e.doneAt)}
-                          </span>
-                        </>
-                      }
-                    />
-                  ))}
-                </Panel>
+                <div id="panel-review" style={{ minWidth: 0, scrollMarginTop: 16 }}>
+                  <Panel title="Att granska — entreprenören är klar">
+                    {review.length === 0 && <div className="hk-empty">Ingen väntar på ditt godkännande.</div>}
+                    {review.slice(0, 7).map((e) => (
+                      <Row
+                        key={keyOf(e)}
+                        to={`/${KIND_PATH[e.kind]}/${e.id}`}
+                        title={e.title}
+                        sub={`${KIND_LABEL[e.kind]} · ${propName(e.propertyId)}`}
+                        right={
+                          <>
+                            <span className="hk-chip hk-chip-warn">Granska</span>
+                            <span className="hk-row-sub" style={{ margin: 0 }}>
+                              Klart {fmtDate(e.doneAt)}
+                            </span>
+                          </>
+                        }
+                      />
+                    ))}
+                  </Panel>
+                </div>
 
                 <Panel title="Nya felanmälningar" to="/issues">
                   {fresh.length === 0 && <div className="hk-empty">Alla felanmälningar är öppnade.</div>}
