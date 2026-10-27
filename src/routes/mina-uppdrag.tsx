@@ -120,9 +120,9 @@ function MinaUppdragPage() {
                 }
                 emptyNext="Inga uppdrag just nu."
                 tiles={[
-                  { label: "Aktiva uppdrag", n: active.length },
-                  { label: "Försenade", n: overdue.length, tone: overdue.length > 0 ? "bad" : undefined },
-                  { label: "Inom 7 dagar", n: soon.length, tone: soon.length > 0 ? "warn" : undefined },
+                  { label: "Aktiva uppdrag", n: active.length, anchor: "panel-alla" },
+                  { label: "Försenade", n: overdue.length, tone: overdue.length > 0 ? "bad" : undefined, anchor: "panel-alla" },
+                  { label: "Inom 7 dagar", n: soon.length, tone: soon.length > 0 ? "warn" : undefined, anchor: "panel-gorforst" },
                   { label: "Avslutade", n: done.length, tone: "good" },
                 ]}
               />
@@ -131,14 +131,18 @@ function MinaUppdragPage() {
 
               <h2 className="hk-h2">Dina uppdrag</h2>
               <div className="hk-cols">
-                <Panel title="Gör först">
-                  {first.length === 0 && <div className="hk-empty">Inget brådskar. 👍</div>}
-                  {render(first.slice(0, 8))}
-                </Panel>
-                <Panel title="Alla aktiva uppdrag">
-                  {sorted.length === 0 && <div className="hk-empty">Du har inga aktiva uppdrag.</div>}
-                  {render(sorted)}
-                </Panel>
+                <div id="panel-gorforst" style={{ minWidth: 0, scrollMarginTop: 16 }}>
+                  <Panel title="Gör först">
+                    {first.length === 0 && <div className="hk-empty">Inget brådskar. 👍</div>}
+                    {render(first.slice(0, 8))}
+                  </Panel>
+                </div>
+                <div id="panel-alla" style={{ minWidth: 0, scrollMarginTop: 16 }}>
+                  <Panel title="Alla aktiva uppdrag">
+                    {sorted.length === 0 && <div className="hk-empty">Du har inga aktiva uppdrag.</div>}
+                    {render(sorted)}
+                  </Panel>
+                </div>
               </div>
 
               <p className="hk-note">
