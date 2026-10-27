@@ -9,6 +9,7 @@ import {
 import { AuthProvider } from "../lib/auth";
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { CookieNotice } from "@/components/LegalFooter";
 
 function NotFoundComponent() {
   return (
@@ -87,6 +88,7 @@ function RootComponent() {
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
           <Outlet />
           <Toaster position="top-right" richColors closeButton />
+          <CookieNotice />
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
