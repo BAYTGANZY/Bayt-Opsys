@@ -9,7 +9,7 @@ export const Route = createFileRoute("/integritet")({
 
 function IntegritetPage() {
   return (
-    <LegalPage title="Integritetspolicy" updated="[FYLL I DATUM]">
+    <LegalPage title="Integritetspolicy" updated="2026-10-27">
       <p>
         Den här policyn beskriver hur BAYT behandlar personuppgifter i plattformen app.bayt.se (fastighetsförvaltning,
         felanmälan, besiktningar och projekt).
@@ -17,7 +17,7 @@ function IntegritetPage() {
 
       <h2 style={h2}>Personuppgiftsansvarig</h2>
       <p>
-        Bayt AB, org.nr [FYLL I], [FYLL I ADRESS]. Kontakt i integritetsfrågor: [FYLL I E-POST].
+        Bayt AB, org.nr 559006-2708, Gärsvallsvägen 3, 238 34 Oxie. Kontakt i integritetsfrågor: info@bayt.se.
         För uppgifter som en bostadsrättsförening eller fastighetsägare lägger in om sina boende är kunden
         personuppgiftsansvarig och BAYT personuppgiftsbiträde. [BEKRÄFTA MED JURIST]
       </p>
@@ -27,6 +27,7 @@ function IntegritetPage() {
         <li>Kontouppgifter: namn, e-postadress, roll och telefonnummer för användare (admin, styrelse, entreprenör).</li>
         <li>Felanmälningar: den anmäldas namn, telefonnummer, e-postadress, lägenhet/trappa och beskrivning av felet.</li>
         <li>Ärendedata: kommentarer, bilder, protokoll och dokument som laddas upp, samt vem som laddat upp dem.</li>
+        <li>Personliga dokument och mappar som användare själva lägger upp (syns för ägaren och BAYT:s administratörer).</li>
         <li>Meddelanden i plattformens chatt.</li>
         <li>Teknisk data: inloggningssession och loggar som behövs för drift och säkerhet.</li>
       </ul>
@@ -49,8 +50,8 @@ function IntegritetPage() {
       <ul>
         <li>Supabase (databas, inloggning och fillagring). Dataplats: [FYLL I REGION].</li>
         <li>GitHub Pages (webbhotell för appen).</li>
-        <li>E-postleverantör för utskick: [FYLL I].</li>
-        <li>SMS-leverantör för felanmälan via SMS (46elks), om tjänsten används.</li>
+        <li>Inleed (e-post, avsändaradress info@bayt.se). [BEKRÄFTA vilken tjänst som skickar notismejlen]</li>
+        <li>46elks (SMS), om felanmälan via SMS används.</li>
       </ul>
       <p>[KONTROLLERA att biträdesavtal finns med varje leverantör och om uppgifter förs ut ur EU/EES.]</p>
 
@@ -63,7 +64,7 @@ function IntegritetPage() {
       <h2 style={h2}>Dina rättigheter</h2>
       <p>
         Du har rätt att begära tillgång till, rättelse och radering av dina uppgifter, att begränsa eller invända mot
-        behandling och att få ut uppgifterna i ett läsbart format. Kontakta oss på [FYLL I E-POST]. Du kan också klaga
+        behandling och att få ut uppgifterna i ett läsbart format. Kontakta oss på info@bayt.se. Du kan också klaga
         till Integritetsskyddsmyndigheten (IMY), imy.se.
       </p>
 
