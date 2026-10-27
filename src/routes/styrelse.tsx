@@ -259,11 +259,11 @@ function StyrelsePage() {
                 }
                 emptyNext="Inget kräver åtgärd just nu. 👍"
                 tiles={[
-                  { label: "Fastigheter", n: selectedProp ? 1 : properties.length },
-                  { label: "Öppna felanmälningar", n: openIssues.length, tone: overdueCount > 0 ? "bad" : undefined },
-                  { label: "Pågående projekt", n: projects.length },
-                  { label: "Kontroller, 90 dagar", n: upcoming90.length },
-                  { label: "Avklarat, 30 dagar", n: resolved.length, tone: "good", wide: true },
+                  { label: "Fastigheter", n: selectedProp ? 1 : properties.length, to: "/fastigheter" },
+                  { label: "Öppna felanmälningar", n: openIssues.length, tone: overdueCount > 0 ? "bad" : undefined, to: "/issues" },
+                  { label: "Pågående projekt", n: projects.length, to: "/projects" },
+                  { label: "Kontroller, 90 dagar", n: upcoming90.length, to: "/inspections" },
+                  { label: "Avklarat, 30 dagar", n: resolved.length, tone: "good", wide: true, anchor: "panel-avklarat" },
                 ]}
                 chips={perProperty.map(({ p, level }) => ({ id: p.id, name: p.name, level }))}
                 selected={sel}
@@ -341,25 +341,27 @@ function StyrelsePage() {
                   ))}
                 </Panel>
 
-                <Panel title="Avklarat senaste 30 dagarna">
-                  {resolved.length === 0 && <div className="hk-empty">Inget avslutat den senaste månaden.</div>}
-                  {resolved.slice(0, 8).map((e) => (
-                    <Row
-                      key={keyOf(e)}
-                      to={`/${KIND_PATH[e.kind]}/${e.id}`}
-                      title={e.title}
-                      sub={`${KIND_LABEL[e.kind]} · ${propName(e.propertyId)}`}
-                      right={
-                        <>
-                          <span className="hk-chip hk-chip-ok">Avslutad</span>
-                          <span className="hk-row-sub" style={{ margin: 0 }}>
-                            {fmtDate(e.updatedAt)}
-                          </span>
-                        </>
-                      }
-                    />
-                  ))}
-                </Panel>
+                <div id="panel-avklarat" style={{ minWidth: 0, scrollMarginTop: 16 }}>
+                  <Panel title="Avklarat senaste 30 dagarna">
+                    {resolved.length === 0 && <div className="hk-empty">Inget avslutat den senaste månaden.</div>}
+                    {resolved.slice(0, 8).map((e) => (
+                      <Row
+                        key={keyOf(e)}
+                        to={`/${KIND_PATH[e.kind]}/${e.id}`}
+                        title={e.title}
+                        sub={`${KIND_LABEL[e.kind]} · ${propName(e.propertyId)}`}
+                        right={
+                          <>
+                            <span className="hk-chip hk-chip-ok">Avslutad</span>
+                            <span className="hk-row-sub" style={{ margin: 0 }}>
+                              {fmtDate(e.updatedAt)}
+                            </span>
+                          </>
+                        }
+                      />
+                    ))}
+                  </Panel>
+                </div>
               </div>
 
               <h2 className="hk-h2">Fastigheter</h2>
