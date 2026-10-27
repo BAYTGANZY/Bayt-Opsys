@@ -5,7 +5,16 @@ import { HeroBell } from "@/components/HomeKit";
 const DAY_IMG = `${import.meta.env.BASE_URL}assets/hero-day.jpg`;
 const NIGHT_IMG = `${import.meta.env.BASE_URL}assets/hero-night.jpg`;
 
-export type HeroTile = { label: string; n: number | string; tone?: "bad" | "warn" | "good"; wide?: boolean };
+export type HeroTile = {
+  label: string;
+  n: number | string;
+  tone?: "bad" | "warn" | "good";
+  wide?: boolean;
+  /** Länk till en sida. */
+  to?: string;
+  /** Eller scrolla till ett element med detta id på samma sida. */
+  anchor?: string;
+};
 export type HeroNext = {
   to: string;
   label: string;
@@ -17,23 +26,24 @@ export type HeroChip = { id: string; name: string; level: "ok" | "warn" | "bad" 
 
 export const HERO_STYLES = `
   .id-hero {
-    position: relative; margin-top: 8px; border-radius: 26px; overflow: hidden; min-height: 600px;
+    position: relative; margin-top: 8px; border-radius: 26px; min-height: 600px;
     background: radial-gradient(ellipse at 30% 45%, #21503f 0%, #0f2a21 55%, #0b1d17 100%);
     border: 1px solid rgba(255,255,255,0.08);
     display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); grid-template-rows: 1fr; gap: 28px; align-items: start;
     padding: 40px 44px 96px; perspective: 1200px;
   }
-  .id-photo { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; }
+  /* Bara bilderna klipps, så att klockans meny kan sticka ut ur hjälten. */
+  .id-clip { position: absolute; inset: 0; z-index: 0; overflow: hidden; border-radius: 25px; pointer-events: none; }
+  .id-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .id-photo.night { opacity: 0; animation: idDayNight 18s ease-in-out infinite alternate; }
   @keyframes idDayNight { 0%, 25% { opacity: 0; } 75%, 100% { opacity: 1; } }
   .id-shade {
-    position: absolute; inset: 0; z-index: 1; pointer-events: none;
+    position: absolute; inset: 0;
     background: linear-gradient(90deg, rgba(8,22,17,0.70) 0%, rgba(8,22,17,0.30) 55%, rgba(8,22,17,0.55) 100%),
                 linear-gradient(0deg, rgba(8,22,17,0.85) 0%, rgba(8,22,17,0) 38%);
   }
-  .id-col-l, .id-col-r { position: relative; z-index: 2; }
-  .id-col-l { grid-column: 1; grid-row: 1; display: grid; gap: 14px; }
-  .id-col-r { grid-column: 2; grid-row: 1; }
+  .id-col-l { position: relative; z-index: 2; grid-column: 1; grid-row: 1; display: grid; gap: 14px; }
+  .id-col-r { position: relative; z-index: 60; grid-column: 2; grid-row: 1; }
 
   .id-glass {
     background: rgba(14,31,26,0.58); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
@@ -69,8 +79,13 @@ export const HERO_STYLES = `
   .id-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .id-tile { padding: 14px 16px; border-radius: 18px; }
   .id-tile.wide { grid-column: span 2; }
+  a.id-tile, button.id-tile {
+    display: block; text-decoration: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+    -webkit-appearance: none; appearance: none; width: 100%; box-sizing: border-box;
+  }
+  a.id-tile:hover, button.id-tile:hover { border-color: rgba(92,184,74,0.7); }
   .id-tile-l { font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: #9fb79f; }
-  .id-tile-n { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 32px; font-weight: 600; line-height: 1.1; margin-top: 4px; }
+  .id-tile-n { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 32px; font-weight: 600; line-height: 1.1; margin-top: 4px; color: #e6efd8; }
   .id-tile.bad { border-color: #8B1A2B; background: rgba(122,20,38,0.5); }
   .id-tile.bad .id-tile-n { color: #F2E3BC; }
   .id-tile.warn .id-tile-n { color: #ffd37a; }
@@ -95,17 +110,30 @@ export const HERO_STYLES = `
     .id-props { left: 28px; right: 28px; }
   }
   @media (max-width: 768px) {
-    .id-hero { padding: 24px 14px 110px; border-radius: 20px; }
+    /* Utan perspective på hjälten blir "fixed" relativt skärmen, inte hjälten. */
+    .id-hero { padding: 24px 14px 110px; border-radius: 20px; perspective: none; }
+    .id-clip { border-radius: 19px; }
     .id-main { padding: 20px; }
     .id-headline { font-size: 28px; }
     .id-props { left: 14px; right: 14px; bottom: 16px; }
     .id-glass, .id-col-l .id-glass { transform: none; }
+    .id-bellslot .hk-bellring [role="dialog"] {
+      position: fixed !important; top: 70px !important; left: 8px !important; right: 8px !important; width: auto !important;
+    }
   }
   @media (hover: none), (prefers-reduced-motion: reduce) {
     .id-glass, .id-col-l .id-glass { transform: none !important; transition: none; }
   }
   @media (prefers-reduced-motion: reduce) { .id-photo.night { animation: none; opacity: 0; } }
 `;
+
+function scrollToId(id: string) {
+  try {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch {
+    /* ignoreras */
+  }
+}
 
 export function Hero({
   hello,
@@ -158,9 +186,11 @@ export function Hero({
     <>
       <style>{HERO_STYLES}</style>
       <section ref={ref} className="id-hero" onMouseMove={onMove} onMouseLeave={onLeave}>
-        {!noDay && <img src={DAY_IMG} alt="" className="id-photo" onError={() => setNoDay(true)} />}
-        {!noNight && <img src={NIGHT_IMG} alt="" className="id-photo night" onError={() => setNoNight(true)} />}
-        <div className="id-shade" />
+        <div className="id-clip" aria-hidden="true">
+          {!noDay && <img src={DAY_IMG} alt="" className="id-photo" onError={() => setNoDay(true)} />}
+          {!noNight && <img src={NIGHT_IMG} alt="" className="id-photo night" onError={() => setNoNight(true)} />}
+          <div className="id-shade" />
+        </div>
 
         <div className="id-col-l">
           <div className="id-glass id-main">
@@ -184,12 +214,34 @@ export function Hero({
           )}
 
           <div className="id-tiles">
-            {tiles.map((t) => (
-              <div key={t.label} className={`id-glass id-tile${t.tone ? ` ${t.tone}` : ""}${t.wide ? " wide" : ""}`}>
-                <div className="id-tile-l">{t.label}</div>
-                <div className="id-tile-n">{t.n}</div>
-              </div>
-            ))}
+            {tiles.map((t) => {
+              const cls = `id-glass id-tile${t.tone ? ` ${t.tone}` : ""}${t.wide ? " wide" : ""}`;
+              const inner = (
+                <>
+                  <div className="id-tile-l">{t.label}</div>
+                  <div className="id-tile-n">{t.n}</div>
+                </>
+              );
+              if (t.to) {
+                return (
+                  <Link key={t.label} to={t.to as never} className={cls}>
+                    {inner}
+                  </Link>
+                );
+              }
+              if (t.anchor) {
+                return (
+                  <button key={t.label} type="button" className={cls} onClick={() => scrollToId(t.anchor!)}>
+                    {inner}
+                  </button>
+                );
+              }
+              return (
+                <div key={t.label} className={cls}>
+                  {inner}
+                </div>
+              );
+            })}
           </div>
         </div>
 
