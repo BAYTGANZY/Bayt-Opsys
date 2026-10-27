@@ -4,6 +4,8 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { homeForRole } from "@/lib/permissions";
 import { LOGO_ON_DARK } from "@/lib/logo";
+import { LegalLinks } from "@/components/LegalFooter";
+import { HOMEPAGE_URL } from "@/components/LegalPage";
 
 type Search = { error?: string };
 
@@ -108,11 +110,13 @@ function LoginPage() {
       }}
     >
       <div style={{ width: "min(360px, 92vw)", display: "flex", flexDirection: "column", alignItems: "center" }}>
-        <img
-          src={LOGO_ON_DARK}
-          alt="BAYT"
-          style={{ height: "clamp(48px, 14vw, 72px)", width: "auto", objectFit: "contain", marginBottom: 18 }}
-        />
+        <a href={HOMEPAGE_URL} target="_blank" rel="noreferrer" title="Till bayt.se" style={{ display: "inline-flex" }}>
+          <img
+            src={LOGO_ON_DARK}
+            alt="BAYT"
+            style={{ height: "clamp(48px, 14vw, 72px)", width: "auto", objectFit: "contain", marginBottom: 18 }}
+          />
+        </a>
         <div
           style={{
             background: "#ffffff",
@@ -197,6 +201,9 @@ function LoginPage() {
               </div>
             </form>
           )}
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <LegalLinks />
         </div>
       </div>
     </div>
