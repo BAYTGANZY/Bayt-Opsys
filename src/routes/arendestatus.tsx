@@ -60,37 +60,33 @@ type TrackedIssue = {
   category: string | null;
   created_at: string | null;
   property_name: string | null;
-  /** status left vilande/ny — admin pressed "Öppna ärende" (or the Dag Rapport quick-action equivalent). */
+  /** status left vilande/ny — admin pressed "Öppna ärende". */
   opened: boolean;
-  /** assigned_contact_id IS NOT NULL — an entreprenör has been picked. */
+  /** an entreprenör has been picked. */
   assigned: boolean;
-  /** deadline column, ISO date or null. */
+  /** the entreprenör pressed "Meddela att uppdraget är slutfört". */
+  contractor_done?: boolean;
+  /** Expected completion date. Shown as text only; does not decide the step. */
   deadline: string | null;
-  /** status is in the "avslutat" bucket — AvslutaArendeButton was pressed. */
+  /** status is in the "avslutat" bucket. */
   closed: boolean;
 };
 
-// Four resident-facing milestones, each keyed to one concrete admin/
-// entreprenör action rather than the messy `issue_status` enum:
-//   Mottagen  — admin pressed "Öppna ärende" (status leaves vilande/ny) —
-//               NOT merely opening the detail page, which sets viewed_at
-//               passively on every visit and is too weak a signal on its own
-//   Påbörjad  — admin has assigned an entreprenör (assigned_contact_id)
-//   Åtgärdad  — a deadline has been set (deadline)
-//   Avslutad  — "Avsluta ärende" was pressed, by either role (status closed)
-// A later milestone always wins over an earlier one even if the earlier
-// condition was never individually true (e.g. closed with no deadline ever
-// set) — same staircase convention as an Amazon-style tracker: reaching a
-// later checkpoint implies the earlier ones, whether or not each was
-// logged on its own.
-const STEP_LABELS = ["Mottagen", "Påbörjad", "Åtgärdad", "Avslutad"] as const;
+// Four milestones, each keyed to one concrete action:
+//   Mottagen  — admin pressed "Öppna ärende"
+//   Tilldelad — an entreprenör has been assigned
+//   Åtgärdad  — the entreprenör reported the job as done
+//   Avslutad  — the ärende was closed
+// A later milestone implies the earlier ones.
+// Must stay in sync with issue_progress_step() (SQL), track-felanmalan and notify-progress.
+const STEP_LABELS = ["Mottagen", "Tilldelad", "Åtgärdad", "Avslutad"] as const;
 
 function computeStepIndex(issue: TrackedIssue): number {
   if (issue.closed) return 3;
-  if (issue.deadline) return 2;
+  if (issue.contractor_done) return 2;
   if (issue.assigned) return 1;
   if (issue.opened) return 0;
-  return 0; // nothing has happened yet — shown as the active, not-yet-done first step
+  return 0; // nothing has happened yet — shown as the active first step
 }
 
 function stepDescription(issue: TrackedIssue, current: number): string {
@@ -99,16 +95,16 @@ function stepDescription(issue: TrackedIssue, current: number): string {
       return issue.opened
         ? "Din felanmälan är mottagen och granskad av förvaltningen."
         : "Din felanmälan är mottagen och väntar på att granskas.";
-    case 1:
-      return "En entreprenör är tilldelad ärendet.";
-    case 2: {
+    case 1: {
       const dateLabel = issue.deadline
         ? new Date(issue.deadline).toLocaleDateString("sv-SE", { year: "numeric", month: "long", day: "numeric" })
         : null;
       return dateLabel
-        ? `Felanmälan förväntas vara klar senast ${dateLabel}.`
-        : "Åtgärden pågår.";
+        ? `En entreprenör är tilldelad ärendet. Förväntas vara klart senast ${dateLabel}.`
+        : "En entreprenör är tilldelad ärendet.";
     }
+    case 2:
+      return "Entreprenören har meddelat att åtgärden är utförd. Förvaltningen kontrollerar och avslutar ärendet.";
     default:
       return "Ärendet är avslutat.";
   }
@@ -233,9 +229,8 @@ function ArendeStatusPage() {
     void runSearch(email);
   }
 
-  // Deep link from the progress-update emails: /arendestatus?email=... lands
-  // here pre-filled and auto-searched, so "Visa ärendestatus" in the email is
-  // a single click instead of retyping the address.
+  // Deep link from the progress emails: /arendestatus?email=... is pre-filled
+  // and auto-searched.
   useEffect(() => {
     const fromQuery = new URLSearchParams(window.location.search).get("email");
     if (fromQuery) {
