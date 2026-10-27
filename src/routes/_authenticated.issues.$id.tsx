@@ -472,15 +472,19 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
       <h1 style={{ fontSize: 24, fontWeight: 700, color: C.text, margin: "0 0 4px" }}>{issue.title}</h1>
       <div style={{ fontSize: 13, color: C.secondary, marginBottom: 16 }}>{issue.properties?.name ?? "—"}</div>
       <div style={{ marginBottom: 24, display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <OppnaArendeButton
-          kind="issue"
-          id={id}
-          currentStatus={status}
-          title={title || issue.title}
-          propertyId={propertyId || null}
-          apartmentId={issue.apartment_id}
-          invalidateKeys={[["issue", id]]}
-        />
+        {/* Har entreprenören redan meddelat slutfört är ärendet igång: då visas bara Avsluta. */}
+        {!issue.contractor_done_at && (
+          <OppnaArendeButton
+            kind="issue"
+            id={id}
+            currentStatus={status}
+            title={title || issue.title}
+            propertyId={propertyId || null}
+            apartmentId={issue.apartment_id}
+            invalidateKeys={[["issue", id]]}
+          />
+        )}
+        {/* allowVilande: ärendet går att avsluta direkt, utan att öppnas först. */}
         <AvslutaArendeButton
           kind="issue"
           id={id}
@@ -489,6 +493,7 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
           propertyId={propertyId || null}
           apartmentId={issue.apartment_id}
           invalidateKeys={[["issue", id]]}
+          allowVilande
         />
       </div>
 
