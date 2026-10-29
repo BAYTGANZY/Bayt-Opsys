@@ -1,6 +1,6 @@
-import { Fragment, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Upload, Trash2, TrendingUp, AlertTriangle, Flame } from "lucide-react";
+import { Plus, X, Upload, Trash2, TrendingUp, AlertTriangle, Flame, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -153,6 +153,12 @@ export function MaintenancePlanView({ propertyId, propertyName }: { propertyId: 
   const [q, setQ] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  // Hela årsvyn. Kan öppnas direkt via adressen …#ar-2035 (används av "Öppna i ny flik").
+  const [openYear, setOpenYear] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    const m = window.location.hash.match(/^#ar-(\d{4})$/);
+    return m ? Number(m[1]) : null;
+  });
 
   const planQ = useQuery({
     queryKey: ["mplan", propertyId],
@@ -231,6 +237,16 @@ export function MaintenancePlanView({ propertyId, propertyName }: { propertyId: 
     if (!filtering || byYear.has(y)) yearList.push(y);
   }
 
+  const showYear = (y: number | null) => {
+    setOpenYear(y);
+    try {
+      const base = window.location.pathname + window.location.search;
+      window.history.replaceState(null, "", y == null ? base : `${base}#ar-${y}`);
+    } catch {
+      /* ignoreras */
+    }
+  };
+
   const pill = (t: Tab, label: string) => (
     <button
       key={t}
@@ -293,6 +309,7 @@ export function MaintenancePlanView({ propertyId, propertyName }: { propertyId: 
                 rows={byYear.get(y) ?? []}
                 avg={avgYear}
                 onOpen={setOpenId}
+                onOpenYear={() => showYear(y)}
               />
             ))}
           </div>
@@ -302,6 +319,20 @@ export function MaintenancePlanView({ propertyId, propertyName }: { propertyId: 
       {tab === "kategori" && <PerCategory occ={occ} actions={list} plan={plan} withVat={withVat} onOpen={setOpenId} />}
       {tab === "analys" && <Analysis plan={plan} occ={allOcc} />}
       {tab === "installningar" && isAdmin && <Settings plan={plan} />}
+
+      {openYear != null && openYear >= plan.start_year && openYear <= plan.end_year && (
+        <YearModal
+          year={openYear}
+          plan={plan}
+          occ={allOcc}
+          avg={avgYear}
+          withVat={withVat}
+          isMobile={isMobile}
+          onYear={showYear}
+          onClose={() => showYear(null)}
+          onOpenAction={setOpenId}
+        />
+      )}
 
       {(openAction || creating) && (
         <ActionModal
@@ -320,7 +351,9 @@ export function MaintenancePlanView({ propertyId, propertyName }: { propertyId: 
 }
 
 // ---------------- Årskort ----------------
-function YearCard({ year, rows, avg, onOpen }: { year: number; rows: Occurrence[]; avg: number; onOpen: (id: string) => void }) {
+function YearCard({
+  year, rows, avg, onOpen, onOpenYear,
+}: { year: number; rows: Occurrence[]; avg: number; onOpen: (id: string) => void; onOpenYear: () => void }) {
   const sum = rows.reduce((s, r) => s + r.cost, 0);
   const h = heat(sum, avg);
   const hot = h > 0;
@@ -342,8 +375,13 @@ function YearCard({ year, rows, avg, onOpen }: { year: number; rows: Occurrence[
         animation: h === 2 ? "bayt-glow 2.2s ease-in-out infinite" : undefined,
       }}
     >
-      <div
+      <button
+        type="button"
+        onClick={onOpenYear}
+        title={`Öppna hela ${year}`}
+        aria-label={`Öppna hela ${year}`}
         style={{
+          width: "100%", border: "none", cursor: "pointer", font: "inherit", textAlign: "left",
           background: hot ? RED : DARK, color: hot ? BEIGE : "#fff", padding: hot ? "14px 16px" : "11px 16px",
           display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap",
         }}
@@ -352,9 +390,10 @@ function YearCard({ year, rows, avg, onOpen }: { year: number; rows: Occurrence[
           {hot && <Flame size={24} />} {year}
           {h === 2 && <span style={{ fontSize: 11, fontWeight: 800, background: BEIGE, color: RED, borderRadius: 999, padding: "2px 9px" }}>EXTREMT DYRT</span>}
           {h === 1 && <span style={{ fontSize: 11, fontWeight: 800, background: BEIGE, color: RED, borderRadius: 999, padding: "2px 9px" }}>DYRT</span>}
+          <ExternalLink size={14} style={{ opacity: 0.6 }} />
         </span>
         <span style={{ fontSize: hot ? 22 : 17, fontWeight: 800 }}>{kr(sum)}</span>
-      </div>
+      </button>
       <div style={{ display: "grid" }}>
         {sorted.map((r) => {
           const lvl = actionLevel(r.cost);
@@ -389,6 +428,162 @@ function YearCard({ year, rows, avg, onOpen }: { year: number; rows: Occurrence[
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------- Hela året i en egen vy ----------------
+function YearModal({
+  year, plan, occ, avg, withVat, isMobile, onYear, onClose, onOpenAction,
+}: {
+  year: number; plan: Plan; occ: Occurrence[]; avg: number; withVat: boolean; isMobile: boolean;
+  onYear: (y: number | null) => void; onClose: () => void; onOpenAction: (id: string) => void;
+}) {
+  const rows = occ.filter((o) => o.year === year).sort((a, b) => b.cost - a.cost);
+  const sum = rows.reduce((s, r) => s + r.cost, 0);
+  const inv = rows.filter((r) => r.action.kind === "investering").reduce((s, r) => s + r.cost, 0);
+  const h = heat(sum, avg);
+  const hot = h > 0;
+  const canPrev = year > plan.start_year;
+  const canNext = year < plan.end_year;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowLeft" && canPrev) onYear(year - 1);
+      else if (e.key === "ArrowRight" && canNext) onYear(year + 1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [year, canPrev, canNext, onClose, onYear]);
+
+  const newTabHref = typeof window !== "undefined" ? `${window.location.pathname}#ar-${year}` : "#";
+
+  const navBtn = (enabled: boolean, label: string, to: number, icon: React.ReactNode) => (
+    <button
+      type="button"
+      disabled={!enabled}
+      onClick={() => onYear(to)}
+      aria-label={label}
+      title={label}
+      style={{
+        width: 40, height: 40, borderRadius: 999, border: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)",
+        color: "inherit", cursor: enabled ? "pointer" : "default", opacity: enabled ? 1 : 0.3, display: "inline-flex", alignItems: "center", justifyContent: "center",
+      }}
+    >
+      {icon}
+    </button>
+  );
+
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 150, display: "flex", alignItems: "flex-start", justifyContent: "center", overflowY: "auto", padding: isMobile ? 0 : 16 }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff", borderRadius: isMobile ? 0 : 18, width: "min(1000px, 100%)", marginTop: isMobile ? 0 : 20, marginBottom: isMobile ? 0 : 20, overflow: "hidden",
+          minHeight: isMobile ? "100vh" : undefined,
+          animation: h === 2 ? "bayt-glow 2.2s ease-in-out infinite" : undefined,
+        }}
+      >
+        <div style={{ background: hot ? RED : DARK, color: hot ? BEIGE : "#fff", padding: "18px 20px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {navBtn(canPrev, `Föregående år (${year - 1})`, year - 1, <ChevronLeft size={20} />)}
+              <span style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 40, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 10 }}>
+                {hot && <Flame size={32} />} {year}
+              </span>
+              {navBtn(canNext, `Nästa år (${year + 1})`, year + 1, <ChevronRight size={20} />)}
+              {h === 2 && <span style={{ fontSize: 12, fontWeight: 800, background: BEIGE, color: RED, borderRadius: 999, padding: "3px 10px" }}>EXTREMT DYRT ÅR</span>}
+              {h === 1 && <span style={{ fontSize: 12, fontWeight: 800, background: BEIGE, color: RED, borderRadius: 999, padding: "3px 10px" }}>DYRT ÅR</span>}
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <a
+                href={newTabHref}
+                target="_blank"
+                rel="noreferrer"
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "inherit", fontSize: 13, fontWeight: 700, textDecoration: "none", border: "1px solid rgba(255,255,255,0.35)", borderRadius: 999, padding: "8px 14px" }}
+              >
+                <ExternalLink size={14} /> Öppna i ny flik
+              </a>
+              <button type="button" onClick={onClose} aria-label="Stäng" style={{ border: "none", background: "transparent", color: "inherit", cursor: "pointer", padding: 6 }}>
+                <X size={24} />
+              </button>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 28, flexWrap: "wrap", marginTop: 14 }}>
+            <div>
+              <div style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.7 }}>Totalt {withVat ? "inkl." : "exkl."} moms</div>
+              <div style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 30, fontWeight: 800 }}>{kr(sum)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.7 }}>Åtgärder</div>
+              <div style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 30, fontWeight: 800 }}>{rows.length}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.7 }}>Varav investeringar</div>
+              <div style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 30, fontWeight: 800 }}>{kr(inv)}</div>
+            </div>
+            {avg > 0 && (
+              <div>
+                <div style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.7 }}>Mot planens snitt</div>
+                <div style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 30, fontWeight: 800 }}>{(sum / avg).toFixed(1).replace(".", ",")} ×</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {rows.length === 0 ? (
+          <div style={{ padding: 40, textAlign: "center", color: COLORS.secondary }}>Inga åtgärder det här året</div>
+        ) : (
+          <div>
+            {rows.map((r) => {
+              const lvl = actionLevel(r.cost);
+              const a = r.action;
+              return (
+                <button
+                  key={`${a.id}-${r.year}`}
+                  type="button"
+                  onClick={() => onOpenAction(a.id)}
+                  style={{
+                    display: "block", width: "100%", textAlign: "left", cursor: "pointer", font: "inherit", color: "inherit", border: "none",
+                    borderTop: `1px solid ${COLORS.border}`, borderLeft: `6px solid ${lvl === 2 ? HOT : lvl === 1 ? ORANGE : catColor(a.category)}`,
+                    background: lvl === 2 ? "#FDE2E7" : lvl === 1 ? "#FFF4E5" : "#fff", padding: "12px 16px",
+                  }}
+                >
+                  <span style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
+                    <span style={{ fontSize: 16, fontWeight: 700, overflowWrap: "anywhere" }}>{a.name}</span>
+                    <span style={{ fontSize: 17, fontWeight: 800, whiteSpace: "nowrap", color: lvl === 2 ? RED : lvl === 1 ? "#B45309" : COLORS.text }}>{kr(r.cost)}</span>
+                  </span>
+                  <span style={{ display: "block", fontSize: 12.5, color: COLORS.secondary, marginTop: 3 }}>
+                    {[a.category, a.location].filter(Boolean).join(" · ")}
+                    {a.interval_years ? ` · upprepas var ${a.interval_years}:e år` : ""}
+                    {` · ${a.quantity} ${a.unit} à ${kr(Number(a.unit_price))} exkl. moms`}
+                  </span>
+                  <span style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+                    {lvl === 2 && (
+                      <span style={{ background: RED, color: BEIGE, borderRadius: 999, padding: "2px 9px", fontSize: 11, fontWeight: 800 }}>Stor kostnad</span>
+                    )}
+                    {lvl === 1 && (
+                      <span style={{ background: ORANGE, color: "#fff", borderRadius: 999, padding: "2px 9px", fontSize: 11, fontWeight: 800 }}>Medelstor kostnad</span>
+                    )}
+                    <Chip text={KIND_LABEL[a.kind]} tone={a.kind === "investering" ? "dark" : "green"} />
+                    {a.status !== "planerad" && <Chip text={STATUS_LABEL[a.status]} tone="green" />}
+                    {a.label && <Chip text={a.label} tone="pink" />}
+                  </span>
+                  {a.description && (
+                    <span style={{ display: "block", fontSize: 13, color: COLORS.text, opacity: 0.8, marginTop: 8, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                      {a.description.length > 400 ? `${a.description.slice(0, 400)}…` : a.description}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
