@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Upload, Trash2, TrendingUp, AlertTriangle } from "lucide-react";
+import { Plus, X, Upload, Trash2, TrendingUp, AlertTriangle, Flame } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -24,6 +24,7 @@ const DARK = "#0D2B1E";
 const GREEN = "#5CB84A";
 const BEIGE = "#F2E3BC";
 const RED = "#8B1A2B";
+const HOT = "#C2334D";
 const green = (m: string) => toast.success(m, { style: { background: "#3D8A30", color: "#fff" } });
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : "Något gick fel");
 
@@ -42,6 +43,18 @@ const CAT_COLOR: Record<string, string> = {
 const catColor = (c: string | null) => (c && CAT_COLOR[c]) || "#9CA3AF";
 
 const td: React.CSSProperties = { padding: "11px 8px", fontSize: 14, color: COLORS.text, borderBottom: `1px solid ${COLORS.border}` };
+
+/** Hur dyrt ett år är i förhållande till snittet: 0 = normalt, 1 = dyrt (över 2 × snittet), 2 = extremt (över 5 × snittet). */
+function heat(sum: number, avg: number): 0 | 1 | 2 {
+  if (avg <= 0) return 0;
+  if (sum > avg * 5) return 2;
+  if (sum > avg * 2) return 1;
+  return 0;
+}
+
+const HEAT_CSS = `
+@keyframes bayt-glow { 0%,100% { box-shadow: 0 0 0 0 rgba(194,51,77,0.55); } 50% { box-shadow: 0 0 22px 4px rgba(194,51,77,0.55); } }
+`;
 
 function Chip({ text, tone }: { text: string; tone?: "dark" | "pink" | "green" }) {
   const bg = tone === "dark" ? "#374151" : tone === "pink" ? "#FBD5DC" : "#E8F5E4";
@@ -187,6 +200,13 @@ export function MaintenancePlanView({ propertyId, propertyName }: { propertyId: 
   const categories = [...new Set(actions.map((a) => a.category).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, "sv"));
   const openAction = actions.find((a) => a.id === openId) ?? null;
 
+  // Årssummor över hela planen (inte bara filtret), så markeringen alltid betyder samma sak.
+  const yearSums = new Map<number, number>();
+  for (const o of allOcc) yearSums.set(o.year, (yearSums.get(o.year) ?? 0) + o.cost);
+  const nYears = plan.end_year - plan.start_year + 1;
+  const avgYear = [...yearSums.values()].reduce((a, b) => a + b, 0) / Math.max(1, nYears);
+  const actionHeat = (a: Action) => heat(yearSums.get(a.year) ?? 0, avgYear);
+
   const pill = (t: Tab, label: string) => (
     <button
       key={t}
@@ -203,6 +223,7 @@ export function MaintenancePlanView({ propertyId, propertyName }: { propertyId: 
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <style>{HEAT_CSS}</style>
       <Hero plan={plan} occ={allOcc} name={propertyName ?? plan.name} />
 
       <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
@@ -242,36 +263,47 @@ export function MaintenancePlanView({ propertyId, propertyName }: { propertyId: 
           </div>
         ) : (
           <div style={{ display: "grid", gap: 10, gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(320px, 1fr))" }}>
-            {list.map((a) => (
-              <button
-                key={a.id}
-                type="button"
-                onClick={() => setOpenId(a.id)}
-                style={{
-                  textAlign: "left", cursor: "pointer", background: "#fff", border: `1px solid ${COLORS.border}`, borderLeft: `5px solid ${catColor(a.category)}`,
-                  borderRadius: 12, padding: "12px 14px", display: "grid", gap: 6, font: "inherit", color: "inherit",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
-                  <span style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 26, fontWeight: 700 }}>{a.year}</span>
-                  <span style={{ fontSize: 17, fontWeight: 700 }}>{kr(costOf(a, plan, withVat, a.year))}</span>
-                </div>
-                <div style={{ fontSize: 15, fontWeight: 600, overflowWrap: "anywhere" }}>{a.name}</div>
-                <div style={{ fontSize: 12.5, color: COLORS.secondary }}>
-                  {[a.category, a.location, a.interval_years ? `var ${a.interval_years}:e år` : null].filter(Boolean).join(" · ")}
-                </div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {a.kind === "investering" && <Chip text="Investering" tone="dark" />}
-                  {a.status !== "planerad" && <Chip text={STATUS_LABEL[a.status]} tone="green" />}
-                  {a.label && <Chip text={a.label} tone="pink" />}
-                </div>
-              </button>
-            ))}
+            {list.map((a) => {
+              const h = actionHeat(a);
+              return (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => setOpenId(a.id)}
+                  style={{
+                    textAlign: "left", cursor: "pointer", font: "inherit", color: "inherit", display: "grid", gap: 6, borderRadius: 12, padding: "12px 14px",
+                    background: h ? (h === 2 ? "#FDE2E7" : "#FEF1F3") : "#fff",
+                    border: `1px solid ${h ? HOT : COLORS.border}`,
+                    borderLeft: `5px solid ${h ? HOT : catColor(a.category)}`,
+                    animation: h === 2 ? "bayt-glow 2.2s ease-in-out infinite" : undefined,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+                    <span style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 26, fontWeight: 700, color: h ? RED : undefined }}>{a.year}</span>
+                    <span style={{ fontSize: 17, fontWeight: 700 }}>{kr(costOf(a, plan, withVat, a.year))}</span>
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 600, overflowWrap: "anywhere" }}>{a.name}</div>
+                  <div style={{ fontSize: 12.5, color: COLORS.secondary }}>
+                    {[a.category, a.location, a.interval_years ? `var ${a.interval_years}:e år` : null].filter(Boolean).join(" · ")}
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {h > 0 && (
+                      <span style={{ background: RED, color: BEIGE, borderRadius: 999, padding: "2px 9px", fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <Flame size={12} /> {h === 2 ? "Extremt dyrt år" : "Dyrt år"}
+                      </span>
+                    )}
+                    {a.kind === "investering" && <Chip text="Investering" tone="dark" />}
+                    {a.status !== "planerad" && <Chip text={STATUS_LABEL[a.status]} tone="green" />}
+                    {a.label && <Chip text={a.label} tone="pink" />}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )
       )}
 
-      {tab === "ar" && <PerYear occ={occ} onOpen={setOpenId} />}
+      {tab === "ar" && <PerYear occ={occ} avg={avgYear} onOpen={setOpenId} />}
       {tab === "kategori" && <PerCategory occ={occ} actions={list} plan={plan} withVat={withVat} onOpen={setOpenId} />}
       {tab === "analys" && <Analysis plan={plan} occ={allOcc} />}
       {tab === "installningar" && isAdmin && <Settings plan={plan} />}
@@ -293,22 +325,34 @@ export function MaintenancePlanView({ propertyId, propertyName }: { propertyId: 
 }
 
 // ---------------- Per år (tidslinje) ----------------
-function PerYear({ occ, onOpen }: { occ: Occurrence[]; onOpen: (id: string) => void }) {
+function PerYear({ occ, avg, onOpen }: { occ: Occurrence[]; avg: number; onOpen: (id: string) => void }) {
   const years = [...new Set(occ.map((o) => o.year))];
   if (years.length === 0) return <div style={{ padding: 40, textAlign: "center", color: COLORS.secondary }}>Inga åtgärder för det här valet</div>;
-  const sums = years.map((y) => occ.filter((o) => o.year === y).reduce((s, r) => s + r.cost, 0));
-  const avg = sums.reduce((a, b) => a + b, 0) / sums.length;
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      {years.map((y, i) => {
+      {years.map((y) => {
         const rows = occ.filter((o) => o.year === y);
-        const sum = sums[i];
-        const hot = sum > avg * 2;
+        const sum = rows.reduce((s, r) => s + r.cost, 0);
+        const h = heat(sum, avg);
+        const hot = h > 0;
         return (
-          <div key={y} style={{ border: `1px solid ${hot ? RED : COLORS.border}`, borderRadius: 14, overflow: "hidden" }}>
-            <div style={{ background: hot ? RED : DARK, color: hot ? BEIGE : "#fff", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              <span style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 24, fontWeight: 700 }}>{y}</span>
-              <span style={{ fontSize: 18, fontWeight: 700 }}>{kr(sum)}</span>
+          <div key={y} style={{ border: `2px solid ${hot ? HOT : COLORS.border}`, borderRadius: 14, overflow: "hidden", animation: h === 2 ? "bayt-glow 2.2s ease-in-out infinite" : undefined }}>
+            <div
+              style={{
+                background: hot ? RED : DARK, color: hot ? BEIGE : "#fff", padding: hot ? "16px 18px" : "12px 16px",
+                display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap",
+              }}
+            >
+              <span style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: hot ? 32 : 24, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 8 }}>
+                {hot && <Flame size={26} />} {y}
+                {h === 2 && (
+                  <span style={{ fontSize: 12, fontWeight: 800, background: BEIGE, color: RED, borderRadius: 999, padding: "2px 10px" }}>EXTREMT DYRT</span>
+                )}
+                {h === 1 && (
+                  <span style={{ fontSize: 12, fontWeight: 800, background: BEIGE, color: RED, borderRadius: 999, padding: "2px 10px" }}>DYRT</span>
+                )}
+              </span>
+              <span style={{ fontSize: hot ? 26 : 18, fontWeight: 800 }}>{kr(sum)}</span>
             </div>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -419,7 +463,7 @@ function Analysis({ plan, occ }: { plan: Plan; occ: Occurrence[] }) {
       <div>
         <div style={{ fontWeight: 700, marginBottom: 8 }}>Utgifter per år</div>
         <BarChart data={s.byYear} />
-        <Legend items={[["Underhåll", "#F5B731"], ["Investering", "#374151"]]} />
+        <Legend items={[["Underhåll", "#F5B731"], ["Investering", "#374151"], ["Dyrt år (över 2 × snittet)", HOT]]} />
       </div>
       <div>
         <div style={{ fontWeight: 700, marginBottom: 8 }}>Fondsaldo över tid</div>
@@ -446,11 +490,12 @@ function Legend({ items }: { items: [string, string][] }) {
 }
 
 function BarChart({ data }: { data: { year: number; inv: number; und: number }[] }) {
-  const W = 900, H = 260, L = 56, R = 8, T = 10, B = 28;
+  const W = 900, H = 260, L = 56, R = 8, T = 18, B = 28;
   const max = Math.max(1, ...data.map((d) => d.inv + d.und));
   const bw = (W - L - R) / data.length;
   const y = (v: number) => T + (H - T - B) * (1 - v / max);
   const step = Math.ceil(data.length / 12);
+  const avg = data.reduce((s, d) => s + d.inv + d.und, 0) / Math.max(1, data.length);
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
       {[0, 0.5, 1].map((t) => (
@@ -462,12 +507,19 @@ function BarChart({ data }: { data: { year: number; inv: number; und: number }[]
       {data.map((d, i) => {
         const x = L + i * bw + bw * 0.15;
         const w = bw * 0.7;
+        const total = d.inv + d.und;
+        const h = heat(total, avg);
         return (
           <g key={d.year}>
-            <title>{`${d.year}: ${kr(d.inv + d.und)}`}</title>
-            <rect x={x} y={y(d.und)} width={w} height={Math.max(0, y(0) - y(d.und))} fill="#F5B731" />
-            <rect x={x} y={y(d.und + d.inv)} width={w} height={Math.max(0, y(d.und) - y(d.und + d.inv))} fill="#374151" />
-            {i % step === 0 && <text x={x + w / 2} y={H - 8} fontSize="11" textAnchor="middle" fill="#6B7280">{d.year}</text>}
+            <title>{`${d.year}: ${kr(total)}`}</title>
+            <rect x={x} y={y(d.und)} width={w} height={Math.max(0, y(0) - y(d.und))} fill={h ? "#E8788A" : "#F5B731"} />
+            <rect x={x} y={y(total)} width={w} height={Math.max(0, y(d.und) - y(total))} fill={h ? HOT : "#374151"} />
+            {h > 0 && (
+              <text x={x + w / 2} y={y(total) - 5} fontSize="11" fontWeight="700" textAnchor="middle" fill={HOT}>{mkr(total)}</text>
+            )}
+            {(i % step === 0 || h > 0) && (
+              <text x={x + w / 2} y={H - 8} fontSize="11" fontWeight={h ? 700 : 400} textAnchor="middle" fill={h ? HOT : "#6B7280"}>{d.year}</text>
+            )}
           </g>
         );
       })}
