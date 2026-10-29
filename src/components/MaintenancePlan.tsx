@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Upload, Trash2 } from "lucide-react";
+import { Plus, X, Upload, Trash2, TrendingUp, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -16,33 +16,105 @@ import {
   occurrences,
   type Action,
   type Plan,
+  type Occurrence,
 } from "@/lib/maintenance";
 
 const BUCKET = "maintenance-files";
 const DARK = "#0D2B1E";
+const GREEN = "#5CB84A";
+const BEIGE = "#F2E3BC";
+const RED = "#8B1A2B";
 const green = (m: string) => toast.success(m, { style: { background: "#3D8A30", color: "#fff" } });
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : "Något gick fel");
 
 type Tab = "atgarder" | "ar" | "kategori" | "analys" | "installningar";
 
-const th: React.CSSProperties = {
-  textAlign: "left", padding: "10px 8px", fontSize: 12, fontWeight: 500, color: COLORS.secondary,
-  textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: `1px solid ${COLORS.border}`, whiteSpace: "nowrap",
+const CAT_COLOR: Record<string, string> = {
+  Mark: "#F5B731",
+  Fasad: "#374151",
+  Invändigt: "#F2711C",
+  Ventilation: "#0E9594",
+  Installationer: "#3FAE5A",
+  Tak: "#2DD4BF",
+  "17. BRAND och SÄKERHET": "#C026D3",
+  Besiktningar: "#A5B4FC",
 };
+const catColor = (c: string | null) => (c && CAT_COLOR[c]) || "#9CA3AF";
+
 const td: React.CSSProperties = { padding: "11px 8px", fontSize: 14, color: COLORS.text, borderBottom: `1px solid ${COLORS.border}` };
 
 function Chip({ text, tone }: { text: string; tone?: "dark" | "pink" | "green" }) {
   const bg = tone === "dark" ? "#374151" : tone === "pink" ? "#FBD5DC" : "#E8F5E4";
-  const fg = tone === "dark" ? "#fff" : tone === "pink" ? "#8B1A2B" : "#2E6B24";
+  const fg = tone === "dark" ? "#fff" : tone === "pink" ? RED : "#2E6B24";
   return (
-    <span style={{ background: bg, color: fg, borderRadius: 4, padding: "2px 7px", fontSize: 11, fontWeight: 600, marginLeft: 6, whiteSpace: "nowrap" }}>
+    <span style={{ background: bg, color: fg, borderRadius: 999, padding: "2px 9px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
       {text}
     </span>
   );
 }
 
+function summary(plan: Plan, occ: Occurrence[]) {
+  const n = plan.end_year - plan.start_year + 1;
+  const years = Array.from({ length: n }, (_, i) => plan.start_year + i);
+  const byYear = years.map((y) => {
+    const rows = occ.filter((o) => o.year === y);
+    return {
+      year: y,
+      inv: rows.filter((r) => r.action.kind === "investering").reduce((s, r) => s + r.cost, 0),
+      und: rows.filter((r) => r.action.kind !== "investering").reduce((s, r) => s + r.cost, 0),
+    };
+  });
+  const total = byYear.reduce((s, d) => s + d.inv + d.und, 0);
+  const inv = byYear.reduce((s, d) => s + d.inv, 0);
+  const perYear = total / n;
+  const boa = plan.boa_sqm ? Number(plan.boa_sqm) : null;
+  const recommended = Math.round(perYear / 1000) * 1000;
+  const peak = byYear.reduce((m, d) => (d.inv + d.und > m.inv + m.und ? d : m), byYear[0]);
+  return { n, years, byYear, total, inv, und: total - inv, perYear, boa, recommended, peak };
+}
+
+const mkr = (v: number) => `${(v / 1e6).toFixed(Math.abs(v) >= 1e7 ? 0 : 1).replace(".", ",")} mkr`;
+
+// ---------------- Hjälte ----------------
+function Hero({ plan, occ, name }: { plan: Plan; occ: Occurrence[]; name: string }) {
+  const s = summary(plan, occ);
+  const saving = Number(plan.current_annual_savings);
+  const short = s.recommended > saving && s.total > 0;
+  const big = (label: string, value: string, sub?: string) => (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "#9fb79f" }}>{label}</div>
+      <div style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 34, fontWeight: 700, lineHeight: 1.1, margin: "6px 0 2px", color: "#fff" }}>{value}</div>
+      {sub && <div style={{ fontSize: 12.5, color: "#b9c8b4" }}>{sub}</div>}
+    </div>
+  );
+  return (
+    <div style={{ background: "radial-gradient(ellipse at 20% 0%, #21503f 0%, #0f2a21 55%, #0b1d17 100%)", borderRadius: 18, padding: "24px 26px", color: "#e6efd8" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, color: GREEN, fontSize: 13, fontWeight: 700 }}>
+        <TrendingUp size={16} /> {name} · {plan.start_year}–{plan.end_year}
+      </div>
+      <div style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 28, fontWeight: 700, margin: "10px 0 20px", color: "#fff" }}>
+        {s.total > 0 ? `${mkr(s.total)} på ${s.n} år.` : "Ingen åtgärd inlagd ännu."}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 20 }}>
+        {big("Per år", kr(s.perYear), `${kr(s.inv)} är investeringar`)}
+        {big("Per m² och år", s.boa ? `${Math.round(s.perYear / s.boa)} kr` : "—", s.boa ? `${s.boa} m² BOA` : "Boarea saknas")}
+        {big("Dyraste år", s.total > 0 ? String(s.peak.year) : "—", s.total > 0 ? kr(s.peak.inv + s.peak.und) : undefined)}
+        {big("Avsättning idag", kr(saving), "per år")}
+      </div>
+      {short && (
+        <div style={{ marginTop: 20, background: "rgba(122,20,38,0.45)", border: `1px solid ${RED}`, borderRadius: 12, padding: "12px 14px", display: "flex", gap: 10, alignItems: "flex-start", color: BEIGE }}>
+          <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: 2 }} />
+          <div style={{ fontSize: 14, lineHeight: 1.5 }}>
+            <strong>Ni sätter av {kr(saving)} per år. Planen kräver i snitt {kr(s.recommended)}.</strong> Skillnaden är {kr(s.recommended - saving)} per år.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---------------- Huvudvy ----------------
-export function MaintenancePlanView({ propertyId }: { propertyId: string }) {
+export function MaintenancePlanView({ propertyId, propertyName }: { propertyId: string; propertyName?: string }) {
   const qc = useQueryClient();
   const { profile } = useAuth();
   const isMobile = useIsMobile();
@@ -92,7 +164,9 @@ export function MaintenancePlanView({ propertyId }: { propertyId: string }) {
   if (!plan) {
     return (
       <div style={{ padding: "40px 16px", textAlign: "center", color: COLORS.secondary }}>
-        <div style={{ marginBottom: 14 }}>Ingen underhållsplan har lagts upp för den här fastigheten ännu.</div>
+        <div style={{ marginBottom: 14 }}>
+          {isAdmin ? "Ingen underhållsplan har lagts upp för den här fastigheten ännu." : "Ingen underhållsplan är tillgänglig för dig."}
+        </div>
         {isAdmin && (
           <button style={primaryBtn} onClick={() => createPlan.mutate()} disabled={createPlan.isPending}>
             <Plus size={18} /> Skapa underhållsplan
@@ -106,23 +180,21 @@ export function MaintenancePlanView({ propertyId }: { propertyId: string }) {
   const toY = to ? Number(to) : plan.end_year;
   const needle = q.trim().toLowerCase();
   const matches = (a: Action) =>
-    (!cat || a.category === cat) &&
-    (!needle || `${a.name} ${a.category ?? ""} ${a.location ?? ""}`.toLowerCase().includes(needle));
+    (!cat || a.category === cat) && (!needle || `${a.name} ${a.category ?? ""} ${a.location ?? ""}`.toLowerCase().includes(needle));
   const occ = allOcc.filter((o) => o.year >= fromY && o.year <= toY && matches(o.action));
   const idsInRange = new Set(occ.map((o) => o.action.id));
   const list = actions.filter((a) => matches(a) && idsInRange.has(a.id));
   const categories = [...new Set(actions.map((a) => a.category).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, "sv"));
   const openAction = actions.find((a) => a.id === openId) ?? null;
 
-  const tabBtn = (t: Tab, label: string) => (
+  const pill = (t: Tab, label: string) => (
     <button
       key={t}
       type="button"
       onClick={() => setTab(t)}
       style={{
-        height: 40, padding: "0 14px", border: "none", background: "transparent", cursor: "pointer", whiteSpace: "nowrap",
-        borderBottom: `3px solid ${tab === t ? COLORS.primary : "transparent"}`,
-        color: tab === t ? COLORS.text : COLORS.secondary, fontWeight: 700, fontSize: 14,
+        height: 36, padding: "0 16px", borderRadius: 999, cursor: "pointer", whiteSpace: "nowrap", fontSize: 13.5, fontWeight: 700,
+        border: `1px solid ${tab === t ? DARK : COLORS.border}`, background: tab === t ? DARK : "#fff", color: tab === t ? "#fff" : COLORS.secondary,
       }}
     >
       {label}
@@ -130,13 +202,15 @@ export function MaintenancePlanView({ propertyId }: { propertyId: string }) {
   );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", gap: 2, borderBottom: `1px solid ${COLORS.border}`, overflowX: "auto" }}>
-        {tabBtn("atgarder", "Åtgärder")}
-        {tabBtn("ar", "Per år")}
-        {tabBtn("kategori", "Per kategori")}
-        {tabBtn("analys", "Ekonomisk analys")}
-        {isAdmin && tabBtn("installningar", "Inställningar")}
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <Hero plan={plan} occ={allOcc} name={propertyName ?? plan.name} />
+
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2 }}>
+        {pill("atgarder", "Åtgärder")}
+        {pill("ar", "Per år")}
+        {pill("kategori", "Per kategori")}
+        {pill("analys", "Ekonomisk analys")}
+        {isAdmin && pill("installningar", "Inställningar")}
       </div>
 
       {tab !== "analys" && tab !== "installningar" && (
@@ -162,45 +236,44 @@ export function MaintenancePlanView({ propertyId }: { propertyId: string }) {
       )}
 
       {tab === "atgarder" && (
-        <div style={{ overflowX: "auto" }}>
-          {list.length === 0 ? (
-            <div style={{ padding: 40, textAlign: "center", color: COLORS.secondary }}>Inga åtgärder för det här valet</div>
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  <th style={th}>Åtgärd</th><th style={th}>Kategori</th><th style={th}>Läge</th><th style={th}>År</th>
-                  <th style={th}>Intervall</th><th style={th}>Status</th><th style={{ ...th, textAlign: "right" }}>Per tillfälle</th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.map((a) => (
-                  <tr key={a.id} style={{ cursor: "pointer" }} onClick={() => setOpenId(a.id)}>
-                    <td style={{ ...td, fontWeight: 600 }}>
-                      {a.name}
-                      {a.kind === "investering" && <Chip text="Investering" tone="dark" />}
-                      {a.label && <Chip text={a.label} tone="pink" />}
-                    </td>
-                    <td style={td}>{a.category ?? "—"}</td>
-                    <td style={td}>{a.location ?? "—"}</td>
-                    <td style={td}>{a.year}</td>
-                    <td style={td}>{a.interval_years ? `${a.interval_years} år` : "—"}</td>
-                    <td style={td}>{STATUS_LABEL[a.status]}</td>
-                    <td style={{ ...td, textAlign: "right", fontWeight: 600 }}>{kr(costOf(a, plan, withVat, a.year))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+        list.length === 0 ? (
+          <div style={{ padding: 40, textAlign: "center", color: COLORS.secondary }}>
+            {actions.length === 0 ? "Inga åtgärder är inlagda ännu." : "Inga åtgärder för det här valet"}
+          </div>
+        ) : (
+          <div style={{ display: "grid", gap: 10, gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(320px, 1fr))" }}>
+            {list.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => setOpenId(a.id)}
+                style={{
+                  textAlign: "left", cursor: "pointer", background: "#fff", border: `1px solid ${COLORS.border}`, borderLeft: `5px solid ${catColor(a.category)}`,
+                  borderRadius: 12, padding: "12px 14px", display: "grid", gap: 6, font: "inherit", color: "inherit",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+                  <span style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 26, fontWeight: 700 }}>{a.year}</span>
+                  <span style={{ fontSize: 17, fontWeight: 700 }}>{kr(costOf(a, plan, withVat, a.year))}</span>
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 600, overflowWrap: "anywhere" }}>{a.name}</div>
+                <div style={{ fontSize: 12.5, color: COLORS.secondary }}>
+                  {[a.category, a.location, a.interval_years ? `var ${a.interval_years}:e år` : null].filter(Boolean).join(" · ")}
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {a.kind === "investering" && <Chip text="Investering" tone="dark" />}
+                  {a.status !== "planerad" && <Chip text={STATUS_LABEL[a.status]} tone="green" />}
+                  {a.label && <Chip text={a.label} tone="pink" />}
+                </div>
+              </button>
+            ))}
+          </div>
+        )
       )}
 
       {tab === "ar" && <PerYear occ={occ} onOpen={setOpenId} />}
-
       {tab === "kategori" && <PerCategory occ={occ} actions={list} plan={plan} withVat={withVat} onOpen={setOpenId} />}
-
       {tab === "analys" && <Analysis plan={plan} occ={allOcc} />}
-
       {tab === "installningar" && isAdmin && <Settings plan={plan} />}
 
       {(openAction || creating) && (
@@ -219,20 +292,23 @@ export function MaintenancePlanView({ propertyId }: { propertyId: string }) {
   );
 }
 
-// ---------------- Per år ----------------
-function PerYear({ occ, onOpen }: { occ: ReturnType<typeof occurrences>; onOpen: (id: string) => void }) {
+// ---------------- Per år (tidslinje) ----------------
+function PerYear({ occ, onOpen }: { occ: Occurrence[]; onOpen: (id: string) => void }) {
   const years = [...new Set(occ.map((o) => o.year))];
   if (years.length === 0) return <div style={{ padding: 40, textAlign: "center", color: COLORS.secondary }}>Inga åtgärder för det här valet</div>;
+  const sums = years.map((y) => occ.filter((o) => o.year === y).reduce((s, r) => s + r.cost, 0));
+  const avg = sums.reduce((a, b) => a + b, 0) / sums.length;
   return (
-    <div style={{ display: "grid", gap: 18 }}>
-      {years.map((y) => {
+    <div style={{ display: "grid", gap: 16 }}>
+      {years.map((y, i) => {
         const rows = occ.filter((o) => o.year === y);
-        const sum = rows.reduce((s, r) => s + r.cost, 0);
+        const sum = sums[i];
+        const hot = sum > avg * 2;
         return (
-          <div key={y} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 8, overflow: "hidden" }}>
-            <div style={{ background: DARK, color: "#fff", padding: "10px 14px", display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
-              <span>{y}</span>
-              <span>{kr(sum)}</span>
+          <div key={y} style={{ border: `1px solid ${hot ? RED : COLORS.border}`, borderRadius: 14, overflow: "hidden" }}>
+            <div style={{ background: hot ? RED : DARK, color: hot ? BEIGE : "#fff", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <span style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 24, fontWeight: 700 }}>{y}</span>
+              <span style={{ fontSize: 18, fontWeight: 700 }}>{kr(sum)}</span>
             </div>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -240,15 +316,15 @@ function PerYear({ occ, onOpen }: { occ: ReturnType<typeof occurrences>; onOpen:
                   {rows.map((r) => (
                     <tr key={`${r.action.id}-${r.year}`} style={{ cursor: "pointer" }} onClick={() => onOpen(r.action.id)}>
                       <td style={{ ...td, fontWeight: 600 }}>
+                        <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: 2, background: catColor(r.action.category), marginRight: 8 }} />
                         {r.action.name}
-                        {r.action.kind === "investering" && <Chip text="Investering" tone="dark" />}
-                        {r.action.label && <Chip text={r.action.label} tone="pink" />}
+                        {r.action.kind === "investering" && <span style={{ marginLeft: 6 }}><Chip text="Investering" tone="dark" /></span>}
+                        {r.action.label && <span style={{ marginLeft: 6 }}><Chip text={r.action.label} tone="pink" /></span>}
                       </td>
                       <td style={td}>{r.action.category ?? "—"}</td>
                       <td style={td}>{r.action.location ?? "—"}</td>
                       <td style={td}>{r.action.interval_years ? `${r.action.interval_years} år` : ""}</td>
-                      <td style={td}>{STATUS_LABEL[r.action.status]}</td>
-                      <td style={{ ...td, textAlign: "right", fontWeight: 600 }}>{kr(r.cost)}</td>
+                      <td style={{ ...td, textAlign: "right", fontWeight: 700 }}>{kr(r.cost)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -264,27 +340,27 @@ function PerYear({ occ, onOpen }: { occ: ReturnType<typeof occurrences>; onOpen:
 // ---------------- Per kategori ----------------
 function PerCategory({
   occ, actions, plan, withVat, onOpen,
-}: { occ: ReturnType<typeof occurrences>; actions: Action[]; plan: Plan; withVat: boolean; onOpen: (id: string) => void }) {
+}: { occ: Occurrence[]; actions: Action[]; plan: Plan; withVat: boolean; onOpen: (id: string) => void }) {
   const cats = [...new Set(actions.map((a) => a.category ?? "Utan kategori"))].sort((a, b) => a.localeCompare(b, "sv"));
   if (cats.length === 0) return <div style={{ padding: 40, textAlign: "center", color: COLORS.secondary }}>Inga åtgärder för det här valet</div>;
   return (
-    <div style={{ display: "grid", gap: 18 }}>
+    <div style={{ display: "grid", gap: 16 }}>
       {cats.map((c) => {
         const inCat = actions.filter((a) => (a.category ?? "Utan kategori") === c);
         const ids = new Set(inCat.map((a) => a.id));
         const sum = occ.filter((o) => ids.has(o.action.id)).reduce((s, o) => s + o.cost, 0);
         const locs = [...new Set(inCat.map((a) => a.location ?? "Övrigt"))].sort((a, b) => a.localeCompare(b, "sv"));
         return (
-          <div key={c} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 8, overflow: "hidden" }}>
-            <div style={{ background: DARK, color: "#fff", padding: "10px 14px", display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
-              <span>{c}</span>
-              <span>{kr(sum)}</span>
+          <div key={c} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 14, overflow: "hidden" }}>
+            <div style={{ background: DARK, color: "#fff", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderLeft: `8px solid ${catColor(c)}` }}>
+              <span style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 20, fontWeight: 700 }}>{c}</span>
+              <span style={{ fontSize: 17, fontWeight: 700 }}>{kr(sum)}</span>
             </div>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <tbody>
                   {locs.map((l) => (
-                    <tbody key={l} style={{ display: "contents" }}>
+                    <Fragment key={l}>
                       <tr>
                         <td colSpan={6} style={{ ...td, background: "#F3F4F6", fontStyle: "italic", fontWeight: 700 }}>{l}</td>
                       </tr>
@@ -292,16 +368,16 @@ function PerCategory({
                         <tr key={a.id} style={{ cursor: "pointer" }} onClick={() => onOpen(a.id)}>
                           <td style={{ ...td, fontWeight: 600 }}>
                             {a.name}
-                            {a.kind === "investering" && <Chip text="Investering" tone="dark" />}
+                            {a.kind === "investering" && <span style={{ marginLeft: 6 }}><Chip text="Investering" tone="dark" /></span>}
                           </td>
                           <td style={td}>{a.year}</td>
                           <td style={td}>{a.interval_years ? `${a.interval_years} år` : "—"}</td>
                           <td style={td}>{a.quantity} {a.unit}</td>
                           <td style={td}>{kr(Number(a.unit_price))}</td>
-                          <td style={{ ...td, textAlign: "right", fontWeight: 600 }}>{kr(costOf(a, plan, withVat, a.year))}</td>
+                          <td style={{ ...td, textAlign: "right", fontWeight: 700 }}>{kr(costOf(a, plan, withVat, a.year))}</td>
                         </tr>
                       ))}
-                    </tbody>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
@@ -314,66 +390,43 @@ function PerCategory({
 }
 
 // ---------------- Ekonomisk analys ----------------
-function Analysis({ plan, occ }: { plan: Plan; occ: ReturnType<typeof occurrences> }) {
-  const n = plan.end_year - plan.start_year + 1;
-  const years = Array.from({ length: n }, (_, i) => plan.start_year + i);
-  const byYear = years.map((y) => {
-    const rows = occ.filter((o) => o.year === y);
-    return {
-      year: y,
-      inv: rows.filter((r) => r.action.kind === "investering").reduce((s, r) => s + r.cost, 0),
-      und: rows.filter((r) => r.action.kind !== "investering").reduce((s, r) => s + r.cost, 0),
-    };
-  });
-  const total = byYear.reduce((s, d) => s + d.inv + d.und, 0);
-  const inv = byYear.reduce((s, d) => s + d.inv, 0);
-  const und = total - inv;
-  const perYear = total / n;
-  const boa = plan.boa_sqm ? Number(plan.boa_sqm) : null;
-  const recommended = Math.round(perYear / 1000) * 1000;
-  const peak = byYear.reduce((m, d) => (d.inv + d.und > m.inv + m.und ? d : m), byYear[0]);
-
+function Analysis({ plan, occ }: { plan: Plan; occ: Occurrence[] }) {
+  const s = summary(plan, occ);
   let cum = 0;
   const rec: number[] = [];
   const cur: number[] = [];
-  byYear.forEach((d, i) => {
+  s.byYear.forEach((d, i) => {
     cum += d.inv + d.und;
-    rec.push(Number(plan.fund_balance) + recommended * (i + 1) - cum);
+    rec.push(Number(plan.fund_balance) + s.recommended * (i + 1) - cum);
     cur.push(Number(plan.fund_balance) + Number(plan.current_annual_savings) * (i + 1) - cum);
   });
-
   const kpi = (label: string, value: string) => (
-    <div style={{ border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "12px 14px" }}>
+    <div style={{ border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: "12px 14px" }}>
       <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", color: COLORS.secondary }}>{label}</div>
       <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>{value}</div>
     </div>
   );
-
   return (
     <div style={{ display: "grid", gap: 20 }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>
-        {kpi("Total utgift", kr(total))}
-        {kpi("Investering", kr(inv))}
-        {kpi("Underhåll", kr(und))}
-        {kpi("Utgift per år", kr(perYear))}
-        {kpi("Per år och m²", boa ? `${Math.round(perYear / boa)} kr / m²` : "Boarea saknas")}
-        {kpi("Dyraste år", `${peak.year}: ${kr(peak.inv + peak.und)}`)}
-        {kpi("Nuvarande avsättning", boa ? `${Math.round(Number(plan.current_annual_savings) / boa)} kr / m²` : kr(Number(plan.current_annual_savings)))}
-        {kpi("Rekommenderad avsättning / år", kr(recommended))}
+        {kpi("Total utgift", kr(s.total))}
+        {kpi("Investering", kr(s.inv))}
+        {kpi("Underhåll", kr(s.und))}
+        {kpi("Rekommenderad avsättning / år", kr(s.recommended))}
+        {kpi("Nuvarande avsättning / år", kr(Number(plan.current_annual_savings)))}
+        {kpi("Rekommenderad per m²", s.boa ? `${Math.round(s.recommended / s.boa)} kr / m²` : "Boarea saknas")}
       </div>
-
       <div>
         <div style={{ fontWeight: 700, marginBottom: 8 }}>Utgifter per år</div>
-        <BarChart data={byYear} />
+        <BarChart data={s.byYear} />
         <Legend items={[["Underhåll", "#F5B731"], ["Investering", "#374151"]]} />
       </div>
-
       <div>
         <div style={{ fontWeight: 700, marginBottom: 8 }}>Fondsaldo över tid</div>
-        <LineChart years={years} a={rec} b={cur} />
+        <LineChart years={s.years} a={rec} b={cur} />
         <Legend items={[["Vid rekommenderad avsättning", "#F5B731"], ["Vid nuvarande avsättning", "#0D2B1E"]]} />
         <div style={{ fontSize: 12, color: COLORS.secondary, marginTop: 6 }}>
-          Beräknat från ingående saldo och årlig avsättning, minus alla åtgärder i planen (investering och underhåll). Rekommenderad avsättning är planens snittutgift per år.
+          Beräknat från ingående saldo och årlig avsättning, minus alla åtgärder i planen. Rekommenderad avsättning är planens snittutgift per år.
         </div>
       </div>
     </div>
@@ -391,8 +444,6 @@ function Legend({ items }: { items: [string, string][] }) {
     </div>
   );
 }
-
-const mkr = (v: number) => `${(v / 1e6).toFixed(Math.abs(v) >= 1e7 ? 0 : 1)} mkr`;
 
 function BarChart({ data }: { data: { year: number; inv: number; und: number }[] }) {
   const W = 900, H = 260, L = 56, R = 8, T = 10, B = 28;
@@ -449,7 +500,7 @@ function LineChart({ years, a, b }: { years: number[]; a: number[]; b: number[] 
   );
 }
 
-// ---------------- Inställningar (admin) ----------------
+// ---------------- Inställningar + åtkomst (admin) ----------------
 function Settings({ plan }: { plan: Plan }) {
   const qc = useQueryClient();
   const [f, setF] = useState({
@@ -496,32 +547,91 @@ function Settings({ plan }: { plan: Plan }) {
   );
 
   return (
-    <div style={{ display: "grid", gap: 14, maxWidth: 720 }}>
-      {field("Namn", "name", "text")}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-        {field("Startår", "start_year")}
-        {field("Slutår", "end_year")}
-        {field("Moms (%)", "vat_rate")}
-        {field("Kostnadstillägg byggherre (%)", "extra_cost_pct")}
-        {field("Årlig uppräkning (%)", "annual_increase_pct")}
-        {field("Boarea BOA (m²)", "boa_sqm")}
-        {field("Nuvarande årlig avsättning (kr)", "current_annual_savings")}
-        {field("Saldo i underhållsfond vid start (kr)", "fund_balance")}
-        {field("Avrunda belopp till (kr, 1 = ingen)", "round_to")}
+    <div style={{ display: "grid", gap: 22, maxWidth: 720 }}>
+      <div style={{ display: "grid", gap: 14 }}>
+        {field("Namn", "name", "text")}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          {field("Startår", "start_year")}
+          {field("Slutår", "end_year")}
+          {field("Moms (%)", "vat_rate")}
+          {field("Kostnadstillägg byggherre (%)", "extra_cost_pct")}
+          {field("Årlig uppräkning (%)", "annual_increase_pct")}
+          {field("Boarea BOA (m²)", "boa_sqm")}
+          {field("Nuvarande årlig avsättning (kr)", "current_annual_savings")}
+          {field("Saldo i underhållsfond vid start (kr)", "fund_balance")}
+          {field("Avrunda belopp till (kr, 1 = ingen)", "round_to")}
+        </div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <button style={primaryBtn} onClick={() => save.mutate()} disabled={save.isPending}>
+            {save.isPending ? "Sparar…" : "Spara inställningar"}
+          </button>
+          <button
+            style={{ ...primaryBtn, background: "#fff", color: COLORS.error, border: `1px solid ${COLORS.error}` }}
+            onClick={() => {
+              if (window.confirm("Ta bort hela underhållsplanen med alla åtgärder, bilder och kommentarer? Det går inte att ångra.")) remove.mutate();
+            }}
+          >
+            <Trash2 size={16} /> Ta bort planen
+          </button>
+        </div>
       </div>
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <button style={primaryBtn} onClick={() => save.mutate()} disabled={save.isPending}>
-          {save.isPending ? "Sparar…" : "Spara inställningar"}
-        </button>
-        <button
-          style={{ ...primaryBtn, background: "#fff", color: COLORS.error, border: `1px solid ${COLORS.error}` }}
-          onClick={() => {
-            if (window.confirm("Ta bort hela underhållsplanen med alla åtgärder, bilder och kommentarer? Det går inte att ångra.")) remove.mutate();
-          }}
-        >
-          <Trash2 size={16} /> Ta bort planen
-        </button>
+      <AccessPane plan={plan} />
+    </div>
+  );
+}
+
+function AccessPane({ plan }: { plan: Plan }) {
+  const qc = useQueryClient();
+  const peopleQ = useQuery({
+    queryKey: ["mp-entreprenorer"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("profiles").select("id, full_name").eq("role", "entreprenor").order("full_name");
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; full_name: string | null }>;
+    },
+  });
+  const accessQ = useQuery({
+    queryKey: ["mp-access", plan.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("maintenance_plan_access").select("profile_id").eq("plan_id", plan.id);
+      if (error) throw error;
+      return new Set(((data ?? []) as Array<{ profile_id: string }>).map((r) => r.profile_id));
+    },
+  });
+  const toggle = useMutation({
+    mutationFn: async ({ id, on }: { id: string; on: boolean }) => {
+      if (on) {
+        const { error } = await supabase.from("maintenance_plan_access").insert({ plan_id: plan.id, profile_id: id });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("maintenance_plan_access").delete().eq("plan_id", plan.id).eq("profile_id", id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["mp-access", plan.id] }),
+    onError: (e) => toast.error(errMsg(e)),
+  });
+
+  const people = peopleQ.data ?? [];
+  const has = accessQ.data ?? new Set<string>();
+  return (
+    <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: 18 }}>
+      <div style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 18, fontWeight: 700 }}>Åtkomst för entreprenörer</div>
+      <div style={{ fontSize: 13, color: COLORS.secondary, margin: "4px 0 12px" }}>
+        Kryssa de entreprenörer som ska få se den här planen. De kan bara läsa. Styrelsen och admin har alltid åtkomst.
       </div>
+      {people.length === 0 ? (
+        <div style={{ color: COLORS.secondary, fontSize: 14 }}>Inga entreprenörer med konto finns ännu.</div>
+      ) : (
+        <div style={{ display: "grid", gap: 8 }}>
+          {people.map((p) => (
+            <label key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: `1px solid ${COLORS.border}`, borderRadius: 10, cursor: "pointer" }}>
+              <input type="checkbox" checked={has.has(p.id)} onChange={(e) => toggle.mutate({ id: p.id, on: e.target.checked })} disabled={toggle.isPending} />
+              <span style={{ fontWeight: 600 }}>{p.full_name ?? "(namn saknas)"}</span>
+            </label>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -535,6 +645,7 @@ function ActionModal({
   const qc = useQueryClient();
   const { user, profile } = useAuth();
   const isAdmin = profile?.role === "admin";
+  const canWrite = isAdmin || profile?.role === "styrelse";
   const [tab, setTab] = useState<ModalTab>("detaljer");
   const [f, setF] = useState({
     name: action?.name ?? "",
@@ -620,7 +731,7 @@ function ActionModal({
       onClick={onClose}
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 200, display: "flex", alignItems: "flex-start", justifyContent: "center", overflowY: "auto", padding: 16 }}
     >
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, width: "min(720px, 100%)", marginTop: 24, padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 16, width: "min(720px, 100%)", marginTop: 24, padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
           <h2 style={{ margin: 0, fontSize: 20, fontFamily: "Outfit, Inter, system-ui, sans-serif" }}>{action ? action.name : "Ny åtgärd"}</h2>
           <button type="button" onClick={onClose} aria-label="Stäng" style={{ border: "none", background: "transparent", cursor: "pointer" }}>
@@ -704,14 +815,14 @@ function ActionModal({
           </div>
         )}
 
-        {action && tab === "bilder" && <ImagesPane action={action} plan={plan} />}
-        {action && tab === "kommentarer" && <CommentsPane action={action} plan={plan} userId={user?.id ?? ""} isAdmin={isAdmin} />}
+        {action && tab === "bilder" && <ImagesPane action={action} plan={plan} canWrite={canWrite} />}
+        {action && tab === "kommentarer" && <CommentsPane action={action} plan={plan} userId={user?.id ?? ""} isAdmin={isAdmin} canWrite={canWrite} />}
       </div>
     </div>
   );
 }
 
-function ImagesPane({ action, plan }: { action: Action; plan: Plan }) {
+function ImagesPane({ action, plan, canWrite }: { action: Action; plan: Plan; canWrite: boolean }) {
   const qc = useQueryClient();
   const { user, profile } = useAuth();
   const isAdmin = profile?.role === "admin";
@@ -723,6 +834,7 @@ function ImagesPane({ action, plan }: { action: Action; plan: Plan }) {
     queryFn: async () => {
       const { data, error } = await supabase.from("maintenance_images").select("*").eq("action_id", action.id).order("created_at");
       if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rows = (data ?? []) as any[];
       if (!rows.length) return [];
       const { data: signed } = await supabase.storage.from(BUCKET).createSignedUrls(rows.map((r) => r.path), 3600);
@@ -758,6 +870,7 @@ function ImagesPane({ action, plan }: { action: Action; plan: Plan }) {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function removeImage(img: any) {
     if (!window.confirm("Ta bort bilden? Det går inte att ångra.")) return;
     // Filen tas bort först: lagringsregeln läser raden för att se vem som äger filen.
@@ -771,16 +884,19 @@ function ImagesPane({ action, plan }: { action: Action; plan: Plan }) {
   const imgs = q.data ?? [];
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      <div>
-        <input ref={inputRef} type="file" accept="image/*" multiple onChange={onPick} style={{ display: "none" }} />
-        <button style={{ ...primaryBtn, height: 40 }} onClick={() => inputRef.current?.click()} disabled={busy}>
-          <Upload size={16} /> {busy ? "Laddar upp…" : "Lägg till bilder"}
-        </button>
-      </div>
+      {canWrite && (
+        <div>
+          <input ref={inputRef} type="file" accept="image/*" multiple onChange={onPick} style={{ display: "none" }} />
+          <button style={{ ...primaryBtn, height: 40 }} onClick={() => inputRef.current?.click()} disabled={busy}>
+            <Upload size={16} /> {busy ? "Laddar upp…" : "Lägg till bilder"}
+          </button>
+        </div>
+      )}
       {imgs.length === 0 ? (
         <div style={{ color: COLORS.secondary, padding: 20, textAlign: "center" }}>Inga bilder ännu</div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           {imgs.map((img: any) => (
             <div key={img.id} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 8, overflow: "hidden" }}>
               <a href={img.url ?? undefined} target="_blank" rel="noreferrer">
@@ -799,7 +915,7 @@ function ImagesPane({ action, plan }: { action: Action; plan: Plan }) {
   );
 }
 
-function CommentsPane({ action, plan, userId, isAdmin }: { action: Action; plan: Plan; userId: string; isAdmin: boolean }) {
+function CommentsPane({ action, plan, userId, isAdmin, canWrite }: { action: Action; plan: Plan; userId: string; isAdmin: boolean; canWrite: boolean }) {
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const q = useQuery({
@@ -811,6 +927,7 @@ function CommentsPane({ action, plan, userId, isAdmin }: { action: Action; plan:
         .eq("action_id", action.id)
         .order("created_at");
       if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (data ?? []) as any[];
     },
   });
@@ -856,12 +973,16 @@ function CommentsPane({ action, plan, userId, isAdmin }: { action: Action; plan:
           <div style={{ whiteSpace: "pre-wrap", fontSize: 14, marginTop: 4, overflowWrap: "anywhere" }}>{c.body}</div>
         </div>
       ))}
-      <textarea style={textareaStyle} rows={3} placeholder="Skriv en kommentar…" value={text} onChange={(e) => setText(e.target.value)} />
-      <div>
-        <button style={{ ...primaryBtn, height: 40 }} disabled={!text.trim() || add.isPending} onClick={() => add.mutate()}>
-          {add.isPending ? "Skickar…" : "Skicka"}
-        </button>
-      </div>
+      {canWrite && (
+        <>
+          <textarea style={textareaStyle} rows={3} placeholder="Skriv en kommentar…" value={text} onChange={(e) => setText(e.target.value)} />
+          <div>
+            <button style={{ ...primaryBtn, height: 40 }} disabled={!text.trim() || add.isPending} onClick={() => add.mutate()}>
+              {add.isPending ? "Skickar…" : "Skicka"}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
