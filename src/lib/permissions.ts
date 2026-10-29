@@ -1,45 +1,30 @@
 /**
  * Role → allowed top-level routes.
  *
- * Client spec (2026-07-20):
  *  - admin: everything.
- *  - styrelse: read-only, and ONLY Fastigheter / Lägenheter / Felanmälningar /
- *    Besiktningar / Projekt (all scoped to their attached buildings), Loggbok,
- *    and Inställningar (no invite section).
- *  - entreprenor: only what relates to errands assigned to them — Dag Rapport,
- *    Fastigheter (buildings where they have work), the three errand sections,
- *    Kalender, Avslutat ("basket"), Loggbok, Inställningar.
+ *  - styrelse: read-only on their own buildings (see STYRELSE_ROUTES).
+ *  - entreprenor: only what relates to errands assigned to them.
  *
  * Nav is filtered from this, and each route also guards itself — hiding a link
  * is not access control on its own.
  *
- * Chatt (/chatt) is a deliberate exception to "styrelse is read-only" and to
- * entreprenör's assigned-errand-only scope: both roles may send messages there.
- * That write access is enforced by the chat RLS policies and the
- * create_chat_conversation() RPC (see supabase-functions/chat.sql), not by
- * canEdit() — this file only controls whether the route is reachable at all.
+ * Chatt (/chatt): both styrelse and entreprenör may send messages; enforced by
+ * the chat RLS policies, not by canEdit().
  *
  * Dokument (/dokument) is open to all roles: it only lists files that belong to
- * errands (project_images, issue_images, inspection_protocols, contractor_files),
- * and those tables are role-scoped by RLS. It does NOT read the `documents` table.
+ * errands, and those tables are role-scoped by RLS.
  *
- * Underhållsplan (/underhallsplan) is for admin and styrelse. Styrelse may read
- * and comment/upload images on their own buildings; that is enforced by the
- * maintenance_* RLS policies, not here.
+ * Underhållsplan (/underhallsplan): admin and styrelse (own buildings), plus
+ * entreprenörer that admin has granted access per plan (maintenance_plan_access).
+ * The real filtering is done by the maintenance_* RLS policies.
  */
 export type Role = "admin" | "styrelse" | "entreprenor";
 
 // NOTE: `/properties` must be included wherever `/fastigheter` is — the building
 // cards link into `/properties/$id/<section>` for every per-building sub-page.
-// Leaving it out silently breaks all building navigation for that role.
 const STYRELSE_ROUTES = [
-  // Styrelsens startsida: en lugn översikt över deras fastigheter (read-only).
   "/styrelse",
-  // Koll: lugn logg över fastigheternas läge.
   "/koll",
-  // Läsvy: samma arbetslista som entreprenören ser, men för styrelsens egna
-  // fastigheter och utan livscykelknappar (StyrelseDagRapport). Att veta vad
-  // som ska utföras och när är styrelsens uppgift; att utföra det är inte det.
   "/dag-rapport",
   "/fastigheter",
   "/properties",
@@ -48,38 +33,22 @@ const STYRELSE_ROUTES = [
   "/inspections",
   "/projects",
   "/loggbok",
-  // Samlade filer på styrelsens egna ärenden (rollstyrt av RLS).
   "/dokument",
-  // Underhållsplan per fastighet (rollstyrt av RLS).
   "/underhallsplan",
-  // Objekt (hiss/vind/miljörum/…) mirrors Lägenheter: read-only, own buildings
-  // only, enforced underneath by property_objects' RLS
-  // (supabase-functions/property-objects-scoped-rls.sql).
   "/objects",
   "/installningar",
   "/chatt",
 ];
 
-// /kalender and /avslutat are specced for entreprenörer but not built yet.
-// Deliberately NOT listed: a nav link to a route that doesn't exist 404s in front
-// of the user. Re-add both here the same commit the pages land.
 const ENTREPRENOR_ROUTES = [
-  // Entreprenörens startsida: "vad gör jag först?".
   "/mina-uppdrag",
   "/dag-rapport",
-  // Lägenheter is reachable but NARROWER than for styrelse: canAccess only gets
-  // them past the route layer, and useRecordScopeGuard then restricts them to
-  // apartments where they hold an assignment (useMyAssignedApartmentIds). They
-  // are here for the per-apartment Historik on the Info view.
   "/issues",
   "/inspections",
   "/projects",
   "/properties",
-  // Samlade filer på entreprenörens egna uppdrag (rollstyrt av RLS).
   "/dokument",
-  // Narrower again, same shape as Lägenheter: has_object_assignment() (RLS)
-  // only returns an object the entreprenör holds an issue/inspection
-  // assignment against — see property-objects-scoped-rls.sql.
+  "/underhallsplan",
 ];
 
 /**
@@ -87,28 +56,11 @@ const ENTREPRENOR_ROUTES = [
  * the menu and the URL guard can't disagree.
  */
 export const PROPERTY_SECTIONS_FOR_ROLE: Record<string, ReadonlyArray<string>> = {
-  // "objects" reaches the section for both roles; RLS on property_objects then
-  // does the real narrowing (styrelse: own buildings, entreprenor: only an
-  // object they hold an issue/inspection assignment against) — same split as
-  // Lägenheter, see property-objects-scoped-rls.sql.
   styrelse: ["apartments", "issues", "inspections", "projects", "logbook", "objects", "avslutat"],
-  // "apartments" reaches the section; ApartmentsTab then shows an entreprenör
-  // only the units they are assigned to, not the building's whole roster.
-  // "avslutat" is the per-building archive — its queries repeat the same
-  // assigned_contact_id scoping as the section tabs, so an entreprenör only
-  // sees their own closed ärenden there.
   entreprenor: ["apartments", "issues", "inspections", "projects", "logbook", "objects", "avslutat"],
 };
 
-/**
- * Where each role lands when it hits something it may not open.
- *
- * Lives here, next to canAccess, because it is the same knowledge: a role's home
- * must be a page that role can actually use. Sending an entreprenör to a
- * building grid was the bug behind "det tar mig till en tom felanmälan-sida" —
- * the grids are useless to them until they have work in a building.
- * Consumed by the `_authenticated` route guard and by useRecordScopeGuard.
- */
+/** Where each role lands when it hits something it may not open. */
 export const HOME_FOR_ROLE: Record<string, string> = {
   admin: "/idag",
   styrelse: "/styrelse",
@@ -122,16 +74,10 @@ export function homeForRole(role: string | null | undefined): string {
 export function canAccess(role: string | null | undefined, to: string): boolean {
   if (role === "admin") return true;
 
-  // Creation is admin-only. Without this, allowing "/issues" would also allow
-  // "/issues/new" — letting a read-only styrelse, or an entreprenör who may only
-  // öppna/avsluta, reach a working create form.
+  // Creation is admin-only.
   if (/(^|\/)new$/.test(to)) return false;
 
-  // Building sub-pages: "/properties/<id>/<section>". Allowing "/properties"
-  // wholesale would otherwise expose Dokument, Kontakter and Åtgärdslista by
-  // URL even though the sub-nav hides them. Objekt used to be in that list too
-  // (2026-07-30) but was reopened to styrelse/entreprenor (2026-08-07) once its
-  // RLS was confirmed to mirror Lägenheter's — see PROPERTY_SECTIONS_FOR_ROLE.
+  // Building sub-pages: "/properties/<id>/<section>".
   const sub = to.match(/^\/properties\/[^/]+\/([^/]+)/);
   if (sub && role && PROPERTY_SECTIONS_FOR_ROLE[role]) {
     if (!PROPERTY_SECTIONS_FOR_ROLE[role]!.includes(sub[1])) return false;
