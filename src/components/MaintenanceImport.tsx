@@ -3,11 +3,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { FileUp, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { sanitizeStorageName } from "@/lib/storage";
 import { COLORS, primaryBtn } from "@/components/property-tabs";
 import { kr, occurrences, type Action, type Plan } from "@/lib/maintenance";
 
-const BUCKET = "maintenance-files";
+const PDFJS_BASE = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/";
 
 type Settings = {
   name: string;
@@ -29,11 +28,62 @@ const num = (v: unknown, d = 0) => {
 };
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : "Något gick fel");
 
+/** Hämtar pdf.js från CDN och kör dess worker via en blob (annars blockerar webbläsaren korsdomänsworkers). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function loadPdfJs(): Promise<any> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const lib: any = await import(/* @vite-ignore */ `${PDFJS_BASE}pdf.min.mjs`);
+  const workerText = await (await fetch(`${PDFJS_BASE}pdf.worker.min.mjs`)).text();
+  lib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(new Blob([workerText], { type: "text/javascript" }));
+  return lib;
+}
+
+/** Plockar ut text sida för sida. Rader byggs på y-position, kolumner skiljs med " | ". */
+async function extractPdfText(file: File, onProgress: (done: number, total: number) => void): Promise<string> {
+  const lib = await loadPdfJs();
+  const data = new Uint8Array(await file.arrayBuffer());
+  const pdf = await lib.getDocument({ data }).promise;
+  const pages: string[] = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const items = (content.items as any[])
+      .filter((it) => typeof it.str === "string" && it.str.trim() !== "")
+      .map((it) => ({ s: String(it.str), x: it.transform[4] as number, y: it.transform[5] as number, w: (it.width as number) || 0 }));
+    items.sort((a, b) => b.y - a.y || a.x - b.x);
+
+    const lines: Array<typeof items> = [];
+    for (const it of items) {
+      const last = lines[lines.length - 1];
+      if (last && Math.abs(last[0].y - it.y) <= 3) last.push(it);
+      else lines.push([it]);
+    }
+    const out = lines.map((line) => {
+      line.sort((a, b) => a.x - b.x);
+      let s = "";
+      let prevEnd = 0;
+      line.forEach((it, i) => {
+        if (i > 0) s += it.x - prevEnd > 10 ? " | " : " ";
+        s += it.s.trim();
+        prevEnd = it.x + it.w;
+      });
+      return s;
+    });
+    pages.push(`--- Sida ${p} ---\n${out.join("\n")}`);
+    page.cleanup();
+    onProgress(p, pdf.numPages);
+  }
+  await pdf.destroy();
+  return pages.join("\n\n");
+}
+
 export function MaintenanceImport({ propertyId }: { propertyId: string }) {
   const qc = useQueryClient();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [open, setOpen] = useState(false);
-  const [phase, setPhase] = useState<"idle" | "uploading" | "analyzing" | "preview" | "saving">("idle");
+  const [phase, setPhase] = useState<"idle" | "reading" | "analyzing" | "preview" | "saving">("idle");
+  const [progress, setProgress] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [reported, setReported] = useState<number | null>(null);
@@ -41,6 +91,7 @@ export function MaintenanceImport({ propertyId }: { propertyId: string }) {
 
   const reset = () => {
     setPhase("idle");
+    setProgress("");
     setError(null);
     setSettings(null);
     setReported(null);
@@ -53,19 +104,19 @@ export function MaintenanceImport({ propertyId }: { propertyId: string }) {
     if (!file) return;
     reset();
     if (!/\.pdf$/i.test(file.name)) return setError("Välj en PDF-fil.");
-    if (file.size > 30 * 1024 * 1024) return setError("PDF:en är för stor (max 30 MB).");
 
     try {
-      setPhase("uploading");
-      const path = `${propertyId}/imports/${crypto.randomUUID()}-${sanitizeStorageName(file.name)}`;
-      const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: "application/pdf" });
-      if (upErr) throw new Error(`Uppladdningen misslyckades: ${upErr.message}`);
+      setPhase("reading");
+      const text = await extractPdfText(file, (d, t) => setProgress(`Läser sida ${d} av ${t}…`));
+      if (text.replace(/--- Sida \d+ ---/g, "").trim().length < 500) {
+        throw new Error("Hittade ingen text i PDF:en. Är den inskannad? Då går den inte att läsa av.");
+      }
 
       setPhase("analyzing");
       const { data, error: fnErr } = await supabase.functions.invoke("import-maintenance-plan", {
-        body: { path, property_id: propertyId },
+        body: { text, property_id: propertyId },
       });
-      if (fnErr) throw new Error(`Funktionen svarade med fel (${fnErr.message}). Är den driftsatt?`);
+      if (fnErr) throw new Error(`Funktionen svarade med fel (${fnErr.message}). Titta i funktionens Logs.`);
 
       const raw = typeof data === "string" ? data : JSON.stringify(data);
       const start = raw.indexOf("{");
@@ -166,7 +217,7 @@ export function MaintenanceImport({ propertyId }: { propertyId: string }) {
     }
   }
 
-  const busy = phase === "uploading" || phase === "analyzing" || phase === "saving";
+  const busy = phase === "reading" || phase === "analyzing" || phase === "saving";
 
   return (
     <>
@@ -187,17 +238,17 @@ export function MaintenanceImport({ propertyId }: { propertyId: string }) {
               </button>
             </div>
 
-            {(phase === "idle" || phase === "uploading" || phase === "analyzing") && (
+            {(phase === "idle" || phase === "reading" || phase === "analyzing") && (
               <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
                 <div style={{ fontSize: 14, color: COLORS.secondary, lineHeight: 1.55 }}>
-                  Välj PDF:en från Nabo/Planima. Innehållet läses av en AI-tjänst (Anthropic) och du får se resultatet innan något sparas.
-                  Kontrollera siffrorna mot originalet.
+                  Välj PDF:en från Nabo/Planima. Texten läses i din webbläsare och skickas till en AI-tjänst (Anthropic) som sorterar den.
+                  Du får se resultatet innan något sparas. Kontrollera siffrorna mot originalet.
                 </div>
                 <input ref={inputRef} type="file" accept="application/pdf" onChange={onPick} style={{ display: "none" }} />
                 <div>
                   <button style={{ ...primaryBtn, height: 42, opacity: busy ? 0.7 : 1 }} disabled={busy} onClick={() => inputRef.current?.click()}>
                     <FileUp size={16} />{" "}
-                    {phase === "uploading" ? "Laddar upp…" : phase === "analyzing" ? "Läser av planen, det tar 1–3 minuter…" : "Välj PDF"}
+                    {phase === "reading" ? progress || "Läser PDF…" : phase === "analyzing" ? "AI läser av planen, det tar 1–3 minuter…" : "Välj PDF"}
                   </button>
                 </div>
                 {error && <div style={{ color: COLORS.error, fontSize: 14 }}>{error}</div>}
