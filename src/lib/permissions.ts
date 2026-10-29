@@ -22,6 +22,10 @@
  * Dokument (/dokument) is open to all roles: it only lists files that belong to
  * errands (project_images, issue_images, inspection_protocols, contractor_files),
  * and those tables are role-scoped by RLS. It does NOT read the `documents` table.
+ *
+ * Underhållsplan (/underhallsplan) is for admin and styrelse. Styrelse may read
+ * and comment/upload images on their own buildings; that is enforced by the
+ * maintenance_* RLS policies, not here.
  */
 export type Role = "admin" | "styrelse" | "entreprenor";
 
@@ -46,6 +50,8 @@ const STYRELSE_ROUTES = [
   "/loggbok",
   // Samlade filer på styrelsens egna ärenden (rollstyrt av RLS).
   "/dokument",
+  // Underhållsplan per fastighet (rollstyrt av RLS).
+  "/underhallsplan",
   // Objekt (hiss/vind/miljörum/…) mirrors Lägenheter: read-only, own buildings
   // only, enforced underneath by property_objects' RLS
   // (supabase-functions/property-objects-scoped-rls.sql).
