@@ -25,6 +25,13 @@ const GREEN = "#5CB84A";
 const BEIGE = "#F2E3BC";
 const RED = "#8B1A2B";
 const HOT = "#C2334D";
+const ORANGE = "#F2711C";
+
+// Gränser för när ett enskilt åtgärdskort markeras (kr per tillfälle, enligt valet inkl./exkl. moms).
+const ACTION_RED = 1_000_000;
+const ACTION_ORANGE = 300_000;
+const ACTION_GLOW = 5_000_000;
+
 const green = (m: string) => toast.success(m, { style: { background: "#3D8A30", color: "#fff" } });
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : "Något gick fel");
 
@@ -49,6 +56,13 @@ function heat(sum: number, avg: number): 0 | 1 | 2 {
   if (avg <= 0) return 0;
   if (sum > avg * 5) return 2;
   if (sum > avg * 2) return 1;
+  return 0;
+}
+
+/** Hur dyr en enskild åtgärd är: 0 = vanlig, 1 = medelstor, 2 = stor. */
+function actionLevel(cost: number): 0 | 1 | 2 {
+  if (cost >= ACTION_RED) return 2;
+  if (cost >= ACTION_ORANGE) return 1;
   return 0;
 }
 
@@ -200,12 +214,10 @@ export function MaintenancePlanView({ propertyId, propertyName }: { propertyId: 
   const categories = [...new Set(actions.map((a) => a.category).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, "sv"));
   const openAction = actions.find((a) => a.id === openId) ?? null;
 
-  // Årssummor över hela planen (inte bara filtret), så markeringen alltid betyder samma sak.
-  const yearSums = new Map<number, number>();
-  for (const o of allOcc) yearSums.set(o.year, (yearSums.get(o.year) ?? 0) + o.cost);
+  // Snitt per år över hela planen (inte bara filtret), används för Per år-fliken.
+  const yearTotal = allOcc.reduce((s, o) => s + o.cost, 0);
   const nYears = plan.end_year - plan.start_year + 1;
-  const avgYear = [...yearSums.values()].reduce((a, b) => a + b, 0) / Math.max(1, nYears);
-  const actionHeat = (a: Action) => heat(yearSums.get(a.year) ?? 0, avgYear);
+  const avgYear = yearTotal / Math.max(1, nYears);
 
   const pill = (t: Tab, label: string) => (
     <button
@@ -264,7 +276,9 @@ export function MaintenancePlanView({ propertyId, propertyName }: { propertyId: 
         ) : (
           <div style={{ display: "grid", gap: 10, gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(320px, 1fr))" }}>
             {list.map((a) => {
-              const h = actionHeat(a);
+              const cost = costOf(a, plan, withVat, a.year);
+              const lvl = actionLevel(cost);
+              const accent = lvl === 2 ? HOT : lvl === 1 ? ORANGE : catColor(a.category);
               return (
                 <button
                   key={a.id}
@@ -272,25 +286,28 @@ export function MaintenancePlanView({ propertyId, propertyName }: { propertyId: 
                   onClick={() => setOpenId(a.id)}
                   style={{
                     textAlign: "left", cursor: "pointer", font: "inherit", color: "inherit", display: "grid", gap: 6, borderRadius: 12, padding: "12px 14px",
-                    background: h ? (h === 2 ? "#FDE2E7" : "#FEF1F3") : "#fff",
-                    border: `1px solid ${h ? HOT : COLORS.border}`,
-                    borderLeft: `5px solid ${h ? HOT : catColor(a.category)}`,
-                    animation: h === 2 ? "bayt-glow 2.2s ease-in-out infinite" : undefined,
+                    background: lvl === 2 ? "#FDE2E7" : lvl === 1 ? "#FFF4E5" : "#fff",
+                    border: `1px solid ${lvl ? accent : COLORS.border}`,
+                    borderLeft: `5px solid ${accent}`,
+                    animation: cost >= ACTION_GLOW ? "bayt-glow 2.2s ease-in-out infinite" : undefined,
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
-                    <span style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 26, fontWeight: 700, color: h ? RED : undefined }}>{a.year}</span>
-                    <span style={{ fontSize: 17, fontWeight: 700 }}>{kr(costOf(a, plan, withVat, a.year))}</span>
+                    <span style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 26, fontWeight: 700 }}>{a.year}</span>
+                    <span style={{ fontSize: 17, fontWeight: 800, color: lvl === 2 ? RED : lvl === 1 ? "#B45309" : undefined }}>{kr(cost)}</span>
                   </div>
                   <div style={{ fontSize: 15, fontWeight: 600, overflowWrap: "anywhere" }}>{a.name}</div>
                   <div style={{ fontSize: 12.5, color: COLORS.secondary }}>
                     {[a.category, a.location, a.interval_years ? `var ${a.interval_years}:e år` : null].filter(Boolean).join(" · ")}
                   </div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {h > 0 && (
+                    {lvl === 2 && (
                       <span style={{ background: RED, color: BEIGE, borderRadius: 999, padding: "2px 9px", fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                        <Flame size={12} /> {h === 2 ? "Extremt dyrt år" : "Dyrt år"}
+                        <Flame size={12} /> Stor kostnad
                       </span>
+                    )}
+                    {lvl === 1 && (
+                      <span style={{ background: ORANGE, color: "#fff", borderRadius: 999, padding: "2px 9px", fontSize: 11, fontWeight: 800 }}>Medelstor kostnad</span>
                     )}
                     {a.kind === "investering" && <Chip text="Investering" tone="dark" />}
                     {a.status !== "planerad" && <Chip text={STATUS_LABEL[a.status]} tone="green" />}
@@ -368,7 +385,7 @@ function PerYear({ occ, avg, onOpen }: { occ: Occurrence[]; avg: number; onOpen:
                       <td style={td}>{r.action.category ?? "—"}</td>
                       <td style={td}>{r.action.location ?? "—"}</td>
                       <td style={td}>{r.action.interval_years ? `${r.action.interval_years} år` : ""}</td>
-                      <td style={{ ...td, textAlign: "right", fontWeight: 700 }}>{kr(r.cost)}</td>
+                      <td style={{ ...td, textAlign: "right", fontWeight: 700, color: actionLevel(r.cost) === 2 ? RED : undefined }}>{kr(r.cost)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -408,19 +425,22 @@ function PerCategory({
                       <tr>
                         <td colSpan={6} style={{ ...td, background: "#F3F4F6", fontStyle: "italic", fontWeight: 700 }}>{l}</td>
                       </tr>
-                      {inCat.filter((a) => (a.location ?? "Övrigt") === l).map((a) => (
-                        <tr key={a.id} style={{ cursor: "pointer" }} onClick={() => onOpen(a.id)}>
-                          <td style={{ ...td, fontWeight: 600 }}>
-                            {a.name}
-                            {a.kind === "investering" && <span style={{ marginLeft: 6 }}><Chip text="Investering" tone="dark" /></span>}
-                          </td>
-                          <td style={td}>{a.year}</td>
-                          <td style={td}>{a.interval_years ? `${a.interval_years} år` : "—"}</td>
-                          <td style={td}>{a.quantity} {a.unit}</td>
-                          <td style={td}>{kr(Number(a.unit_price))}</td>
-                          <td style={{ ...td, textAlign: "right", fontWeight: 700 }}>{kr(costOf(a, plan, withVat, a.year))}</td>
-                        </tr>
-                      ))}
+                      {inCat.filter((a) => (a.location ?? "Övrigt") === l).map((a) => {
+                        const cost = costOf(a, plan, withVat, a.year);
+                        return (
+                          <tr key={a.id} style={{ cursor: "pointer" }} onClick={() => onOpen(a.id)}>
+                            <td style={{ ...td, fontWeight: 600 }}>
+                              {a.name}
+                              {a.kind === "investering" && <span style={{ marginLeft: 6 }}><Chip text="Investering" tone="dark" /></span>}
+                            </td>
+                            <td style={td}>{a.year}</td>
+                            <td style={td}>{a.interval_years ? `${a.interval_years} år` : "—"}</td>
+                            <td style={td}>{a.quantity} {a.unit}</td>
+                            <td style={td}>{kr(Number(a.unit_price))}</td>
+                            <td style={{ ...td, textAlign: "right", fontWeight: 700, color: actionLevel(cost) === 2 ? RED : undefined }}>{kr(cost)}</td>
+                          </tr>
+                        );
+                      })}
                     </Fragment>
                   ))}
                 </tbody>
