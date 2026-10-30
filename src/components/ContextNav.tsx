@@ -166,6 +166,23 @@ export function PropertyContextNav({ onNavigate }: { onNavigate?: () => void }) 
                   </Link>
                 );
               })}
+              {role !== "entreprenor" && (
+                <Link
+                  to={`/underhallsplan/${effectivePropertyId}` as never}
+                  onClick={onNavigate}
+                  style={{
+                    display: "block",
+                    padding: "6px 10px",
+                    borderRadius: 6,
+                    color: "rgba(255,255,255,0.75)",
+                    textDecoration: "none",
+                    fontSize: 13,
+                    fontWeight: 500,
+                  }}
+                >
+                  Underhållsplan
+                </Link>
+              )}
             </div>
           )}
         </>
