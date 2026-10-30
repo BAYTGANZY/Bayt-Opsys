@@ -1,5 +1,6 @@
 import { createFileRoute, redirect, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useMyArenden, arendeHref, arendeKindLabel } from "@/hooks/useMyArenden";
 import { HOME_STYLES, TopBar, Panel, Row, useHomeUser, greeting, fmtDate, daysChip } from "@/components/HomeKit";
@@ -23,10 +24,28 @@ const NAV = [
   { to: "/installningar", label: "Inställningar" },
 ];
 
+const PLAN_NAV = { to: "/underhallsplan", label: "Underhållsplan" };
+
 function MinaUppdragPage() {
   const { role, name } = useHomeUser();
   const allowed = role === "entreprenor";
   const { arenden, isLoading, error } = useMyArenden();
+
+  // Underhållsplan i menyn bara om admin har gett den här entreprenören åtkomst.
+  const planQ = useQuery({
+    queryKey: ["my-mplans-nav"],
+    enabled: allowed,
+    queryFn: async () => {
+      const { data } = await supabase.rpc("my_maintenance_plans");
+      return ((data ?? []) as unknown[]).length;
+    },
+  });
+  const nav = useMemo(() => {
+    if (!planQ.data) return NAV;
+    const copy = [...NAV];
+    copy.splice(3, 0, PLAN_NAV);
+    return copy;
+  }, [planQ.data]);
 
   const active = useMemo(() => arenden.filter((a) => a.lifecycle !== "avslutat"), [arenden]);
   const done = useMemo(() => arenden.filter((a) => a.lifecycle === "avslutat"), [arenden]);
@@ -87,7 +106,7 @@ function MinaUppdragPage() {
       <style>{HOME_STYLES}</style>
       <div className="hk-page">
         <div className="hk-wrap">
-          <TopBar role={role} name={name} items={NAV} roleLabel="Entreprenör" />
+          <TopBar role={role} name={name} items={nav} roleLabel="Entreprenör" />
 
           {role === undefined && <div className="hk-empty">Laddar…</div>}
           {role !== undefined && !allowed && (
