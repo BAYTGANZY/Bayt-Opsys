@@ -64,6 +64,7 @@ const NAV: Array<{ to: string; label: string }> = [
   { to: "/issues", label: "Felanmälningar" },
   { to: "/inspections", label: "Besiktningar" },
   { to: "/projects", label: "Projekt" },
+  { to: "/underhallsplan", label: "Underhållsplan" },
   { to: "/loggbok", label: "Loggbok" },
   { to: "/chatt", label: "Chatt" },
   { to: "/installningar", label: "Inställningar" },
