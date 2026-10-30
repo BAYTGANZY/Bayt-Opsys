@@ -34,6 +34,9 @@ const ACTION_ORANGE = 300_000;
 const green = (m: string) => toast.success(m, { style: { background: "#3D8A30", color: "#fff" } });
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : "Något gick fel");
 
+/** Planen inklusive texten under sammanfattningen (kolumnen source_note). */
+type PlanWithNote = Plan & { source_note?: string | null };
+
 type Tab = "atgarder" | "kategori" | "analys" | "installningar";
 
 const CAT_COLOR: Record<string, string> = {
@@ -102,7 +105,7 @@ function summary(plan: Plan, occ: Occurrence[]) {
 const mkr = (v: number) => `${(v / 1e6).toFixed(Math.abs(v) >= 1e7 ? 0 : 1).replace(".", ",")} mkr`;
 
 // ---------------- Hjälte ----------------
-function Hero({ plan, occ, name }: { plan: Plan; occ: Occurrence[]; name: string }) {
+function Hero({ plan, occ, name }: { plan: PlanWithNote; occ: Occurrence[]; name: string }) {
   const s = summary(plan, occ);
   const saving = Number(plan.current_annual_savings);
   const short = s.recommended > saving && s.total > 0;
@@ -135,6 +138,9 @@ function Hero({ plan, occ, name }: { plan: Plan; occ: Occurrence[]; name: string
           </div>
         </div>
       )}
+      {plan.source_note && (
+        <div style={{ marginTop: 16, fontSize: 12.5, color: "#9fb79f", lineHeight: 1.5 }}>{plan.source_note}</div>
+      )}
     </div>
   );
 }
@@ -165,7 +171,7 @@ export function MaintenancePlanView({ propertyId, propertyName }: { propertyId: 
     queryFn: async () => {
       const { data, error } = await supabase.from("maintenance_plans").select("*").eq("property_id", propertyId).maybeSingle();
       if (error) throw error;
-      return (data as Plan | null) ?? null;
+      return (data as PlanWithNote | null) ?? null;
     },
   });
   const plan = planQ.data ?? null;
@@ -764,13 +770,14 @@ function LineChart({ years, a, b }: { years: number[]; a: number[]; b: number[] 
 }
 
 // ---------------- Inställningar + åtkomst (admin) ----------------
-function Settings({ plan }: { plan: Plan }) {
+function Settings({ plan }: { plan: PlanWithNote }) {
   const qc = useQueryClient();
   const [f, setF] = useState({
     name: plan.name, start_year: String(plan.start_year), end_year: String(plan.end_year), vat_rate: String(plan.vat_rate),
     extra_cost_pct: String(plan.extra_cost_pct), annual_increase_pct: String(plan.annual_increase_pct),
     current_annual_savings: String(plan.current_annual_savings), fund_balance: String(plan.fund_balance),
     boa_sqm: plan.boa_sqm == null ? "" : String(plan.boa_sqm), round_to: String(plan.round_to),
+    source_note: plan.source_note ?? "",
   });
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
 
@@ -782,6 +789,7 @@ function Settings({ plan }: { plan: Plan }) {
         extra_cost_pct: Number(f.extra_cost_pct) || 0, annual_increase_pct: Number(f.annual_increase_pct) || 0,
         current_annual_savings: Number(f.current_annual_savings) || 0, fund_balance: Number(f.fund_balance) || 0,
         boa_sqm: f.boa_sqm ? Number(f.boa_sqm) : null, round_to: Number(f.round_to) || 1,
+        source_note: f.source_note.trim() || null,
       }).eq("id", plan.id).select("id");
       if (error) throw error;
       if (!data?.length) throw new Error("Du saknar behörighet att ändra planen.");
@@ -824,6 +832,7 @@ function Settings({ plan }: { plan: Plan }) {
           {field("Saldo i underhållsfond vid start (kr)", "fund_balance")}
           {field("Avrunda belopp till (kr, 1 = ingen)", "round_to")}
         </div>
+        {field("Text under sammanfattningen (kontakt/källa)", "source_note", "text")}
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <button style={primaryBtn} onClick={() => save.mutate()} disabled={save.isPending}>
             {save.isPending ? "Sparar…" : "Spara inställningar"}
