@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -11,6 +11,8 @@ const LINE = "#E3E7E2";
 const RED = "#8B1A2B";
 const HOT = "#C2334D";
 const BEIGE = "#F2E3BC";
+const GOLD = "#E8C464";
+const GOLD_SOFT = "rgba(232,196,100,0.16)";
 
 type Loan = { date: string; amount: number; rate: number };
 type Payment = { date: string; amount: number; label: string };
@@ -85,6 +87,7 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   // Likviditetsscenario (sparas inte)
+  const [horizon, setHorizon] = useState("12");
   const [incPct, setIncPct] = useState("0");
   const [incFrom, setIncFrom] = useState("2027-01");
   const [loanAmt, setLoanAmt] = useState("0");
@@ -208,6 +211,7 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
   const incP = num(incPct.replace(",", "."));
   const loanA = num(loanAmt.replace(/\s/g, ""));
   const tryPp = num(ratePp.replace(",", "."));
+  const HM = Math.min(24, Math.max(3, Math.round(num(horizon)) || 12));
 
   /** Extra räntekostnad per månad: lånen prissätts om vid sin villkorsändring (eller vald startmånad om den är senare). */
   const extraInterest = (ym: string, pp: number, fromYm: string) =>
@@ -223,7 +227,7 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
     if (!haveCash) return [];
     let bal = cash0;
     const out: LiqRow[] = [];
-    for (let i = 1; i <= 12; i++) {
+    for (let i = 1; i <= HM; i++) {
       const ym = addMonths(startYm, i);
       const pays = payments.filter((p) => p.date.slice(0, 7) === ym);
       const pay = pays.reduce((s, p) => s + p.amount, 0);
@@ -238,7 +242,7 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
   };
   const minBal = (rows: LiqRow[]) => rows.reduce((m, r) => Math.min(m, r.bal), Infinity);
 
-  // Scenariot (det användaren provar) och basfallet (sparade budgetposter och räntaantagande, inget mer).
+  // Scenariot (det användaren provar) och basfallet (sparade budgetposter och ränteantagande, inget mer).
   const liq = simulate(incP, incFrom, loanA, loanMonth, tryPp);
   const base = simulate(0, incFrom, 0, loanMonth, 0);
   const lowest = liq.reduce<LiqRow | null>((m, r) => (m == null || r.bal < m.bal ? r : m), null);
@@ -260,7 +264,7 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
       if (ok(p)) {
         const v = Math.round(p * 10) / 10;
         setIncPct(String(v).replace(".", ","));
-        setSolveMsg(`Minst ${pc(v)} från ${incFrom} krävs för att kassan ska hålla sig över ${kr(buffer)}.`);
+        setSolveMsg(`Minst ${pc(v)} från ${incFrom} krävs för att kassan ska hålla sig över ${kr(buffer)} under ${HM} månader.`);
         return;
       }
     }
@@ -270,13 +274,15 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
 
   const chart = (() => {
     if (liq.length === 0) return null;
-    const W = 900, H = 230, L = 56, R = 8, T = 14, B = 30;
+    const W = 900, CH = 230, L = 56, R = 8, T = 14, B = 30;
     const vals = [...liq.map((r) => r.bal), cash0, buffer, 0];
     const min = Math.min(...vals), max = Math.max(...vals);
-    const y = (v: number) => T + (H - T - B) * (1 - (v - min) / (max - min || 1));
+    const y = (v: number) => T + (CH - T - B) * (1 - (v - min) / (max - min || 1));
     const bw = (W - L - R) / liq.length;
+    const many = liq.length > 14;
+    const step = Math.ceil(liq.length / 12);
     return (
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
+      <svg viewBox={`0 0 ${W} ${CH}`} style={{ width: "100%", height: "auto" }}>
         <line x1={L} x2={W - R} y1={y(0)} y2={y(0)} stroke="#9CA3AF" />
         <text x={L - 6} y={y(0) + 4} fontSize="11" textAnchor="end" fill="#6B7280">0</text>
         {buffer > 0 && (
@@ -292,12 +298,17 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
           const top = Math.min(y(r.bal), y(0));
           const h = Math.abs(y(r.bal) - y(0));
           const color = r.bal < 0 ? HOT : r.bal < buffer ? "#F2711C" : GREEN;
+          const showLabel = !many || i % step === 0;
           return (
             <g key={r.ym}>
               <title>{`${ymLabel(r.ym)}: ${kr(r.bal)}`}</title>
               <rect x={x} y={top} width={w} height={Math.max(1, h)} fill={color} rx="2" />
-              <text x={x + w / 2} y={r.bal >= 0 ? top - 4 : top + h + 12} fontSize="10.5" textAnchor="middle" fill={color} fontWeight="700">{mkr(r.bal)}</text>
-              <text x={x + w / 2} y={H - 10} fontSize="11" textAnchor="middle" fill="#6B7280">{ymLabel(r.ym)}</text>
+              {showLabel && (
+                <>
+                  <text x={x + w / 2} y={r.bal >= 0 ? top - 4 : top + h + 12} fontSize="10.5" textAnchor="middle" fill={color} fontWeight="700">{mkr(r.bal)}</text>
+                  <text x={x + w / 2} y={CH - 10} fontSize="11" textAnchor="middle" fill="#6B7280">{ymLabel(r.ym)}</text>
+                </>
+              )}
             </g>
           );
         })}
@@ -331,7 +342,7 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
             )}
             {haveCash && baseLowest && (
               <div style={{ marginTop: 14, background: baseBad ? "rgba(122,20,38,0.5)" : "rgba(92,184,74,0.18)", border: `1px solid ${baseBad ? HOT : GREEN}`, borderRadius: 10, padding: "10px 14px", fontSize: 14.5, color: baseBad ? BEIGE : "#d6efcf" }}>
-                <strong>Likviditet utan åtgärder:</strong> kassan når som lägst {mkr2(baseLowest.bal)} i {ymLabel(baseLowest.ym)}.{" "}
+                <strong>Likviditet utan åtgärder ({HM} månader):</strong> kassan når som lägst {mkr2(baseLowest.bal)} i {ymLabel(baseLowest.ym)}.{" "}
                 {baseBad
                   ? "En avgiftshöjning löser underhållsbehovet på sikt men räcker inte i tid för att fylla kassan på våren."
                   : "Kassan håller sig över bufferten."}
@@ -349,16 +360,17 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
       {/* Likviditet */}
       {haveCash && (
         <div style={{ ...card, borderColor: liqBad ? "#F1C0C0" : LINE, background: liqBad ? "#FEF8F8" : "#fff" }}>
-          <h3 style={{ ...h3, color: liqBad ? RED : INK }}>Likviditet de närmaste 12 månaderna</h3>
+          <h3 style={{ ...h3, color: liqBad ? RED : INK }}>Likviditet de närmaste {HM} månaderna</h3>
           <div style={{ fontSize: 14, color: MUTED, marginBottom: 12, lineHeight: 1.6 }}>
             Utgår från kassan {kr(cash0)} den {String(fin.cash_date)}, ett löpande nettoflöde på {kr(monthly)} per månad, {items.length} budgetposter{savedRatePp !== 0 ? `, ränteantagande ${savedRatePp > 0 ? "+" : ""}${String(savedRatePp).replace(".", ",")} procentenheter` : ""} och kända utbetalningar.
             Bufferten {kr(buffer)} motsvarar ungefär en månads utgifter.
             {(incP > 0 || loanA > 0 || tryPp !== 0) && <strong> Diagrammet visar scenariot du provar nedan.</strong>}
+            {HM > 18 && <> Långa prognoser bygger på ett jämnt månadsflöde och ska läsas som riktning, inte exakta belopp.</>}
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 14 }}>
             <Stat label="Lägsta kassa" value={lowest ? mkr2(lowest.bal) : "—"} sub={lowest ? ymLabel(lowest.ym) : undefined} bad={liqBad} />
-            <Stat label="Månader under bufferten" value={`${underBuffer.length} av 12`} bad={underBuffer.length > 0} />
+            <Stat label="Månader under bufferten" value={`${underBuffer.length} av ${HM}`} bad={underBuffer.length > 0} />
             <Stat label="Månader med negativ kassa" value={`${negative.length}`} bad={negative.length > 0} />
           </div>
 
@@ -367,11 +379,19 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
           <div style={{ background: "#F7F9F6", border: `1px solid ${LINE}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
             <div style={{ fontWeight: 700, marginBottom: 8 }}>Prova åtgärder</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10 }}>
+              <label><span style={lab}>Antal månader (3–24)</span><input style={inp} value={horizon} onChange={(e) => { setHorizon(e.target.value); setSolveMsg(null); }} inputMode="numeric" /></label>
               <label><span style={lab}>Avgiftshöjning (%)</span><input style={inp} value={incPct} onChange={(e) => { setIncPct(e.target.value); setSolveMsg(null); }} inputMode="decimal" /></label>
               <label><span style={lab}>Gäller från (ÅÅÅÅ-MM)</span><input style={inp} value={incFrom} onChange={(e) => { setIncFrom(e.target.value); setSolveMsg(null); }} /></label>
               <label><span style={lab}>Lån eller kredit (kr)</span><input style={inp} value={loanAmt} onChange={(e) => { setLoanAmt(e.target.value); setSolveMsg(null); }} inputMode="numeric" /></label>
               <label><span style={lab}>Utbetalas (ÅÅÅÅ-MM)</span><input style={inp} value={loanMonth} onChange={(e) => { setLoanMonth(e.target.value); setSolveMsg(null); }} /></label>
               <label><span style={lab}>Extra ränteökning (procentenheter)</span><input style={inp} value={ratePp} onChange={(e) => { setRatePp(e.target.value); setSolveMsg(null); }} inputMode="decimal" /></label>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+              {[6, 12, 18, 24].map((m) => (
+                <button key={m} type="button" className="fp-btn" style={{ height: 32, padding: "0 12px", ...(HM === m ? { background: INK, color: "#fff", borderColor: INK } : {}) }} onClick={() => { setHorizon(String(m)); setSolveMsg(null); }}>
+                  {m} mån
+                </button>
+              ))}
             </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginTop: 12 }}>
               <button type="button" className="fp-btn fp-primary" onClick={solve}>
@@ -408,12 +428,12 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
             )}
           </div>
 
-          <div style={{ overflowX: "auto" }}>
+          <div style={{ overflowX: "auto", maxHeight: HM > 24 ? 520 : undefined, overflowY: HM > 24 ? "auto" : undefined }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
               <thead>
                 <tr>
                   {["Månad", "Utbetalningar", "Budgetposter / ränta", "Tillskott", "Kassa vid månadens slut"].map((h) => (
-                    <th key={h} style={{ ...lab, textAlign: "left", padding: "6px 8px", borderBottom: `1px solid ${LINE}` }}>{h}</th>
+                    <th key={h} style={{ ...lab, textAlign: "left", padding: "6px 8px", borderBottom: `1px solid ${LINE}`, position: "sticky", top: 0, background: liqBad ? "#FEF8F8" : "#fff" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -627,13 +647,13 @@ function AssumptionsEditor({
   );
   const [pp, setPp] = useState(String(ratePp).replace(".", ","));
   const [from, setFrom] = useState(rateFrom);
-  const [open, setOpen] = useState(items.length > 0 || ratePp !== 0);
-
-  useEffect(() => {
-    // Nollställ vid byte av fastighet hanteras av key i föräldern.
-  }, []);
+  const [open, setOpen] = useState(true);
 
   const setRow = (i: number, k: keyof Row, v: string) => setRows((cur) => cur.map((r, idx) => (idx === i ? { ...r, [k]: v } : r)));
+  const addPreset = (label: string, amount: string) => setRows((cur) => [...cur, { label, amount, from: "2027-01", to: "" }]);
+
+  const monthlyTotal = rows.reduce((s, r) => s + num(r.amount.replace(/\s/g, "").replace(",", ".")), 0);
+  const activeCount = rows.filter((r) => r.label.trim() !== "" || r.amount.trim() !== "").length;
 
   const save = useMutation({
     mutationFn: async () => {
@@ -670,58 +690,114 @@ function AssumptionsEditor({
     onError: (e: Error) => toast.error(e.message ?? "Kunde inte spara"),
   });
 
+  const dInp: React.CSSProperties = {
+    height: 40, padding: "0 12px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.18)",
+    background: "rgba(255,255,255,0.08)", color: "#fff", font: "inherit", fontSize: 14, width: "100%", boxSizing: "border-box",
+  };
+  const dLab: React.CSSProperties = { fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "#9fb79f" };
+  const chip: React.CSSProperties = {
+    border: `1px solid ${GOLD}`, background: GOLD_SOFT, color: GOLD, borderRadius: 999, padding: "6px 14px",
+    font: "inherit", fontSize: 13, fontWeight: 700, cursor: "pointer",
+  };
+
   return (
-    <div style={card}>
+    <div
+      style={{
+        position: "relative", overflow: "hidden", borderRadius: 18, color: "#e6efd8", padding: "22px 24px",
+        background: "radial-gradient(ellipse at 15% 0%, #21503f 0%, #0f2a21 55%, #0b1d17 100%)",
+        border: `2px solid ${GOLD}`, boxShadow: `0 0 0 4px ${GOLD_SOFT}, 0 18px 40px -18px rgba(0,0,0,0.55)`,
+      }}
+    >
+      <div style={{ position: "absolute", right: -40, top: -50, width: 190, height: 190, borderRadius: "50%", border: `26px solid ${GOLD_SOFT}`, pointerEvents: "none" }} />
+
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        style={{ all: "unset", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}
+        style={{ all: "unset", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, width: "100%", position: "relative" }}
       >
-        <span style={{ ...h3, margin: 0 }}>Budget och antaganden</span>
-        <span style={{ color: MUTED, fontSize: 18 }}>{open ? "▴" : "▾"}</span>
+        <span>
+          <span style={{ display: "inline-block", fontSize: 11, fontWeight: 800, letterSpacing: "0.16em", color: INK, background: GOLD, borderRadius: 999, padding: "3px 10px", marginBottom: 8 }}>
+            STYR PROGNOSEN
+          </span>
+          <span style={{ display: "block", fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 26, fontWeight: 800, color: "#fff" }}>
+            Budget och antaganden
+          </span>
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ textAlign: "right" }}>
+            <span style={{ display: "block", fontSize: 12, color: "#9fb79f" }}>{activeCount} aktiva poster</span>
+            <span style={{ display: "block", fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 22, fontWeight: 800, color: monthlyTotal < 0 ? "#F2B8B5" : GOLD }}>
+              {monthlyTotal > 0 ? "+" : ""}{Math.round(monthlyTotal).toLocaleString("sv-SE")} kr / mån
+            </span>
+          </span>
+          <span style={{ color: GOLD, fontSize: 22 }}>{open ? "▴" : "▾"}</span>
+        </span>
       </button>
-      <div style={{ fontSize: 13.5, color: MUTED, margin: "6px 0 0", lineHeight: 1.6 }}>
-        Lägg in det som ska ändra prognosen: nya kostnader och intäkter per månad från budgeten, och en förväntad ränteökning. Allt sparas och räknas in i likviditeten, hjälten och knappen "Räkna fram höjning".
+
+      <div style={{ fontSize: 14, color: "#c9d8c3", margin: "10px 0 0", lineHeight: 1.6, position: "relative" }}>
+        Lägg in det som ska ändra prognosen: nya kostnader och intäkter per månad, och en förväntad ränteökning. Allt sparas och räknas in i likviditeten, hjälten och knappen "Räkna fram höjning".
       </div>
 
       {open && (
-        <div style={{ marginTop: 14, display: "grid", gap: 14 }}>
+        <div style={{ marginTop: 16, display: "grid", gap: 18, position: "relative" }}>
           <div>
-            <div style={{ fontWeight: 700, marginBottom: 6 }}>Budgetposter per månad</div>
-            <div style={{ fontSize: 12.5, color: MUTED, marginBottom: 8 }}>
+            <div style={{ fontWeight: 800, color: GOLD, marginBottom: 8, letterSpacing: "0.04em" }}>Budgetposter per månad</div>
+            <div style={{ fontSize: 12.5, color: "#9fb79f", marginBottom: 10 }}>
               Belopp per månad: minus = kostnad, plus = intäkt. Lämna "till" tomt om posten gäller tills vidare.
             </div>
-            <div style={{ display: "grid", gap: 8 }}>
-              {rows.map((r, i) => (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(160px, 2fr) minmax(110px, 1fr) minmax(100px, 1fr) minmax(100px, 1fr) auto", gap: 8, alignItems: "end" }}>
-                  <label><span style={lab}>Namn</span><input style={inp} value={r.label} onChange={(e) => setRow(i, "label", e.target.value)} placeholder="t.ex. Tomträttsavgäld höjs" /></label>
-                  <label><span style={lab}>Kr per månad</span><input style={inp} value={r.amount} onChange={(e) => setRow(i, "amount", e.target.value)} placeholder="-14000" inputMode="decimal" /></label>
-                  <label><span style={lab}>Från (ÅÅÅÅ-MM)</span><input style={inp} value={r.from} onChange={(e) => setRow(i, "from", e.target.value)} placeholder="2027-01" /></label>
-                  <label><span style={lab}>Till (valfritt)</span><input style={inp} value={r.to} onChange={(e) => setRow(i, "to", e.target.value)} placeholder="2027-06" /></label>
-                  <button type="button" className="fp-btn fp-danger" onClick={() => setRows((cur) => cur.filter((_, idx) => idx !== i))} aria-label="Ta bort raden">✕</button>
-                </div>
-              ))}
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+              <button type="button" style={chip} onClick={() => addPreset("Höjd p-platshyra", "")}>+ P-platser</button>
+              <button type="button" style={chip} onClick={() => addPreset("Tomträttsavgäld", "")}>+ Tomträtt</button>
+              <button type="button" style={chip} onClick={() => addPreset("Ränta / amortering", "")}>+ Ränta</button>
+              <button type="button" style={chip} onClick={() => addPreset("Hyresintäkt lokal", "")}>+ Lokalhyra</button>
+              <button type="button" style={chip} onClick={() => addPreset("", "")}>+ Egen post</button>
             </div>
-            <div style={{ marginTop: 10 }}>
-              <button type="button" className="fp-btn" onClick={() => setRows((cur) => [...cur, { label: "", amount: "", from: "2027-01", to: "" }])}>
-                + Lägg till budgetpost
-              </button>
+
+            <div style={{ display: "grid", gap: 10 }}>
+              {rows.map((r, i) => {
+                const a = num(r.amount.replace(/\s/g, "").replace(",", "."));
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      display: "grid", gridTemplateColumns: "minmax(160px, 2fr) minmax(110px, 1fr) minmax(100px, 1fr) minmax(100px, 1fr) auto", gap: 10, alignItems: "end",
+                      background: "rgba(255,255,255,0.05)", border: `1px solid ${a < 0 ? "rgba(194,51,77,0.6)" : "rgba(255,255,255,0.12)"}`, borderLeft: `4px solid ${a < 0 ? HOT : a > 0 ? "#7fe08a" : GOLD}`, borderRadius: 12, padding: 10,
+                    }}
+                  >
+                    <label><span style={dLab}>Namn</span><input style={dInp} value={r.label} onChange={(e) => setRow(i, "label", e.target.value)} placeholder="t.ex. Tomträttsavgäld höjs" /></label>
+                    <label><span style={dLab}>Kr per månad</span><input style={dInp} value={r.amount} onChange={(e) => setRow(i, "amount", e.target.value)} placeholder="9950" inputMode="decimal" /></label>
+                    <label><span style={dLab}>Från (ÅÅÅÅ-MM)</span><input style={dInp} value={r.from} onChange={(e) => setRow(i, "from", e.target.value)} placeholder="2027-01" /></label>
+                    <label><span style={dLab}>Till (valfritt)</span><input style={dInp} value={r.to} onChange={(e) => setRow(i, "to", e.target.value)} placeholder="2027-06" /></label>
+                    <button type="button" onClick={() => setRows((cur) => cur.filter((_, idx) => idx !== i))} aria-label="Ta bort raden"
+                      style={{ height: 40, width: 40, borderRadius: 10, border: "1px solid rgba(194,51,77,0.6)", background: "transparent", color: "#F2B8B5", cursor: "pointer", fontSize: 16 }}>✕</button>
+                  </div>
+                );
+              })}
+              {rows.length === 0 && (
+                <div style={{ fontSize: 14, color: "#9fb79f", padding: "6px 2px" }}>Inga poster ännu. Välj en genväg ovan eller "Egen post".</div>
+              )}
             </div>
           </div>
 
           <div>
-            <div style={{ fontWeight: 700, marginBottom: 6 }}>Ränteantagande</div>
-            <div style={{ fontSize: 12.5, color: MUTED, marginBottom: 8 }}>
+            <div style={{ fontWeight: 800, color: GOLD, marginBottom: 8, letterSpacing: "0.04em" }}>Ränteantagande</div>
+            <div style={{ fontSize: 12.5, color: "#9fb79f", marginBottom: 10 }}>
               Förväntad förändring av räntan i procentenheter (minus = lägre ränta). Slår på varje lån från dess villkorsändring, men tidigast från vald månad.
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, maxWidth: 480 }}>
-              <label><span style={lab}>Ränteförändring (procentenheter)</span><input style={inp} value={pp} onChange={(e) => setPp(e.target.value)} placeholder="0,5" inputMode="decimal" /></label>
-              <label><span style={lab}>Från (ÅÅÅÅ-MM)</span><input style={inp} value={from} onChange={(e) => setFrom(e.target.value)} placeholder="2027-01" /></label>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10, maxWidth: 480 }}>
+              <label><span style={dLab}>Ränteförändring (procentenheter)</span><input style={dInp} value={pp} onChange={(e) => setPp(e.target.value)} placeholder="0,5" inputMode="decimal" /></label>
+              <label><span style={dLab}>Från (ÅÅÅÅ-MM)</span><input style={dInp} value={from} onChange={(e) => setFrom(e.target.value)} placeholder="2027-01" /></label>
             </div>
           </div>
 
           <div>
-            <button type="button" className="fp-btn fp-primary" disabled={save.isPending} onClick={() => save.mutate()}>
+            <button
+              type="button"
+              disabled={save.isPending}
+              onClick={() => save.mutate()}
+              style={{ height: 46, padding: "0 26px", borderRadius: 12, border: "none", background: GOLD, color: INK, fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "inherit", opacity: save.isPending ? 0.7 : 1 }}
+            >
               {save.isPending ? "Sparar…" : "Spara budget och antaganden"}
             </button>
           </div>
