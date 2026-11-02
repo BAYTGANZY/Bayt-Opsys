@@ -35,6 +35,7 @@ export const PRESENTATION_TILES: PresentationTile[] = [
   { key: "oversikt", label: "Översikt", href: "/fastigheter" },
   { key: "felanmalningar", label: "Felanmälningar", href: "/issues" },
   { key: "besiktningar", label: "Besiktningar", href: "/inspections" },
+  { key: "underhallsplan", label: "Underhållsplan", href: "/underhallsplan" },
   { key: "projekt", label: "Projekt", href: "/projects" },
   { key: "teknik", label: "Teknik", href: "/teknik" },
   { key: "genomgang", label: "Genomgång av fastighet", href: "/genomgang-av-fastighet" },
@@ -87,6 +88,14 @@ export function PresentationIcon({ name, size = 68 }: { name: string; size?: num
           <path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1z" />
           <path d="M8 6H6a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-2" />
           <path d="M9 14l2 2 4-4" />
+        </svg>
+      );
+    case "underhallsplan":
+      return (
+        <svg {...common}>
+          <rect x="3" y="5" width="18" height="16" rx="2" />
+          <path d="M3 10h18M8 3v4M16 3v4" />
+          <path d="M9 15.500l2 2 4-4" />
         </svg>
       );
     case "projekt":
