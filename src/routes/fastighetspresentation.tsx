@@ -22,6 +22,7 @@ import {
 } from "@/lib/presentation-config";
 import { TEKNIK_SECTIONS } from "@/lib/teknik-config";
 import { MaintenancePlanView } from "@/components/MaintenancePlan";
+import { EkonomiAvgift } from "@/components/EkonomiAvgift";
 
 const baytLogo = `${import.meta.env.BASE_URL}assets/bayt-logo-green.png`;
 const buildingSketch = `${import.meta.env.BASE_URL}assets/building-sketch-2.png`;
@@ -1155,6 +1156,8 @@ function PresentationPage() {
         return <ArendeSection kind="project" propertyId={propertyId} propertyName={propertyName} hideSensitive={hideSensitive} />;
       case "underhallsplan":
         return <MaintenancePlanView key={propertyId} propertyId={propertyId} propertyName={propertyName} />;
+      case "ekonomi":
+        return <EkonomiAvgift key={propertyId} propertyId={propertyId} propertyName={propertyName} />;
       case "teknik":
         return <TeknikSection propertyId={propertyId} />;
       case "oversikt":
@@ -1283,7 +1286,7 @@ function PresentationPage() {
         )}
 
         {allowed && !inForm && !openTile && sectionTile && (
-          <div className={`fp-panel${sectionTile.key === "underhallsplan" ? " fp-panel-wide" : ""}`}>
+          <div className={`fp-panel${sectionTile.key === "underhallsplan" || sectionTile.key === "ekonomi" ? " fp-panel-wide" : ""}`}>
             <button type="button" className="fp-back" onClick={() => setView(null)}>
               ← Presentation
             </button>
