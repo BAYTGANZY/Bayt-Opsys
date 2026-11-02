@@ -613,6 +613,260 @@ function TeknikSection({ propertyId }: { propertyId: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Platsbesök: sammanfattning av sparade genomgångar för fastigheten
+// ---------------------------------------------------------------------------
+// Antal punkter per område och läge. Håll i synk med checklistan i Platsbesök.
+const WT: Record<number, { offer: number; control: number }> = {
+  1: { offer: 7, control: 7 },
+  2: { offer: 11, control: 11 },
+  3: { offer: 9, control: 9 },
+  4: { offer: 13, control: 13 },
+  5: { offer: 8, control: 8 },
+  6: { offer: 5, control: 5 },
+  7: { offer: 9, control: 9 },
+  8: { offer: 7, control: 0 },
+  9: { offer: 0, control: 5 },
+};
+const WNAME: Record<number, string> = {
+  1: "Allmänt om fastigheten",
+  2: "Utemiljö och byggnad",
+  3: "Gemensamma utrymmen",
+  4: "Tekniska installationer",
+  5: "Drift och förvaltning",
+  6: "Fukt och skador",
+  7: "Säkerhet och myndighetskrav",
+  8: "Offertunderlag",
+  9: "Uppföljning",
+};
+const WMODE: Record<string, string> = { offer: "Första besök (offert)", control: "Kontrollrunda" };
+const W_OK = "#3D8A30";
+const W_BAD = "#C2334D";
+const W_NA = "#9CA3AF";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type WRow = Record<string, any>;
+type WItem = { text: string; status: string; comment: string };
+
+function WalkthroughSection({ propertyId }: { propertyId: string }) {
+  const q = useQuery({
+    queryKey: ["fp-walk", propertyId],
+    enabled: !!propertyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("property_walkthroughs")
+        .select("*")
+        .eq("property_id", propertyId)
+        .order("visit_date", { ascending: false })
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as WRow[];
+    },
+  });
+  const [selId, setSelId] = useState<string | null>(null);
+  const [openSec, setOpenSec] = useState<number | null>(null);
+
+  const rows = q.data ?? [];
+  const cur = rows.find((r) => r.id === selId) ?? rows[0] ?? null;
+
+  const data = useMemo(() => {
+    if (!cur) return null;
+    const mode: "offer" | "control" = cur.visit_type === "control" ? "control" : "offer";
+    const answers = (cur.answers ?? {}) as Record<string, string>;
+    const comments = (cur.comments ?? {}) as Record<string, string>;
+    const bySec = new Map<number, WItem[]>();
+    for (const [key, status] of Object.entries(answers)) {
+      if (!status) continue;
+      const [title, text] = key.split("::");
+      const n = Number(title?.match(/^(\d+)/)?.[1]);
+      if (!n || !text) continue;
+      const arr = bySec.get(n) ?? [];
+      arr.push({ text, status, comment: comments[key] ?? "" });
+      bySec.set(n, arr);
+    }
+    const sections = Object.keys(WT)
+      .map(Number)
+      .filter((n) => WT[n][mode] > 0 || (bySec.get(n)?.length ?? 0) > 0)
+      .map((n) => {
+        const items = bySec.get(n) ?? [];
+        const ok = items.filter((i) => i.status === "Kontrollerat").length;
+        const bad = items.filter((i) => i.status === "Åtgärd krävs").length;
+        const na = items.filter((i) => i.status === "Ej aktuellt").length;
+        const total = Math.max(WT[n][mode], items.length);
+        return { n, items, ok, bad, na, total };
+      });
+    const total = sections.reduce((s, x) => s + x.total, 0);
+    const ok = sections.reduce((s, x) => s + x.ok, 0);
+    const bad = sections.reduce((s, x) => s + x.bad, 0);
+    const na = sections.reduce((s, x) => s + x.na, 0);
+    const assessed = ok + bad + na;
+    const actions = sections.flatMap((s) => s.items.filter((i) => i.status === "Åtgärd krävs").map((i) => ({ ...i, sec: s.n })));
+    return { mode, sections, total, ok, bad, na, assessed, actions };
+  }, [cur]);
+
+  if (q.isLoading) return <div className="fp-muted">Hämtar…</div>;
+  if (q.error) return <div className="fp-muted">Kunde inte hämta genomgångar: {(q.error as Error).message}</div>;
+  if (!cur || !data) {
+    return (
+      <div className="fp-muted">
+        Ingen genomgång är kopplad till den här fastigheten ännu. Öppna Platsbesök, välj fastigheten under "Koppla till fastighet i BAYT" och spara.
+        <div className="fp-actions">
+          <a className="fp-btn" href="/genomgang-av-fastighet" target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", textDecoration: "none" }}>
+            Öppna Platsbesök (ny flik)
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  const pct = data.total > 0 ? Math.round((data.assessed / data.total) * 100) : 0;
+  const R = 54;
+  const C = 2 * Math.PI * R;
+  const remaining = Math.max(0, data.total - data.assessed);
+
+  const big = (label: string, value: number, tone?: "bad" | "ok") => (
+    <div className={`fp-stat${tone === "bad" && value > 0 ? " fp-stat-warn" : ""}`} style={{ minWidth: 150 }}>
+      <div className="fp-stat-n" style={tone === "ok" ? { color: W_OK } : undefined}>{value}</div>
+      <div className="fp-stat-l">{label}</div>
+    </div>
+  );
+
+  return (
+    <div style={{ display: "grid", gap: 20 }}>
+      {rows.length > 1 && (
+        <div>
+          <label className="fp-label">Besök</label>
+          <select className="fp-select" style={{ maxWidth: 420 }} value={cur.id} onChange={(e) => { setSelId(e.target.value); setOpenSec(null); }}>
+            {rows.map((r) => (
+              <option key={r.id} value={r.id}>
+                {fmtDay(r.visit_date)} · {WMODE[r.visit_type] ?? "Genomgång"}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 28, alignItems: "center", flexWrap: "wrap", background: "#fff", border: "1px solid #E3E7E2", borderRadius: 18, padding: "22px 26px" }}>
+        <div style={{ position: "relative", width: 140, height: 140, flexShrink: 0 }}>
+          <svg width="140" height="140" viewBox="0 0 140 140" aria-hidden>
+            <circle cx="70" cy="70" r={R} fill="none" stroke="#E8EBE7" strokeWidth="14" />
+            <circle
+              cx="70" cy="70" r={R} fill="none" stroke={data.bad > 0 ? W_BAD : W_OK} strokeWidth="14" strokeLinecap="round"
+              strokeDasharray={`${(pct / 100) * C} ${C}`} transform="rotate(-90 70 70)"
+            />
+          </svg>
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 32, fontWeight: 700, lineHeight: 1 }}>{pct}%</div>
+            <div style={{ fontSize: 11, color: "#6B7280", marginTop: 4 }}>bedömt</div>
+          </div>
+        </div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div className="fp-kind">{WMODE[cur.visit_type] ?? "Genomgång"}</div>
+          <div style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 26, fontWeight: 600, margin: "4px 0 6px" }}>
+            {data.assessed} av {data.total} punkter bedömda
+          </div>
+          <div style={{ fontSize: 15, color: "#4B5563", lineHeight: 1.6 }}>
+            Besök {fmtDay(cur.visit_date)}
+            {cur.contact ? ` · Kontakt: ${cur.contact}` : ""}
+            {cur.address ? ` · ${cur.address}` : ""}
+          </div>
+        </div>
+      </div>
+
+      <div className="fp-stats" style={{ marginBottom: 0 }}>
+        {big("Klara", data.ok, "ok")}
+        {big("Kräver åtgärd", data.bad, "bad")}
+        {big("Återstår", remaining)}
+        {big("Ej aktuella", data.na)}
+      </div>
+
+      <div>
+        <h3 style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 22, margin: "0 0 10px", color: data.bad > 0 ? "#B91C1C" : undefined }}>
+          Det här bör åtgärdas
+        </h3>
+        {data.actions.length === 0 ? (
+          <div className="fp-muted">Inga punkter har bedömts som "Åtgärd krävs".</div>
+        ) : (
+          <div className="fp-list" style={{ borderColor: "#F1C0C0" }}>
+            {data.actions.map((a, i) => (
+              <div key={i} className="fp-row fp-row-static" style={{ background: "#FEF3F3", alignItems: "flex-start" }}>
+                <div className="fp-row-main">
+                  <div className="fp-row-title">{a.text}</div>
+                  <div className="fp-row-sub">{WNAME[a.sec]}</div>
+                  {a.comment && <div className="fp-text-sm" style={{ marginTop: 6 }}>{a.comment}</div>}
+                </div>
+                <span style={{ background: "#8B1A2B", color: "#F2E3BC", borderRadius: 999, padding: "3px 10px", fontSize: 11, fontWeight: 800, whiteSpace: "nowrap" }}>
+                  Åtgärd krävs
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h3 style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 22, margin: "0 0 10px" }}>Områden</h3>
+        <div className="fp-list">
+          {data.sections.map((s) => {
+            const open = openSec === s.n;
+            const w = (v: number) => `${s.total > 0 ? (v / s.total) * 100 : 0}%`;
+            return (
+              <div key={s.n} style={{ borderBottom: "1px solid #F0F2EF" }}>
+                <button type="button" className="fp-row" style={{ borderBottom: "none", flexWrap: "wrap" }} onClick={() => setOpenSec(open ? null : s.n)}>
+                  <div className="fp-row-main" style={{ minWidth: 220 }}>
+                    <div className="fp-row-title">{WNAME[s.n]}</div>
+                    <div className="fp-row-sub">
+                      {s.ok} klara{s.bad > 0 ? ` · ${s.bad} att åtgärda` : ""} · {Math.max(0, s.total - s.ok - s.bad - s.na)} återstår
+                    </div>
+                  </div>
+                  <div style={{ flex: "1 1 220px", maxWidth: 420, height: 12, borderRadius: 6, background: "#E8EBE7", overflow: "hidden", display: "flex" }}>
+                    <div style={{ width: w(s.ok), background: W_OK }} />
+                    <div style={{ width: w(s.bad), background: W_BAD }} />
+                    <div style={{ width: w(s.na), background: W_NA }} />
+                  </div>
+                  <span style={{ color: "#6B7280", fontSize: 18 }}>{open ? "▴" : "▾"}</span>
+                </button>
+                {open && (
+                  <div style={{ padding: "0 18px 14px" }}>
+                    {s.items.length === 0 && <div className="fp-muted">Inga punkter bedömda i det här området.</div>}
+                    {s.items.map((it, i) => (
+                      <div key={i} className={`fp-check${it.status === "Kontrollerat" ? " fp-check-done" : ""}`}>
+                        <span
+                          className="fp-check-box"
+                          style={it.status === "Åtgärd krävs" ? { background: W_BAD, borderColor: W_BAD } : it.status === "Ej aktuellt" ? { background: W_NA, borderColor: W_NA } : undefined}
+                        >
+                          {it.status === "Kontrollerat" ? "✓" : it.status === "Åtgärd krävs" ? "!" : "–"}
+                        </span>
+                        <span className="fp-check-label" style={it.status === "Åtgärd krävs" ? { color: "#B91C1C", fontWeight: 600 } : undefined}>
+                          {it.text}
+                          {it.comment ? <span className="fp-check-note"> — {it.comment}</span> : null}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {cur.general_notes && (
+        <div className="fp-card">
+          <div className="fp-dlabel">Övergripande anteckningar</div>
+          <div className="fp-text-sm">{cur.general_notes}</div>
+        </div>
+      )}
+
+      <div>
+        <a className="fp-btn" href="/genomgang-av-fastighet" target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", textDecoration: "none" }}>
+          Öppna i Platsbesök (ny flik)
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Översikt och Loggbok
 // ---------------------------------------------------------------------------
 function OversiktSection({ propertyId }: { propertyId: string }) {
@@ -1158,6 +1412,8 @@ function PresentationPage() {
         return <MaintenancePlanView key={propertyId} propertyId={propertyId} propertyName={propertyName} />;
       case "ekonomi":
         return <EkonomiAvgift key={propertyId} propertyId={propertyId} propertyName={propertyName} />;
+      case "genomgang":
+        return <WalkthroughSection key={propertyId} propertyId={propertyId} />;
       case "teknik":
         return <TeknikSection propertyId={propertyId} />;
       case "oversikt":
@@ -1329,19 +1585,12 @@ function PresentationPage() {
             <div className="fp-menu">
               <img src={baytLogo} alt="BAYT" className="fp-logo" />
               <div className="fp-grid">
-                {PRESENTATION_TILES.map((t) =>
-                  t.key === "genomgang" ? (
-                    <a key={t.key} href={t.href} target="_blank" rel="noreferrer" className="fp-tile">
-                      <PresentationIcon name={t.key} />
-                      <span className="fp-tile-label">{t.label}</span>
-                    </a>
-                  ) : (
-                    <button key={t.key} type="button" className="fp-tile" onClick={() => setView({ t: "section", key: t.key })}>
-                      <PresentationIcon name={t.key} />
-                      <span className="fp-tile-label">{t.label}</span>
-                    </button>
-                  ),
-                )}
+                {PRESENTATION_TILES.map((t) => (
+                  <button key={t.key} type="button" className="fp-tile" onClick={() => setView({ t: "section", key: t.key })}>
+                    <PresentationIcon name={t.key} />
+                    <span className="fp-tile-label">{t.label}</span>
+                  </button>
+                ))}
                 {tiles.map((t) => (
                   <button key={t.id} type="button" className="fp-tile" onClick={() => setView({ t: "tile", id: t.id })}>
                     <PresentationIcon name={t.icon} />
