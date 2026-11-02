@@ -13,6 +13,7 @@ const HOT = "#C2334D";
 const BEIGE = "#F2E3BC";
 
 type Loan = { date: string; amount: number; rate: number };
+type Payment = { date: string; amount: number; label: string };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Finance = Record<string, any>;
@@ -23,7 +24,16 @@ const num = (v: unknown) => {
   return Number.isFinite(n) ? n : 0;
 };
 const mkr = (v: number) => `${(v / 1e6).toFixed(1).replace(".", ",")} mkr`;
+const mkr2 = (v: number) => `${(v / 1e6).toFixed(2).replace(".", ",")} mkr`;
 const pc = (v: number, d = 1) => `${v.toFixed(d).replace(".", ",")} %`;
+
+const MONTHS = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
+function addMonths(ym: string, n: number): string {
+  const [y, m] = ym.split("-").map(Number);
+  const t = y * 12 + (m - 1) + n;
+  return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`;
+}
+const ymLabel = (ym: string) => `${MONTHS[Number(ym.slice(5, 7)) - 1]} ${ym.slice(2, 4)}`;
 
 function parseLoans(text: string): Loan[] {
   return text
@@ -38,6 +48,19 @@ function parseLoans(text: string): Loan[] {
 }
 const loansToText = (loans: Loan[]) =>
   loans.map((l) => `${l.date}; ${l.amount}; ${String(l.rate).replace(".", ",")}`).join("\n");
+
+function parsePayments(text: string): Payment[] {
+  return text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => {
+      const [d, a, ...rest] = l.split(";").map((s) => s.trim());
+      return { date: d ?? "", amount: num((a ?? "").replace(/\s/g, "")), label: rest.join("; ") };
+    })
+    .filter((p) => /^\d{4}-\d{2}-\d{2}$/.test(p.date) && p.amount > 0);
+}
+const paymentsToText = (p: Payment[]) => p.map((x) => `${x.date}; ${x.amount}; ${x.label}`).join("\n");
 
 const card: React.CSSProperties = { background: "#fff", border: `1px solid ${LINE}`, borderRadius: 14, padding: "16px 18px" };
 const h3: React.CSSProperties = { fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 20, fontWeight: 700, margin: "0 0 12px", color: INK };
@@ -56,6 +79,11 @@ function Stat({ label, value, sub, bad }: { label: string; value: string; sub?: 
 export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string; propertyName?: string }) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
+  // Likviditetsscenario
+  const [incPct, setIncPct] = useState("0");
+  const [incFrom, setIncFrom] = useState("2027-01");
+  const [loanAmt, setLoanAmt] = useState("0");
+  const [loanMonth, setLoanMonth] = useState("2027-01");
 
   const finQ = useQuery({
     queryKey: ["pfin", propertyId],
@@ -85,6 +113,10 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
   const fin = finQ.data;
   const loans: Loan[] = useMemo(
     () => (Array.isArray(fin?.loans) ? (fin!.loans as Loan[]).map((l) => ({ date: String(l.date), amount: num(l.amount), rate: num(l.rate) })) : []),
+    [fin],
+  );
+  const payments: Payment[] = useMemo(
+    () => (Array.isArray(fin?.known_payments) ? (fin!.known_payments as Payment[]).map((p) => ({ date: String(p.date), amount: num(p.amount), label: String(p.label ?? "") })) : []),
     [fin],
   );
 
@@ -137,7 +169,6 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
   const due12 = loans.filter((l) => daysTo(l.date) <= 365).reduce((s, l) => s + l.amount, 0);
   const due90 = loans.filter((l) => daysTo(l.date) <= 90);
   const perLghMonth = (kronor: number) => (apts > 0 ? kronor / apts / 12 : 0);
-  const perM2Month = (kronor: number) => (resArea > 0 ? kronor / resArea / 12 : 0);
   const avgFeeLghMonth = perLghMonth(fees);
 
   const scenarios = [
@@ -151,6 +182,73 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
   const fundedAtPeak = plan ? num(plan.fund_balance) + current * yearsToPeak : 0;
 
   const nextLoans = [...loans].sort((a, b) => a.date.localeCompare(b.date));
+
+  // ----- Likviditet -----
+  const haveCash = fin.cash_balance != null && !!fin.cash_date;
+  const cash0 = num(fin.cash_balance);
+  const monthly = num(fin.monthly_net_cashflow);
+  const buffer = num(fin.min_cash_buffer);
+  const startYm = haveCash ? String(fin.cash_date).slice(0, 7) : "";
+  const incP = num(incPct.replace(",", "."));
+  const loanA = num(loanAmt.replace(/\s/g, ""));
+  const liq = (() => {
+    if (!haveCash) return [];
+    let bal = cash0;
+    const out: Array<{ ym: string; bal: number; pay: number; payLabels: string[]; inc: number; loan: number }> = [];
+    for (let i = 1; i <= 12; i++) {
+      const ym = addMonths(startYm, i);
+      const pays = payments.filter((p) => p.date.slice(0, 7) === ym);
+      const pay = pays.reduce((s, p) => s + p.amount, 0);
+      const inc = incP > 0 && ym >= incFrom ? (fees * incP) / 100 / 12 : 0;
+      const loan = loanA > 0 && ym === loanMonth ? loanA : 0;
+      bal += monthly + inc - pay + loan;
+      out.push({ ym, bal, pay, payLabels: pays.map((p) => p.label), inc, loan });
+    }
+    return out;
+  })();
+  const lowest = liq.reduce<(typeof liq)[number] | null>((m, r) => (m == null || r.bal < m.bal ? r : m), null);
+  const underBuffer = liq.filter((r) => r.bal < buffer);
+  const negative = liq.filter((r) => r.bal < 0);
+  const liqBad = !!lowest && lowest.bal < buffer;
+
+  const chart = (() => {
+    if (liq.length === 0) return null;
+    const W = 900, H = 230, L = 56, R = 8, T = 14, B = 30;
+    const vals = [...liq.map((r) => r.bal), cash0, buffer, 0];
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const y = (v: number) => T + (H - T - B) * (1 - (v - min) / (max - min || 1));
+    const bw = (W - L - R) / liq.length;
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
+        <line x1={L} x2={W - R} y1={y(0)} y2={y(0)} stroke="#9CA3AF" />
+        <text x={L - 6} y={y(0) + 4} fontSize="11" textAnchor="end" fill="#6B7280">0</text>
+        {buffer > 0 && (
+          <>
+            <line x1={L} x2={W - R} y1={y(buffer)} y2={y(buffer)} stroke={HOT} strokeDasharray="5 4" />
+            <text x={W - R} y={y(buffer) - 4} fontSize="11" textAnchor="end" fill={HOT}>Buffert {mkr(buffer)}</text>
+          </>
+        )}
+        <text x={L - 6} y={y(max) + 4} fontSize="11" textAnchor="end" fill="#6B7280">{mkr(max)}</text>
+        {liq.map((r, i) => {
+          const x = L + i * bw + bw * 0.18;
+          const w = bw * 0.64;
+          const top = Math.min(y(r.bal), y(0));
+          const h = Math.abs(y(r.bal) - y(0));
+          const color = r.bal < 0 ? HOT : r.bal < buffer ? "#F2711C" : GREEN;
+          return (
+            <g key={r.ym}>
+              <title>{`${ymLabel(r.ym)}: ${kr(r.bal)}`}</title>
+              <rect x={x} y={top} width={w} height={Math.max(1, h)} fill={color} rx="2" />
+              <text x={x + w / 2} y={r.bal >= 0 ? top - 4 : top + h + 12} fontSize="10.5" textAnchor="middle" fill={color} fontWeight="700">{mkr(r.bal)}</text>
+              <text x={x + w / 2} y={H - 10} fontSize="11" textAnchor="middle" fill="#6B7280">{ymLabel(r.ym)}</text>
+            </g>
+          );
+        })}
+      </svg>
+    );
+  })();
+
+  const inp: React.CSSProperties = { height: 38, padding: "0 10px", borderRadius: 8, border: `1px solid ${LINE}`, font: "inherit", fontSize: 14, width: "100%", boxSizing: "border-box" };
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
@@ -176,6 +274,11 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
                 (nuvarande snittavgift ca {Math.round(avgFeeLghMonth).toLocaleString("sv-SE")} kr per månad).
               </div>
             )}
+            {haveCash && lowest && (
+              <div style={{ marginTop: 14, background: liqBad ? "rgba(122,20,38,0.5)" : "rgba(92,184,74,0.18)", border: `1px solid ${liqBad ? HOT : GREEN}`, borderRadius: 10, padding: "10px 14px", fontSize: 14.5, color: liqBad ? BEIGE : "#d6efcf" }}>
+                <strong>Likviditet:</strong> kassan når som lägst {mkr2(lowest.bal)} i {ymLabel(lowest.ym)}. En avgiftshöjning löser underhållsbehovet på sikt men räcker inte i tid för att fylla kassan på våren.
+              </div>
+            )}
           </>
         ) : (
           <div style={{ marginTop: 10, fontSize: 15, lineHeight: 1.6 }}>
@@ -184,6 +287,72 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
           </div>
         )}
       </div>
+
+      {/* Likviditet */}
+      {haveCash && (
+        <div style={{ ...card, borderColor: liqBad ? "#F1C0C0" : LINE, background: liqBad ? "#FEF8F8" : "#fff" }}>
+          <h3 style={{ ...h3, color: liqBad ? RED : INK }}>Likviditet de närmaste 12 månaderna</h3>
+          <div style={{ fontSize: 14, color: MUTED, marginBottom: 12, lineHeight: 1.6 }}>
+            Utgår från kassan {kr(cash0)} den {String(fin.cash_date)}, ett löpande nettoflöde på {kr(monthly)} per månad och kända utbetalningar.
+            Bufferten {kr(buffer)} motsvarar ungefär en månads utgifter.
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 14 }}>
+            <Stat label="Lägsta kassa" value={lowest ? mkr2(lowest.bal) : "—"} sub={lowest ? ymLabel(lowest.ym) : undefined} bad={liqBad} />
+            <Stat label="Månader under bufferten" value={`${underBuffer.length} av 12`} bad={underBuffer.length > 0} />
+            <Stat label="Månader med negativ kassa" value={`${negative.length}`} bad={negative.length > 0} />
+          </div>
+
+          <div style={{ marginBottom: 12 }}>{chart}</div>
+
+          <div style={{ background: "#F7F9F6", border: `1px solid ${LINE}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>Prova åtgärder</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10 }}>
+              <label><span style={lab}>Avgiftshöjning (%)</span><input style={inp} value={incPct} onChange={(e) => setIncPct(e.target.value)} inputMode="decimal" /></label>
+              <label><span style={lab}>Gäller från (ÅÅÅÅ-MM)</span><input style={inp} value={incFrom} onChange={(e) => setIncFrom(e.target.value)} /></label>
+              <label><span style={lab}>Lån eller kredit (kr)</span><input style={inp} value={loanAmt} onChange={(e) => setLoanAmt(e.target.value)} inputMode="numeric" /></label>
+              <label><span style={lab}>Utbetalas (ÅÅÅÅ-MM)</span><input style={inp} value={loanMonth} onChange={(e) => setLoanMonth(e.target.value)} /></label>
+            </div>
+            {incP > 0 && (
+              <div style={{ fontSize: 13, color: MUTED, marginTop: 8 }}>
+                {pc(incP)} höjning ger ca {kr((fees * incP) / 100 / 12)} mer per månad från {incFrom}.
+              </div>
+            )}
+          </div>
+
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+              <thead>
+                <tr>
+                  {["Månad", "Utbetalningar", "Tillskott", "Kassa vid månadens slut"].map((h) => (
+                    <th key={h} style={{ ...lab, textAlign: "left", padding: "6px 8px", borderBottom: `1px solid ${LINE}` }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {liq.map((r) => {
+                  const bad = r.bal < buffer;
+                  return (
+                    <tr key={r.ym} style={{ background: r.bal < 0 ? "#FDE2E7" : bad ? "#FFF4E5" : undefined }}>
+                      <td style={{ padding: "8px", borderBottom: `1px solid ${LINE}`, fontWeight: 600 }}>{ymLabel(r.ym)}</td>
+                      <td style={{ padding: "8px", borderBottom: `1px solid ${LINE}` }}>
+                        {r.pay > 0 ? `${kr(r.pay)} (${r.payLabels.join(", ")})` : "—"}
+                      </td>
+                      <td style={{ padding: "8px", borderBottom: `1px solid ${LINE}` }}>
+                        {r.inc + r.loan > 0 ? kr(r.inc + r.loan) : "—"}
+                      </td>
+                      <td style={{ padding: "8px", borderBottom: `1px solid ${LINE}`, fontWeight: 700, color: r.bal < 0 ? "#B91C1C" : bad ? "#B45309" : INK }}>{kr(r.bal)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ fontSize: 12.5, color: MUTED, marginTop: 8 }}>
+            Förenklad prognos: ett jämnt månadsflöde och kända betalningar. Verklig kassa varierar med säsong, räntebetalningar och oväntade kostnader.
+          </div>
+        </div>
+      )}
 
       {/* Scenarier */}
       {haveGap && gap > 0 && (
@@ -246,7 +415,7 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
           />
           <Stat label="Lån med villkorsändring inom 12 månader" value={mkr(due12)} sub={debt > 0 ? `${Math.round((due12 / debt) * 100)} % av skulden` : undefined} bad={debt > 0 && due12 / debt > 0.5} />
           {fin.equity_ratio_pct != null && <Stat label="Soliditet" value={`${num(fin.equity_ratio_pct)} %`} />}
-          <Stat label="Likvida medel" value={mkr(num(fin.liquid_funds))} />
+          <Stat label="Likvida medel" value={mkr(haveCash ? cash0 : num(fin.liquid_funds))} sub={haveCash ? `Per ${String(fin.cash_date)}` : "Per bokslut"} />
           <Stat
             label="Amortering per år"
             value={kr(num(fin.annual_amortization))}
@@ -301,6 +470,11 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
       <div style={card}>
         <h3 style={h3}>Styrelsen behöver ta hänsyn till</h3>
         <ul style={{ margin: 0, paddingLeft: 20, fontSize: 15, lineHeight: 1.75 }}>
+          {haveCash && lowest && liqBad && (
+            <li>
+              <strong>Likviditeten:</strong> kassan beräknas som lägst vara {mkr2(lowest.bal)} i {ymLabel(lowest.ym)}, under bufferten på {mkr2(buffer)}. En avgiftshöjning hinner inte lösa det i vår. Överväg lån, checkkredit eller förhandlad amortering i samband med villkorsändringarna.
+            </li>
+          )}
           {haveGap && gap > 0 && (
             <li>
               Avsättningen ligger <strong>{kr(gap)} per år</strong> under Nabos rekommendation. Det motsvarar en avgiftshöjning på ca <strong>{pc(pct)}</strong> om hela gapet ska täckas med avgifter.
@@ -344,26 +518,32 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
 function FinanceForm({
   propertyId, propertyName, initial, onDone, onCancel,
 }: { propertyId: string; propertyName?: string; initial: Finance | null; onDone: () => void; onCancel?: () => void }) {
+  const s = (v: unknown) => (v != null ? String(v) : "");
   const [f, setF] = useState({
     fiscal_label: String(initial?.fiscal_label ?? ""),
-    annual_fees: initial?.annual_fees != null ? String(initial.annual_fees) : "",
-    residential_area: initial?.residential_area != null ? String(initial.residential_area) : "",
-    total_area: initial?.total_area != null ? String(initial.total_area) : "",
-    apartments: initial?.apartments != null ? String(initial.apartments) : "",
-    avg_interest_pct: initial?.avg_interest_pct != null ? String(initial.avg_interest_pct) : "",
-    annual_amortization: initial?.annual_amortization != null ? String(initial.annual_amortization) : "",
-    liquid_funds: initial?.liquid_funds != null ? String(initial.liquid_funds) : "",
-    interest_cost: initial?.interest_cost != null ? String(initial.interest_cost) : "",
-    net_result: initial?.net_result != null ? String(initial.net_result) : "",
-    operating_cashflow: initial?.operating_cashflow != null ? String(initial.operating_cashflow) : "",
-    equity_ratio_pct: initial?.equity_ratio_pct != null ? String(initial.equity_ratio_pct) : "",
-    decided_increase_pct: initial?.decided_increase_pct != null ? String(initial.decided_increase_pct) : "",
+    annual_fees: s(initial?.annual_fees),
+    residential_area: s(initial?.residential_area),
+    total_area: s(initial?.total_area),
+    apartments: s(initial?.apartments),
+    avg_interest_pct: s(initial?.avg_interest_pct),
+    annual_amortization: s(initial?.annual_amortization),
+    liquid_funds: s(initial?.liquid_funds),
+    interest_cost: s(initial?.interest_cost),
+    net_result: s(initial?.net_result),
+    operating_cashflow: s(initial?.operating_cashflow),
+    equity_ratio_pct: s(initial?.equity_ratio_pct),
+    decided_increase_pct: s(initial?.decided_increase_pct),
+    cash_balance: s(initial?.cash_balance),
+    cash_date: s(initial?.cash_date),
+    monthly_net_cashflow: s(initial?.monthly_net_cashflow),
+    min_cash_buffer: s(initial?.min_cash_buffer),
     notes: String(initial?.notes ?? ""),
     source: String(initial?.source ?? ""),
     loans: loansToText(Array.isArray(initial?.loans) ? (initial!.loans as Loan[]) : []),
+    payments: paymentsToText(Array.isArray(initial?.known_payments) ? (initial!.known_payments as Payment[]) : []),
   });
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
-  const n = (s: string) => (s.trim() === "" ? null : num(s.replace(/\s/g, "").replace(",", ".")));
+  const n = (v: string) => (v.trim() === "" ? null : num(v.replace(/\s/g, "").replace(",", ".")));
 
   const save = useMutation({
     mutationFn: async () => {
@@ -382,9 +562,14 @@ function FinanceForm({
         operating_cashflow: n(f.operating_cashflow),
         equity_ratio_pct: n(f.equity_ratio_pct),
         decided_increase_pct: n(f.decided_increase_pct),
+        cash_balance: n(f.cash_balance),
+        cash_date: f.cash_date.trim() || null,
+        monthly_net_cashflow: n(f.monthly_net_cashflow),
+        min_cash_buffer: n(f.min_cash_buffer),
         notes: f.notes || null,
         source: f.source || null,
         loans: parseLoans(f.loans),
+        known_payments: parsePayments(f.payments),
         updated_at: new Date().toISOString(),
       };
       const { error } = await supabase.from("property_finance").upsert(row, { onConflict: "property_id" });
@@ -418,12 +603,20 @@ function FinanceForm({
         {field("Antal bostadsrätter", "apartments")}
         {field("Genomsnittlig skuldränta (%)", "avg_interest_pct")}
         {field("Amortering per år (kr)", "annual_amortization")}
-        {field("Likvida medel (kr)", "liquid_funds")}
+        {field("Likvida medel vid bokslut (kr)", "liquid_funds")}
         {field("Räntekostnad per år (kr)", "interest_cost")}
         {field("Årets resultat (kr)", "net_result")}
         {field("Kassaflöde från löpande verksamhet (kr)", "operating_cashflow")}
         {field("Soliditet (%)", "equity_ratio_pct")}
         {field("Beslutad avgiftshöjning (%)", "decided_increase_pct")}
+        {field("Kassa idag (kr)", "cash_balance")}
+        {field("Kassa per datum (ÅÅÅÅ-MM-DD)", "cash_date", "2026-10-30")}
+        {field("Löpande nettoflöde per månad (kr, minus = utflöde)", "monthly_net_cashflow", "-25000")}
+        {field("Lägsta önskade kassa, buffert (kr)", "min_cash_buffer", "700000")}
+      </div>
+      <div>
+        <label className="fp-label">Kända utbetalningar: datum (ÅÅÅÅ-MM-DD); belopp inkl. moms; beskrivning</label>
+        <textarea className="fp-textarea" rows={5} value={f.payments} onChange={set("payments")} placeholder={"2027-01-31; 562500; Stigarledningar, delbetalning"} />
       </div>
       <div>
         <label className="fp-label">Lån, en rad per lån: villkorsändringsdag (ÅÅÅÅ-MM-DD); belopp; ränta %</label>
