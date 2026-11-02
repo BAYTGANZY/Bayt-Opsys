@@ -176,7 +176,8 @@ export function MaintenanceImport({ propertyId }: { propertyId: string }) {
     if (!settings) return;
     setPhase("saving");
     try {
-      const { data: existing } = await supabase.from("maintenance_plans").select("id").eq("property_id", propertyId).maybeSingle();
+      const { data: existing, error: exErr } = await supabase.from("maintenance_plans").select("id").eq("property_id", propertyId).maybeSingle();
+      if (exErr) throw exErr;
       let planId = existing?.id as string | undefined;
       const planFields = { ...settings, round_to: 1000 };
       if (planId) {
@@ -192,17 +193,39 @@ export function MaintenanceImport({ propertyId }: { propertyId: string }) {
         planId = data.id as string;
       }
 
-      const { data: old } = await supabase.from("maintenance_actions").select("id").eq("plan_id", planId);
+      // 1. Kom ihåg de gamla åtgärderna (högst 1000 rader hämtas, vilket är mer än en plan innehåller).
+      const { data: old, error: oldErr } = await supabase.from("maintenance_actions").select("id").eq("plan_id", planId).limit(5000);
+      if (oldErr) throw oldErr;
       const oldIds = ((old ?? []) as Array<{ id: string }>).map((o) => o.id);
 
-      for (let i = 0; i < rows.length; i += 100) {
-        const chunk = rows.slice(i, i + 100).map((r) => ({ ...r, plan_id: planId, property_id: propertyId }));
+      // 2. Lägg in de nya.
+      for (let i = 0; i < rows.length; i += 50) {
+        const chunk = rows.slice(i, i + 50).map((r) => ({ ...r, plan_id: planId, property_id: propertyId }));
         const { error } = await supabase.from("maintenance_actions").insert(chunk);
-        if (error) throw error;
+        if (error) throw new Error(`Kunde inte spara åtgärderna: ${error.message}`);
       }
-      for (let i = 0; i < oldIds.length; i += 100) {
-        const { error } = await supabase.from("maintenance_actions").delete().in("id", oldIds.slice(i, i + 100));
+
+      // 3. Ta bort de gamla, i små klumpar, och kontrollera varje steg.
+      for (let i = 0; i < oldIds.length; i += 40) {
+        const ids = oldIds.slice(i, i + 40);
+        const { error } = await supabase.from("maintenance_actions").delete().in("id", ids);
+        if (error) {
+          throw new Error(
+            `De nya åtgärderna sparades, men de gamla kunde inte tas bort (${error.message}). Planen innehåller nu båda omgångarna. Ladda inte om importen, utan be om rensnings-SQL.`,
+          );
+        }
+      }
+
+      // 4. Verifiera: inga gamla rader ska finnas kvar.
+      if (oldIds.length > 0) {
+        const { count, error } = await supabase
+          .from("maintenance_actions")
+          .select("id", { count: "exact", head: true })
+          .in("id", oldIds.slice(0, 200));
         if (error) throw error;
+        if ((count ?? 0) > 0) {
+          throw new Error("Några gamla åtgärder finns kvar efter importen. Be om rensnings-SQL innan du går vidare.");
+        }
       }
 
       qc.invalidateQueries({ queryKey: ["mplan", propertyId] });
@@ -212,7 +235,8 @@ export function MaintenanceImport({ propertyId }: { propertyId: string }) {
       setOpen(false);
       reset();
     } catch (err) {
-      toast.error(errMsg(err));
+      qc.invalidateQueries({ queryKey: ["mactions"] });
+      toast.error(errMsg(err), { duration: 15000 });
       setPhase("preview");
     }
   }
