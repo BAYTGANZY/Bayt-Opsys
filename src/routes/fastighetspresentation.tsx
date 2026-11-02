@@ -21,6 +21,7 @@ import {
   PresentationIcon,
 } from "@/lib/presentation-config";
 import { TEKNIK_SECTIONS } from "@/lib/teknik-config";
+import { MaintenancePlanView } from "@/components/MaintenancePlan";
 
 const baytLogo = `${import.meta.env.BASE_URL}assets/bayt-logo-green.png`;
 const buildingSketch = `${import.meta.env.BASE_URL}assets/building-sketch-2.png`;
@@ -863,6 +864,7 @@ const STYLES = `
   .fp-back { background: none; border: none; color: ${MUTED}; font-size: 14px; cursor: pointer; padding: 0; font-family: inherit; }
   .fp-back:hover { color: ${INK}; }
   .fp-panel { width: 100%; max-width: 1040px; margin: 0 auto; }
+  .fp-panel-wide { max-width: 1400px; }
   .fp-panel-head { display: flex; align-items: center; gap: 16px; margin: 14px 0 18px; color: ${INK}; }
   .fp-panel-head h1 { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 30px; margin: 0; font-weight: 600; color: ${INK}; }
   .fp-panel-head svg { color: ${INK}; }
@@ -1151,6 +1153,8 @@ function PresentationPage() {
         return <ArendeSection kind="inspection" propertyId={propertyId} propertyName={propertyName} hideSensitive={hideSensitive} />;
       case "projekt":
         return <ArendeSection kind="project" propertyId={propertyId} propertyName={propertyName} hideSensitive={hideSensitive} />;
+      case "underhallsplan":
+        return <MaintenancePlanView key={propertyId} propertyId={propertyId} propertyName={propertyName} />;
       case "teknik":
         return <TeknikSection propertyId={propertyId} />;
       case "oversikt":
@@ -1279,7 +1283,7 @@ function PresentationPage() {
         )}
 
         {allowed && !inForm && !openTile && sectionTile && (
-          <div className="fp-panel">
+          <div className={`fp-panel${sectionTile.key === "underhallsplan" ? " fp-panel-wide" : ""}`}>
             <button type="button" className="fp-back" onClick={() => setView(null)}>
               ← Presentation
             </button>
