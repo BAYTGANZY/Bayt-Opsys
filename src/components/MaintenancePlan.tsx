@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Upload, Trash2, TrendingUp, AlertTriangle, Flame, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { Plus, X, Upload, Trash2, TrendingUp, AlertTriangle, Flame, ChevronLeft, ChevronRight, ExternalLink, Landmark, ListChecks } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -34,8 +34,8 @@ const ACTION_ORANGE = 300_000;
 const green = (m: string) => toast.success(m, { style: { background: "#3D8A30", color: "#fff" } });
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : "Något gick fel");
 
-/** Planen inklusive texten under sammanfattningen (kolumnen source_note). */
-type PlanWithNote = Plan & { source_note?: string | null };
+/** Planen inklusive extra kolumner (source_note, recommended_savings). */
+type PlanWithNote = Plan & { source_note?: string | null; recommended_savings?: number | string | null };
 
 type Tab = "atgarder" | "kategori" | "analys" | "installningar";
 
@@ -82,7 +82,7 @@ function Chip({ text, tone }: { text: string; tone?: "dark" | "pink" | "green" }
   );
 }
 
-function summary(plan: Plan, occ: Occurrence[]) {
+function summary(plan: PlanWithNote, occ: Occurrence[]) {
   const n = plan.end_year - plan.start_year + 1;
   const years = Array.from({ length: n }, (_, i) => plan.start_year + i);
   const byYear = years.map((y) => {
@@ -95,11 +95,14 @@ function summary(plan: Plan, occ: Occurrence[]) {
   });
   const total = byYear.reduce((s, d) => s + d.inv + d.und, 0);
   const inv = byYear.reduce((s, d) => s + d.inv, 0);
+  const und = total - inv;
   const perYear = total / n;
   const boa = plan.boa_sqm ? Number(plan.boa_sqm) : null;
-  const recommended = Math.round(perYear / 1000) * 1000;
   const peak = byYear.reduce((m, d) => (d.inv + d.und > m.inv + m.und ? d : m), byYear[0]);
-  return { n, years, byYear, total, inv, und: total - inv, perYear, boa, recommended, peak };
+  // Rekommenderad avsättning: Nabos siffra om den är ifylld, annars planens underhåll per år.
+  const hasNabo = plan.recommended_savings != null && plan.recommended_savings !== "" && Number(plan.recommended_savings) > 0;
+  const recommended = hasNabo ? Number(plan.recommended_savings) : Math.round(und / n / 1000) * 1000;
+  return { n, years, byYear, total, inv, und, perYear, boa, recommended, hasNabo, peak };
 }
 
 const mkr = (v: number) => `${(v / 1e6).toFixed(Math.abs(v) >= 1e7 ? 0 : 1).replace(".", ",")} mkr`;
@@ -108,7 +111,12 @@ const mkr = (v: number) => `${(v / 1e6).toFixed(Math.abs(v) >= 1e7 ? 0 : 1).repl
 function Hero({ plan, occ, name }: { plan: PlanWithNote; occ: Occurrence[]; name: string }) {
   const s = summary(plan, occ);
   const saving = Number(plan.current_annual_savings);
-  const short = s.recommended > saving && s.total > 0;
+  const gap = s.recommended - saving;
+  const cover = s.recommended > 0 ? Math.round((saving / s.recommended) * 100) : 100;
+  const bigGap = s.total > 0 && gap > 0;
+  const perM2 = (v: number) => (s.boa ? `${Math.round(v / s.boa)} kr/m²` : "");
+  const topInv = [...s.byYear].filter((d) => d.inv > 0).sort((a, b) => b.inv - a.inv).slice(0, 3);
+
   const big = (label: string, value: string, sub?: string) => (
     <div style={{ minWidth: 0 }}>
       <div style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "#9fb79f" }}>{label}</div>
@@ -116,6 +124,15 @@ function Hero({ plan, occ, name }: { plan: PlanWithNote; occ: Occurrence[]; name
       {sub && <div style={{ fontSize: 12.5, color: "#b9c8b4" }}>{sub}</div>}
     </div>
   );
+
+  const bank = (label: string, value: string, sub?: string, bad?: boolean) => (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: bad ? "#e8b9a8" : "#b9c8b4" }}>{label}</div>
+      <div style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 28, fontWeight: 800, lineHeight: 1.1, margin: "4px 0 2px", color: bad ? BEIGE : "#fff" }}>{value}</div>
+      {sub && <div style={{ fontSize: 12, color: bad ? "#e8b9a8" : "#b9c8b4" }}>{sub}</div>}
+    </div>
+  );
+
   return (
     <div style={{ background: "radial-gradient(ellipse at 20% 0%, #21503f 0%, #0f2a21 55%, #0b1d17 100%)", borderRadius: 18, padding: "24px 26px", color: "#e6efd8" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, color: GREEN, fontSize: 13, fontWeight: 700 }}>
@@ -125,16 +142,62 @@ function Hero({ plan, occ, name }: { plan: PlanWithNote; occ: Occurrence[]; name
         {s.total > 0 ? `${mkr(s.total)} på ${s.n} år.` : "Ingen åtgärd inlagd ännu."}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 20 }}>
-        {big("Per år", kr(s.perYear), `${kr(s.inv)} är investeringar`)}
+        {big("Utgift per år, alla åtgärder", kr(s.perYear), `${kr(s.inv)} är investeringar`)}
         {big("Per m² och år", s.boa ? `${Math.round(s.perYear / s.boa)} kr` : "—", s.boa ? `${s.boa} m² BOA` : "Boarea saknas")}
         {big("Dyraste år", s.total > 0 ? String(s.peak.year) : "—", s.total > 0 ? kr(s.peak.inv + s.peak.und) : undefined)}
         {big("Avsättning idag", kr(saving), "per år")}
       </div>
-      {short && (
-        <div style={{ marginTop: 20, background: "rgba(122,20,38,0.45)", border: `1px solid ${RED}`, borderRadius: 12, padding: "12px 14px", display: "flex", gap: 10, alignItems: "flex-start", color: BEIGE }}>
+
+      {s.total > 0 && (
+        <div
+          style={{
+            marginTop: 22, borderRadius: 14, padding: "16px 18px",
+            background: bigGap ? "rgba(122,20,38,0.45)" : "rgba(92,184,74,0.14)",
+            border: `2px solid ${bigGap ? HOT : GREEN}`,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: bigGap ? BEIGE : "#bfe8b6" }}>
+            <Landmark size={18} /> Det här tittar banken på
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 18, marginTop: 12 }}>
+            {bank(
+              s.hasNabo ? "Rekommenderad avsättning (Nabo)" : "Rekommenderad avsättning (underhåll)",
+              `${kr(s.recommended)} / år`,
+              perM2(s.recommended),
+            )}
+            {bank("Nuvarande avsättning", `${kr(saving)} / år`, perM2(saving))}
+            {bank("Gap per år", gap > 0 ? kr(gap) : "Inget gap", gap > 0 ? "Behov som saknar finansiering" : undefined, bigGap)}
+            {bank("Täckningsgrad", `${cover} %`, "Sparande i förhållande till behovet", bigGap && cover < 50)}
+          </div>
+          <div style={{ marginTop: 14, borderTop: "1px solid rgba(255,255,255,0.15)", paddingTop: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: bigGap ? BEIGE : "#bfe8b6" }}>
+              <ListChecks size={18} /> Styrelsen behöver ta hänsyn till
+            </div>
+            <ul style={{ margin: "8px 0 0", paddingLeft: 20, fontSize: 14, lineHeight: 1.6, color: "#e6efd8" }}>
+              {gap > 0 && (
+                <li>
+                  Avsättningen ligger <strong>{kr(gap)} per år</strong> under rekommendationen. Det behöver täckas med avgiftshöjning, amortering eller en tydlig plan.
+                </li>
+              )}
+              {topInv.length > 0 && (
+                <li>
+                  Största investeringsår: {topInv.map((d) => `${d.year} (${mkr(d.inv)})`).join(", ")}. Visa banken hur de ska finansieras.
+                </li>
+              )}
+              <li>
+                Totalt <strong>{mkr(s.inv)}</strong> i investeringar över {s.n} år. Det är dessa som avgör hur belåningen utvecklas.
+              </li>
+              <li>Banker brukar jämföra planens aktualitet med årsredovisningens sparande per m² och skuld per m².</li>
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {bigGap && (
+        <div style={{ marginTop: 14, background: "rgba(122,20,38,0.45)", border: `1px solid ${RED}`, borderRadius: 12, padding: "10px 14px", display: "flex", gap: 10, alignItems: "flex-start", color: BEIGE }}>
           <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: 2 }} />
           <div style={{ fontSize: 14, lineHeight: 1.5 }}>
-            <strong>Ni sätter av {kr(saving)} per år. Planen kräver i snitt {kr(s.recommended)}.</strong> Skillnaden är {kr(s.recommended - saving)} per år.
+            <strong>Ni sätter av {kr(saving)} per år. Rekommenderat är {kr(s.recommended)}.</strong>
           </div>
         </div>
       )}
@@ -651,13 +714,14 @@ function PerCategory({
 }
 
 // ---------------- Ekonomisk analys ----------------
-function Analysis({ plan, occ }: { plan: Plan; occ: Occurrence[] }) {
+function Analysis({ plan, occ }: { plan: PlanWithNote; occ: Occurrence[] }) {
   const s = summary(plan, occ);
+  // Som Nabos avsättningsanalys: bara underhåll, investeringar är exkluderade.
   let cum = 0;
   const rec: number[] = [];
   const cur: number[] = [];
   s.byYear.forEach((d, i) => {
-    cum += d.inv + d.und;
+    cum += d.und;
     rec.push(Number(plan.fund_balance) + s.recommended * (i + 1) - cum);
     cur.push(Number(plan.fund_balance) + Number(plan.current_annual_savings) * (i + 1) - cum);
   });
@@ -673,9 +737,11 @@ function Analysis({ plan, occ }: { plan: Plan; occ: Occurrence[] }) {
         {kpi("Total utgift", kr(s.total))}
         {kpi("Investering", kr(s.inv))}
         {kpi("Underhåll", kr(s.und))}
-        {kpi("Rekommenderad avsättning / år", kr(s.recommended))}
+        {kpi("Utgift per år, alla åtgärder", kr(s.perYear))}
+        {kpi(s.hasNabo ? "Rekommenderad avsättning (Nabo) / år" : "Rekommenderad avsättning / år", kr(s.recommended))}
         {kpi("Nuvarande avsättning / år", kr(Number(plan.current_annual_savings)))}
         {kpi("Rekommenderad per m²", s.boa ? `${Math.round(s.recommended / s.boa)} kr / m²` : "Boarea saknas")}
+        {kpi("Nuvarande per m²", s.boa ? `${Math.round(Number(plan.current_annual_savings) / s.boa)} kr / m²` : "Boarea saknas")}
       </div>
       <div>
         <div style={{ fontWeight: 700, marginBottom: 8 }}>Utgifter per år</div>
@@ -683,11 +749,11 @@ function Analysis({ plan, occ }: { plan: Plan; occ: Occurrence[] }) {
         <Legend items={[["Underhåll", "#F5B731"], ["Investering", "#374151"], ["Dyrt år (över 2 × snittet)", HOT]]} />
       </div>
       <div>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>Fondsaldo över tid</div>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>Fondsaldo över tid (utan investeringar)</div>
         <LineChart years={s.years} a={rec} b={cur} />
         <Legend items={[["Vid rekommenderad avsättning", "#F5B731"], ["Vid nuvarande avsättning", "#0D2B1E"]]} />
         <div style={{ fontSize: 12, color: COLORS.secondary, marginTop: 6 }}>
-          Beräknat från ingående saldo och årlig avsättning, minus alla åtgärder i planen. Rekommenderad avsättning är planens snittutgift per år.
+          Beräknat som i Nabos avsättningsanalys: ingående saldo plus årlig avsättning minus underhållsåtgärder. Investeringar ingår inte.
         </div>
       </div>
     </div>
@@ -776,6 +842,7 @@ function Settings({ plan }: { plan: PlanWithNote }) {
     name: plan.name, start_year: String(plan.start_year), end_year: String(plan.end_year), vat_rate: String(plan.vat_rate),
     extra_cost_pct: String(plan.extra_cost_pct), annual_increase_pct: String(plan.annual_increase_pct),
     current_annual_savings: String(plan.current_annual_savings), fund_balance: String(plan.fund_balance),
+    recommended_savings: plan.recommended_savings == null ? "" : String(plan.recommended_savings),
     boa_sqm: plan.boa_sqm == null ? "" : String(plan.boa_sqm), round_to: String(plan.round_to),
     source_note: plan.source_note ?? "",
   });
@@ -788,6 +855,7 @@ function Settings({ plan }: { plan: PlanWithNote }) {
         start_year: Number(f.start_year), end_year: Number(f.end_year), vat_rate: Number(f.vat_rate) || 0,
         extra_cost_pct: Number(f.extra_cost_pct) || 0, annual_increase_pct: Number(f.annual_increase_pct) || 0,
         current_annual_savings: Number(f.current_annual_savings) || 0, fund_balance: Number(f.fund_balance) || 0,
+        recommended_savings: f.recommended_savings.trim() ? Number(f.recommended_savings) : null,
         boa_sqm: f.boa_sqm ? Number(f.boa_sqm) : null, round_to: Number(f.round_to) || 1,
         source_note: f.source_note.trim() || null,
       }).eq("id", plan.id).select("id");
@@ -829,6 +897,7 @@ function Settings({ plan }: { plan: PlanWithNote }) {
           {field("Årlig uppräkning (%)", "annual_increase_pct")}
           {field("Boarea BOA (m²)", "boa_sqm")}
           {field("Nuvarande årlig avsättning (kr)", "current_annual_savings")}
+          {field("Rekommenderad avsättning per år (kr)", "recommended_savings")}
           {field("Saldo i underhållsfond vid start (kr)", "fund_balance")}
           {field("Avrunda belopp till (kr, 1 = ingen)", "round_to")}
         </div>
@@ -1053,7 +1122,7 @@ function ActionModal({
                     </select>
                   </div>
                 </div>
-                <div><label style={labelStyle}>Märkning</label><input style={inputStyle} value={f.label} onChange={set("label")} placeholder="t.ex. Ta hjälp av projektledare" /></div>
+                <div><label style={labelStyle}>Märkning</label><input style={inputStyle} value={f.label} onChange={set("label")} placeholder="t.ex. Ta hjälp av BAYT för projektledning" /></div>
                 <div><label style={labelStyle}>Beskrivning</label><textarea style={textareaStyle} rows={5} value={f.description} onChange={set("description")} /></div>
                 <div style={{ fontSize: 13, color: COLORS.secondary }}>
                   Per tillfälle {withVat ? "inkl." : "exkl."} moms: <strong>{kr(preview)}</strong>
