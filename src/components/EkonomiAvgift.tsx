@@ -279,6 +279,7 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
   const finalCum = planRows.length ? planRows[planRows.length - 1].cum : 0;
   const finalExtra = planRows.length ? planRows[planRows.length - 1].extraYear : 0;
   const gapCovered = haveGap && finalExtra >= gap;
+  const planDesc = stepsP.map((s) => `${pc(s.pct)} från ${ymLabel(s.from)}`).join(", ");
 
   function solve() {
     if (!haveCash || fees <= 0) return;
@@ -386,6 +387,17 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
                 {baseBad
                   ? "En avgiftshöjning löser underhållsbehovet på sikt men räcker inte i tid för att fylla kassan på våren."
                   : "Kassan håller sig över bufferten."}
+              </div>
+            )}
+            {haveCash && lowest && hasPlan && (
+              <div style={{ marginTop: 10, background: liqBad ? "rgba(122,20,38,0.5)" : "rgba(92,184,74,0.18)", border: `1px solid ${liqBad ? HOT : GOLD}`, borderRadius: 10, padding: "10px 14px", fontSize: 14.5, color: liqBad ? BEIGE : "#d6efcf" }}>
+                <strong style={{ color: GOLD }}>Med din avgiftsplan ({planDesc}, {pc(finalCum)} totalt):</strong> kassan når som lägst {mkr2(lowest.bal)} i {ymLabel(lowest.ym)}
+                {liqBad ? ", under bufferten." : ", över bufferten."}{" "}
+                {gap > 0
+                  ? gapCovered
+                    ? `Underhållsgapet täcks, ${kr(finalExtra - gap)} per år över.`
+                    : `Underhållsgapet täcks inte, det saknas ${kr(gap - finalExtra)} per år.`
+                  : ""}
               </div>
             )}
           </>
