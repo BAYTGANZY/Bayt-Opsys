@@ -1,8 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { sanitizeStorageName } from "@/lib/storage";
+import { EkonomiImport, FIELDS, EXTRA_LABELS, downloadTemplate } from "@/components/EkonomiImport";
 
 const INK = "#0D2B1E";
 const MUTED = "#6B7280";
@@ -48,8 +50,9 @@ const FEEDS: Array<{ type: string; figures: string }> = [
 
 const fmtSize = (n: number | null) => (n == null ? "" : n > 1e6 ? `${(n / 1e6).toFixed(1).replace(".", ",")} MB` : `${Math.max(1, Math.round(n / 1e3))} kB`);
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("sv-SE", { day: "numeric", month: "short", year: "numeric" });
+const fmtVal = (v: unknown) => (typeof v === "number" ? v.toLocaleString("sv-SE") : v == null ? "—" : String(v));
 
-async function openDoc(d: Doc) {
+async function openDoc(d: { file_path: string }) {
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(d.file_path, 600);
   if (error || !data?.signedUrl) return void toast.error("Kunde inte öppna filen.");
   window.open(data.signedUrl, "_blank", "noopener");
@@ -64,6 +67,7 @@ export function EkonomiUnderlag({ propertyId }: { propertyId: string }) {
   const [note, setNote] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [filter, setFilter] = useState("alla");
+  const [importDoc, setImportDoc] = useState<Doc | null>(null);
 
   const q = useQuery({
     queryKey: ["pdocs", propertyId],
@@ -79,12 +83,22 @@ export function EkonomiUnderlag({ propertyId }: { propertyId: string }) {
   });
   const docs = q.data ?? [];
 
+  const finQ = useQuery({
+    queryKey: ["pfin", propertyId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("property_finance").select("*").eq("property_id", propertyId).maybeSingle();
+      if (error) throw error;
+      return (data as Record<string, any> | null) ?? null;
+    },
+  });
+  const fin = finQ.data ?? null;
+  const fs = (fin?.field_sources ?? {}) as Record<string, { doc_id: string; title: string; note?: string; at?: string }>;
+
   const upload = useMutation({
     mutationFn: async () => {
       if (!file) throw new Error("Välj en fil först.");
       if (file.size > MAX_BYTES) throw new Error("Filen är för stor (max 25 MB).");
-      const ok = /\.(pdf|xlsx|xls|csv)$/i.test(file.name);
-      if (!ok) throw new Error("Bara PDF, Excel (.xlsx/.xls) och CSV tillåts.");
+      if (!/\.(pdf|xlsx|xls|csv)$/i.test(file.name)) throw new Error("Bara PDF, Excel (.xlsx/.xls) och CSV tillåts.");
       const path = `${propertyId}/${crypto.randomUUID()}-${sanitizeStorageName(file.name)}`;
       const up = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type || undefined });
       if (up.error) throw new Error("Uppladdningen misslyckades.");
@@ -127,12 +141,19 @@ export function EkonomiUnderlag({ propertyId }: { propertyId: string }) {
 
   const latest = (t: string) => docs.find((d) => d.doc_type === t) ?? null;
   const shown = filter === "alla" ? docs : docs.filter((d) => d.doc_type === filter);
+  const canImport = (d: Doc) => d.doc_type !== "underhallsplan" && d.doc_type !== "offert";
+
+  const sourcedFields = FIELDS.filter((f) => fs[f.key]);
+  const unsourced = FIELDS.filter((f) => !fs[f.key] && fin?.[f.key] != null && fin?.[f.key] !== "");
+  const extraKeys = Object.keys(EXTRA_LABELS).filter((k) => fs[k]);
 
   const dInp: React.CSSProperties = {
     height: 40, padding: "0 12px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.18)",
     background: "rgba(255,255,255,0.08)", color: "#fff", font: "inherit", fontSize: 14, width: "100%", boxSizing: "border-box",
   };
   const dLab: React.CSSProperties = { fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "#9fb79f" };
+  const cardStyle: React.CSSProperties = { background: "#fff", border: `1px solid ${LINE}`, borderRadius: 14, padding: "16px 18px" };
+  const h3: React.CSSProperties = { fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 20, fontWeight: 700, margin: 0, color: INK };
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -151,7 +172,7 @@ export function EkonomiUnderlag({ propertyId }: { propertyId: string }) {
           </span>
           <div style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 26, fontWeight: 800, color: "#fff" }}>Underlag</div>
           <div style={{ fontSize: 14, color: "#c9d8c3", margin: "6px 0 16px", lineHeight: 1.6 }}>
-            Ladda upp dokumenten som siffrorna bygger på. Varje grupp av siffror visar nedan vilket underlag den vilar på, så att styrelse och bank kan följa uträkningen hela vägen.
+            Ladda upp dokumenten som siffrorna bygger på. Excel och CSV läses in exakt, PDF tolkas med AI och granskas av dig. Varje importerad siffra får dokumentet som källa.
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10 }}>
@@ -178,13 +199,7 @@ export function EkonomiUnderlag({ propertyId }: { propertyId: string }) {
           </div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginTop: 14 }}>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".pdf,.xlsx,.xls,.csv,application/pdf"
-              style={{ display: "none" }}
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            />
+            <input ref={fileRef} type="file" accept=".pdf,.xlsx,.xls,.csv,application/pdf" style={{ display: "none" }} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
@@ -200,16 +215,24 @@ export function EkonomiUnderlag({ propertyId }: { propertyId: string }) {
             >
               {upload.isPending ? "Laddar upp…" : "Spara underlag"}
             </button>
+            <button
+              type="button"
+              onClick={() => void downloadTemplate().catch((e: Error) => toast.error(e.message))}
+              style={{ height: 44, padding: "0 20px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.3)", background: "transparent", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              Ladda ner Excel-mall
+            </button>
             <span style={{ fontSize: 12.5, color: "#9fb79f" }}>Max 25 MB. Filerna är privata och syns bara för admin.</span>
           </div>
         </div>
       </div>
 
+      {/* Import */}
+      {importDoc && <EkonomiImport key={importDoc.id} propertyId={propertyId} doc={importDoc} onClose={() => setImportDoc(null)} />}
+
       {/* Siffror och deras källor */}
-      <div style={{ background: "#fff", border: `1px solid ${LINE}`, borderRadius: 14, padding: "16px 18px" }}>
-        <h3 style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 20, fontWeight: 700, margin: "0 0 4px", color: INK }}>
-          Så här är siffrorna grundade
-        </h3>
+      <div style={cardStyle}>
+        <h3 style={{ ...h3, marginBottom: 4 }}>Så här är siffrorna grundade</h3>
         <div style={{ fontSize: 13, color: MUTED, marginBottom: 12 }}>Senaste uppladdade underlag per typ av siffra.</div>
         <div style={{ display: "grid", gap: 8 }}>
           {FEEDS.map((f) => {
@@ -240,12 +263,56 @@ export function EkonomiUnderlag({ propertyId }: { propertyId: string }) {
         </div>
       </div>
 
+      {/* Källa per siffra */}
+      <div style={cardStyle}>
+        <h3 style={{ ...h3, marginBottom: 4 }}>Källa per siffra</h3>
+        <div style={{ fontSize: 13, color: MUTED, marginBottom: 12 }}>Siffror som kommit in via import och vilket dokument de bygger på.</div>
+        {sourcedFields.length + extraKeys.length === 0 && (
+          <div style={{ fontSize: 14, color: MUTED }}>Ingen import är gjord ännu. Tryck "Läs in siffror" på ett dokument i arkivet.</div>
+        )}
+        <div style={{ display: "grid", gap: 6 }}>
+          {sourcedFields.map((f) => {
+            const s = fs[f.key];
+            const d = docs.find((x) => x.id === s.doc_id);
+            return (
+              <div key={f.key} style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center", padding: "8px 12px", border: `1px solid ${LINE}`, borderRadius: 10 }}>
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ fontWeight: 700 }}>{f.label.replace(/ \(.*\)$/, "")}</span>: {fmtVal(fin?.[f.key])}
+                  <div style={{ fontSize: 12.5, color: MUTED }}>Källa: {s.title}{s.note ? ` · ${s.note}` : ""}{s.at ? ` · ${fmtDate(s.at)}` : ""}</div>
+                </div>
+                {d ? (
+                  <button type="button" className="fp-btn" style={{ height: 32 }} onClick={() => void openDoc(d)}>Öppna</button>
+                ) : (
+                  <span style={{ fontSize: 12.5, color: HOT }}>Dokumentet är borttaget</span>
+                )}
+              </div>
+            );
+          })}
+          {extraKeys.map((k) => {
+            const s = fs[k];
+            const d = docs.find((x) => x.id === s.doc_id);
+            return (
+              <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center", padding: "8px 12px", border: `1px solid ${LINE}`, borderRadius: 10 }}>
+                <div>
+                  <span style={{ fontWeight: 700 }}>{EXTRA_LABELS[k]}</span>
+                  <div style={{ fontSize: 12.5, color: MUTED }}>Källa: {s.title}{s.note ? ` · ${s.note}` : ""}{s.at ? ` · ${fmtDate(s.at)}` : ""}</div>
+                </div>
+                {d && <button type="button" className="fp-btn" style={{ height: 32 }} onClick={() => void openDoc(d)}>Öppna</button>}
+              </div>
+            );
+          })}
+        </div>
+        {unsourced.length > 0 && (
+          <div style={{ marginTop: 12, fontSize: 13, color: "#B45309", lineHeight: 1.6 }}>
+            Utan källhänvisning (inlagda för hand): {unsourced.map((f) => f.label.replace(/ \(.*\)$/, "")).join(", ")}.
+          </div>
+        )}
+      </div>
+
       {/* Arkiv */}
-      <div style={{ background: "#fff", border: `1px solid ${LINE}`, borderRadius: 14, padding: "16px 18px" }}>
+      <div style={cardStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
-          <h3 style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 20, fontWeight: 700, margin: 0, color: INK }}>
-            Arkiv ({docs.length})
-          </h3>
+          <h3 style={h3}>Arkiv ({docs.length})</h3>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {[{ key: "alla", label: "Alla" }, ...DOC_TYPES].map((t) => (
               <button
@@ -282,7 +349,20 @@ export function EkonomiUnderlag({ propertyId }: { propertyId: string }) {
                 </div>
                 {d.note && <div style={{ fontSize: 13, color: "#374151", marginTop: 4 }}>{d.note}</div>}
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {canImport(d) && (
+                  <button
+                    type="button"
+                    className="fp-btn fp-primary"
+                    style={{ height: 34 }}
+                    onClick={() => {
+                      setImportDoc(d);
+                      window.scrollTo({ top: document.getElementById("underlag")?.offsetTop ?? 0, behavior: "smooth" });
+                    }}
+                  >
+                    Läs in siffror
+                  </button>
+                )}
                 <button type="button" className="fp-btn" style={{ height: 34 }} onClick={() => void openDoc(d)}>Öppna</button>
                 <button
                   type="button"
