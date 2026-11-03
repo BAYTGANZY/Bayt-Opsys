@@ -18,6 +18,8 @@ const GOLD_SOFT = "rgba(232,196,100,0.16)";
 type Loan = { date: string; amount: number; rate: number };
 type Payment = { date: string; amount: number; label: string };
 type Item = { label: string; amount: number; from: string; to: string };
+type Step = { from: string; pct: string };
+type StepN = { from: string; pct: number };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Finance = Record<string, any>;
@@ -39,6 +41,12 @@ function addMonths(ym: string, n: number): string {
 }
 const ymLabel = (ym: string) => `${MONTHS[Number(ym.slice(5, 7)) - 1]} ${ym.slice(2, 4)}`;
 const isYm = (s: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(s);
+
+const parseSteps = (list: Step[]): StepN[] =>
+  list
+    .map((s) => ({ from: s.from.trim(), pct: num(s.pct.replace(",", ".")) }))
+    .filter((s) => isYm(s.from) && s.pct !== 0)
+    .sort((a, b) => a.from.localeCompare(b.from));
 
 function parseLoans(text: string): Loan[] {
   return text
@@ -89,11 +97,11 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
   const [editing, setEditing] = useState(false);
   // Likviditetsscenario (sparas inte)
   const [horizon, setHorizon] = useState("12");
-  const [incPct, setIncPct] = useState("0");
-  const [incFrom, setIncFrom] = useState("2027-01");
+  const [steps, setSteps] = useState<Step[]>([{ from: "2027-01", pct: "0" }]);
   const [loanAmt, setLoanAmt] = useState("0");
   const [loanMonth, setLoanMonth] = useState("2027-01");
   const [ratePp, setRatePp] = useState("0");
+  const [rateFrom, setRateFrom] = useState("2027-01");
   const [solveMsg, setSolveMsg] = useState<string | null>(null);
 
   const finQ = useQuery({
@@ -209,10 +217,15 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
   const startYm = haveCash ? String(fin.cash_date).slice(0, 7) : "";
   const savedRatePp = num(fin.rate_change_pp);
   const savedRateFrom = isYm(String(fin.rate_change_from ?? "")) ? String(fin.rate_change_from) : "2027-01";
-  const incP = num(incPct.replace(",", "."));
   const loanA = num(loanAmt.replace(/\s/g, ""));
   const tryPp = num(ratePp.replace(",", "."));
+  const rateFromYm = isYm(rateFrom.trim()) ? rateFrom.trim() : "2027-01";
   const HM = Math.min(24, Math.max(3, Math.round(num(horizon)) || 12));
+  const stepsP = parseSteps(steps);
+  const hasPlan = stepsP.length > 0;
+
+  /** Avgiftsfaktor en given månad: höjningarna staplas på varandra. */
+  const factorAt = (ym: string, st: StepN[]) => st.reduce((f, s) => (ym >= s.from ? f * (1 + s.pct / 100) : f), 1);
 
   /** Extra räntekostnad per månad: lånen prissätts om vid sin villkorsändring (eller vald startmånad om den är senare). */
   const extraInterest = (ym: string, pp: number, fromYm: string) =>
@@ -224,7 +237,7 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
           return ym >= start ? s + (l.amount * pp) / 100 / 12 : s;
         }, 0);
 
-  const simulate = (inc: number, from: string, loanAmount: number, loanYm: string, tryRate: number): LiqRow[] => {
+  const simulate = (st: StepN[], loanAmount: number, loanYm: string, tryRate: number, rFrom: string): LiqRow[] => {
     if (!haveCash) return [];
     let bal = cash0;
     const out: LiqRow[] = [];
@@ -232,10 +245,10 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
       const ym = addMonths(startYm, i);
       const pays = payments.filter((p) => p.date.slice(0, 7) === ym);
       const pay = pays.reduce((s, p) => s + p.amount, 0);
-      const add = inc > 0 && ym >= from ? (fees * inc) / 100 / 12 : 0;
+      const add = (fees / 12) * (factorAt(ym, st) - 1);
       const loan = loanAmount > 0 && ym === loanYm ? loanAmount : 0;
       const itm = items.reduce((s, it) => (isYm(it.from) && ym >= it.from && (!isYm(it.to) || ym <= it.to) ? s + it.amount : s), 0);
-      const interest = extraInterest(ym, savedRatePp, savedRateFrom) + extraInterest(ym, tryRate, from);
+      const interest = extraInterest(ym, savedRatePp, savedRateFrom) + extraInterest(ym, tryRate, rFrom);
       bal += monthly + itm - interest + add - pay + loan;
       out.push({ ym, bal, pay, payLabels: pays.map((p) => p.label), inc: add, loan, items: itm, interest });
     }
@@ -244,8 +257,8 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
   const minBal = (rows: LiqRow[]) => rows.reduce((m, r) => Math.min(m, r.bal), Infinity);
 
   // Scenariot (det användaren provar) och basfallet (sparade budgetposter och ränteantagande, inget mer).
-  const liq = simulate(incP, incFrom, loanA, loanMonth, tryPp);
-  const base = simulate(0, incFrom, 0, loanMonth, 0);
+  const liq = simulate(stepsP, loanA, loanMonth, tryPp, rateFromYm);
+  const base = simulate([], 0, loanMonth, 0, rateFromYm);
   const lowest = liq.reduce<LiqRow | null>((m, r) => (m == null || r.bal < m.bal ? r : m), null);
   const baseLowest = base.reduce<LiqRow | null>((m, r) => (m == null || r.bal < m.bal ? r : m), null);
   const underBuffer = liq.filter((r) => r.bal < buffer);
@@ -253,25 +266,51 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
   const liqBad = !!lowest && lowest.bal < buffer;
   const baseBad = !!baseLowest && baseLowest.bal < buffer;
 
+  // Sammanfattning av avgiftsplanen
+  const planRows = (() => {
+    let f = 1;
+    return stepsP.map((s) => {
+      f *= 1 + s.pct / 100;
+      const cum = (f - 1) * 100;
+      const extraYear = fees * (f - 1);
+      return { from: s.from, pct: s.pct, cum, extraYear, perLgh: perLghMonth(extraYear) };
+    });
+  })();
+  const finalCum = planRows.length ? planRows[planRows.length - 1].cum : 0;
+  const finalExtra = planRows.length ? planRows[planRows.length - 1].extraYear : 0;
+  const gapCovered = haveGap && finalExtra >= gap;
+
   function solve() {
     if (!haveCash || fees <= 0) return;
-    const ok = (p: number) => minBal(simulate(p, incFrom, loanA, loanMonth, tryPp)) >= buffer;
+    const firstFrom = steps[0]?.from.trim() ?? "";
+    if (!isYm(firstFrom)) {
+      setSolveMsg("Ange startmånad (ÅÅÅÅ-MM) på första raden i avgiftsplanen.");
+      return;
+    }
+    const others = parseSteps(steps.slice(1));
+    const ok = (p: number) => minBal(simulate([{ from: firstFrom, pct: p }, ...others].sort((a, b) => a.from.localeCompare(b.from)), loanA, loanMonth, tryPp, rateFromYm)) >= buffer;
+    const setFirst = (v: string) => setSteps((cur) => cur.map((s, i) => (i === 0 ? { ...s, pct: v } : s)));
     if (ok(0)) {
-      setIncPct("0");
-      setSolveMsg("Ingen höjning behövs för att hålla kassan över bufferten med dessa val.");
+      setFirst("0");
+      setSolveMsg("Ingen höjning på första raden behövs för att hålla kassan över bufferten med dessa val.");
       return;
     }
     for (let p = 0.1; p <= 60.0001; p += 0.1) {
       if (ok(p)) {
         const v = Math.round(p * 10) / 10;
-        setIncPct(String(v).replace(".", ","));
-        setSolveMsg(`Minst ${pc(v)} från ${incFrom} krävs för att kassan ska hålla sig över ${kr(buffer)} under ${HM} månader.`);
+        setFirst(String(v).replace(".", ","));
+        setSolveMsg(`Minst ${pc(v)} från ${firstFrom} (första raden) krävs för att kassan ska hålla sig över ${kr(buffer)} under ${HM} månader.`);
         return;
       }
     }
-    setIncPct("60");
+    setFirst("60");
     setSolveMsg("Bara en höjning räcker inte, eftersom den börjar verka för sent. Kombinera med lån, kredit eller förhandlad amortering.");
   }
+
+  const setStep = (i: number, k: keyof Step, v: string) => {
+    setSteps((cur) => cur.map((s, idx) => (idx === i ? { ...s, [k]: v } : s)));
+    setSolveMsg(null);
+  };
 
   const chart = (() => {
     if (liq.length === 0) return null;
@@ -333,7 +372,7 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
             <div style={{ fontSize: 14.5, lineHeight: 1.7, color: "#c9d8c3" }}>
               Uträkning: Nabo rekommenderar <strong style={{ color: "#fff" }}>{kr(recommended)}</strong> per år, föreningen sätter av{" "}
               <strong style={{ color: "#fff" }}>{kr(current)}</strong>. Gapet är <strong style={{ color: "#fff" }}>{kr(gap)}</strong> per år, delat med årsavgifterna{" "}
-              <strong style={{ color: "#fff" }}>{kr(fees)}</strong> blir <strong style={{ color: "#fff" }}>{pc(pct)}</strong>.
+              <strong style={{ color: "#fff" }}>{kr(fees)}</strong> blir <strong style={{ color: "#fff" }}>{pc(pct)}</strong>. Det är en nivå att nå, inte en höjning som upprepas varje år.
             </div>
             {gap > 0 && resArea > 0 && (
               <div style={{ marginTop: 10, fontSize: 14, color: "#c9d8c3" }}>
@@ -365,7 +404,7 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
           <div style={{ fontSize: 14, color: MUTED, marginBottom: 12, lineHeight: 1.6 }}>
             Utgår från kassan {kr(cash0)} den {String(fin.cash_date)}, ett löpande nettoflöde på {kr(monthly)} per månad, {items.length} budgetposter{savedRatePp !== 0 ? `, ränteantagande ${savedRatePp > 0 ? "+" : ""}${String(savedRatePp).replace(".", ",")} procentenheter` : ""} och kända utbetalningar.
             Bufferten {kr(buffer)} motsvarar ungefär en månads utgifter.
-            {(incP > 0 || loanA > 0 || tryPp !== 0) && <strong> Diagrammet visar scenariot du provar nedan.</strong>}
+            {(hasPlan || loanA > 0 || tryPp !== 0) && <strong> Diagrammet visar scenariot du provar nedan.</strong>}
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 14 }}>
@@ -378,13 +417,97 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
 
           <div style={{ background: "#F7F9F6", border: `1px solid ${LINE}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
             <div style={{ fontWeight: 700, marginBottom: 8 }}>Prova åtgärder</div>
+
+            {/* Avgiftsplan per år */}
+            <div style={{ background: "#fff", border: `1px solid ${GOLD}`, borderRadius: 12, padding: 12, marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+                <div>
+                  <span style={{ display: "inline-block", fontSize: 10.5, fontWeight: 800, letterSpacing: "0.14em", color: INK, background: GOLD, borderRadius: 999, padding: "2px 9px", marginBottom: 4 }}>AVGIFTSPLAN PER ÅR</span>
+                  <div style={{ fontSize: 13, color: MUTED }}>Höjningarna staplas: varje procent räknas på avgiften efter föregående höjning.</div>
+                </div>
+                <button
+                  type="button"
+                  className="fp-btn"
+                  style={{ height: 32 }}
+                  onClick={() => {
+                    setSteps([{ from: "2027-01", pct: "20" }, { from: "2028-01", pct: "4,5" }]);
+                    setSolveMsg(null);
+                  }}
+                >
+                  Förslag: 20 % 2027, 4,5 % 2028
+                </button>
+              </div>
+              <div style={{ display: "grid", gap: 8 }}>
+                {steps.map((s, i) => (
+                  <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(120px, 1fr) minmax(120px, 1fr) auto", gap: 8, alignItems: "end" }}>
+                    <label><span style={lab}>Gäller från (ÅÅÅÅ-MM)</span><input style={inp} value={s.from} onChange={(e) => setStep(i, "from", e.target.value)} placeholder="2027-01" /></label>
+                    <label><span style={lab}>Höjning (%)</span><input style={inp} value={s.pct} onChange={(e) => setStep(i, "pct", e.target.value)} inputMode="decimal" placeholder="20" /></label>
+                    <button
+                      type="button"
+                      className="fp-btn fp-danger"
+                      style={{ height: 38, width: 38, padding: 0 }}
+                      aria-label="Ta bort raden"
+                      disabled={steps.length === 1}
+                      onClick={() => { setSteps((cur) => cur.filter((_, idx) => idx !== i)); setSolveMsg(null); }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <button
+                  type="button"
+                  className="fp-btn"
+                  style={{ height: 32 }}
+                  onClick={() => {
+                    const last = steps[steps.length - 1]?.from.trim() ?? "";
+                    setSteps((cur) => [...cur, { from: isYm(last) ? addMonths(last, 12) : "2028-01", pct: "" }]);
+                  }}
+                >
+                  + Lägg till år
+                </button>
+              </div>
+
+              {planRows.length > 0 && (
+                <div style={{ overflowX: "auto", marginTop: 12 }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
+                    <thead>
+                      <tr>
+                        {["Från", "Steg", "Totalt hittills", "Extra intäkt per år", "Per lgh och månad"].map((h) => (
+                          <th key={h} style={{ ...lab, textAlign: "left", padding: "5px 8px", borderBottom: `1px solid ${LINE}` }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {planRows.map((r) => (
+                        <tr key={r.from}>
+                          <td style={{ padding: "6px 8px", borderBottom: `1px solid ${LINE}`, fontWeight: 600 }}>{ymLabel(r.from)}</td>
+                          <td style={{ padding: "6px 8px", borderBottom: `1px solid ${LINE}` }}>{pc(r.pct)}</td>
+                          <td style={{ padding: "6px 8px", borderBottom: `1px solid ${LINE}`, fontWeight: 700 }}>{pc(r.cum)}</td>
+                          <td style={{ padding: "6px 8px", borderBottom: `1px solid ${LINE}` }}>{kr(r.extraYear)}</td>
+                          <td style={{ padding: "6px 8px", borderBottom: `1px solid ${LINE}` }}>{Math.round(r.perLgh).toLocaleString("sv-SE")} kr</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {haveGap && gap > 0 && (
+                    <div style={{ marginTop: 8, padding: "8px 12px", borderRadius: 8, fontSize: 14, fontWeight: 600, background: gapCovered ? "rgba(92,184,74,0.14)" : "#FEF3F3", color: gapCovered ? "#2E6B24" : RED, border: `1px solid ${gapCovered ? "#C9D8C3" : "#F1C0C0"}` }}>
+                      {gapCovered
+                        ? `Planen når ${pc(finalCum)} totalt och täcker underhållsgapet (${pc(pct)}) med ${kr(finalExtra - gap)} per år över.`
+                        : `Planen når ${pc(finalCum)} totalt, men underhållsgapet kräver ${pc(pct)}. Det saknas ${kr(gap - finalExtra)} per år.`}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10 }}>
               <label><span style={lab}>Antal månader (3–24)</span><input style={inp} value={horizon} onChange={(e) => { setHorizon(e.target.value); setSolveMsg(null); }} inputMode="numeric" /></label>
-              <label><span style={lab}>Avgiftshöjning (%)</span><input style={inp} value={incPct} onChange={(e) => { setIncPct(e.target.value); setSolveMsg(null); }} inputMode="decimal" /></label>
-              <label><span style={lab}>Gäller från (ÅÅÅÅ-MM)</span><input style={inp} value={incFrom} onChange={(e) => { setIncFrom(e.target.value); setSolveMsg(null); }} /></label>
               <label><span style={lab}>Lån eller kredit (kr)</span><input style={inp} value={loanAmt} onChange={(e) => { setLoanAmt(e.target.value); setSolveMsg(null); }} inputMode="numeric" /></label>
               <label><span style={lab}>Utbetalas (ÅÅÅÅ-MM)</span><input style={inp} value={loanMonth} onChange={(e) => { setLoanMonth(e.target.value); setSolveMsg(null); }} /></label>
               <label><span style={lab}>Extra ränteökning (procentenheter)</span><input style={inp} value={ratePp} onChange={(e) => { setRatePp(e.target.value); setSolveMsg(null); }} inputMode="decimal" /></label>
+              <label><span style={lab}>Ränteökning från (ÅÅÅÅ-MM)</span><input style={inp} value={rateFrom} onChange={(e) => { setRateFrom(e.target.value); setSolveMsg(null); }} /></label>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
               {[6, 12, 18, 24].map((m) => (
@@ -401,7 +524,7 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
                 type="button"
                 className="fp-btn"
                 onClick={() => {
-                  setIncPct("0");
+                  setSteps([{ from: "2027-01", pct: "0" }]);
                   setLoanAmt("0");
                   setRatePp("0");
                   setSolveMsg(null);
@@ -409,20 +532,15 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
               >
                 Nollställ
               </button>
-              <span style={{ fontSize: 13, color: MUTED }}>Hittar lägsta höjningen från vald månad som håller kassan över bufferten, med lån och ränta ovan inräknade.</span>
+              <span style={{ fontSize: 13, color: MUTED }}>Räknar fram höjningen på första raden i planen som håller kassan över bufferten. Övriga rader, lån och ränta räknas med.</span>
             </div>
             {solveMsg && (
               <div style={{ marginTop: 10, padding: "9px 12px", borderRadius: 8, background: "#fff", border: `1px solid ${LINE}`, fontSize: 14, fontWeight: 600, color: INK }}>
                 {solveMsg}
               </div>
             )}
-            {incP > 0 && (
-              <div style={{ fontSize: 13, color: MUTED, marginTop: 8 }}>
-                {pc(incP)} höjning ger ca {kr((fees * incP) / 100 / 12)} mer per månad från {incFrom}.
-              </div>
-            )}
             {tryPp !== 0 && debt > 0 && (
-              <div style={{ fontSize: 13, color: MUTED, marginTop: 4 }}>
+              <div style={{ fontSize: 13, color: MUTED, marginTop: 8 }}>
                 {String(tryPp).replace(".", ",")} procentenheter på {mkr(debt)} lån är ca {kr((debt * tryPp) / 100 / 12)} per månad när alla lån prissatts om.
               </div>
             )}
