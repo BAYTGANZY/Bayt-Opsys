@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { kr, occurrences, type Action, type Plan } from "@/lib/maintenance";
+import { EkonomiUnderlag } from "@/components/EkonomiUnderlag";
 
 const INK = "#0D2B1E";
 const GREEN = "#3D8A30";
@@ -365,7 +366,6 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
             Utgår från kassan {kr(cash0)} den {String(fin.cash_date)}, ett löpande nettoflöde på {kr(monthly)} per månad, {items.length} budgetposter{savedRatePp !== 0 ? `, ränteantagande ${savedRatePp > 0 ? "+" : ""}${String(savedRatePp).replace(".", ",")} procentenheter` : ""} och kända utbetalningar.
             Bufferten {kr(buffer)} motsvarar ungefär en månads utgifter.
             {(incP > 0 || loanA > 0 || tryPp !== 0) && <strong> Diagrammet visar scenariot du provar nedan.</strong>}
-            {HM > 18 && <> Långa prognoser bygger på ett jämnt månadsflöde och ska läsas som riktning, inte exakta belopp.</>}
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 14 }}>
@@ -428,12 +428,12 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
             )}
           </div>
 
-          <div style={{ overflowX: "auto", maxHeight: HM > 24 ? 520 : undefined, overflowY: HM > 24 ? "auto" : undefined }}>
+          <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
               <thead>
                 <tr>
                   {["Månad", "Utbetalningar", "Budgetposter / ränta", "Tillskott", "Kassa vid månadens slut"].map((h) => (
-                    <th key={h} style={{ ...lab, textAlign: "left", padding: "6px 8px", borderBottom: `1px solid ${LINE}`, position: "sticky", top: 0, background: liqBad ? "#FEF8F8" : "#fff" }}>{h}</th>
+                    <th key={h} style={{ ...lab, textAlign: "left", padding: "6px 8px", borderBottom: `1px solid ${LINE}` }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -619,6 +619,11 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
           {fin.decided_increase_pct != null && <li>Redan beslutad avgiftsjustering: {num(fin.decided_increase_pct)} %.</li>}
         </ul>
         {fin.notes && <div style={{ fontSize: 13, color: MUTED, marginTop: 10 }}>{fin.notes}</div>}
+      </div>
+
+      {/* Underlag */}
+      <div id="underlag">
+        <EkonomiUnderlag propertyId={propertyId} />
       </div>
 
       <div style={{ fontSize: 12.5, color: MUTED, lineHeight: 1.6 }}>
