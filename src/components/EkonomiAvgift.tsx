@@ -220,7 +220,7 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
   const loanA = num(loanAmt.replace(/\s/g, ""));
   const tryPp = num(ratePp.replace(",", "."));
   const rateFromYm = isYm(rateFrom.trim()) ? rateFrom.trim() : "2027-01";
-  const HM = Math.min(24, Math.max(3, Math.round(num(horizon)) || 12));
+  const HM = Math.min(48, Math.max(3, Math.round(num(horizon)) || 12));
   const stepsP = parseSteps(steps);
   const hasPlan = stepsP.length > 0;
 
@@ -515,14 +515,14 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10 }}>
-              <label><span style={lab}>Antal månader (3–24)</span><input style={inp} value={horizon} onChange={(e) => { setHorizon(e.target.value); setSolveMsg(null); }} inputMode="numeric" /></label>
+              <label><span style={lab}>Antal månader (3–48)</span><input style={inp} value={horizon} onChange={(e) => { setHorizon(e.target.value); setSolveMsg(null); }} inputMode="numeric" /></label>
               <label><span style={lab}>Lån eller kredit (kr)</span><input style={inp} value={loanAmt} onChange={(e) => { setLoanAmt(e.target.value); setSolveMsg(null); }} inputMode="numeric" /></label>
               <label><span style={lab}>Utbetalas (ÅÅÅÅ-MM)</span><input style={inp} value={loanMonth} onChange={(e) => { setLoanMonth(e.target.value); setSolveMsg(null); }} /></label>
               <label><span style={lab}>Extra ränteökning (procentenheter)</span><input style={inp} value={ratePp} onChange={(e) => { setRatePp(e.target.value); setSolveMsg(null); }} inputMode="decimal" /></label>
               <label><span style={lab}>Ränteökning från (ÅÅÅÅ-MM)</span><input style={inp} value={rateFrom} onChange={(e) => { setRateFrom(e.target.value); setSolveMsg(null); }} /></label>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-              {[6, 12, 18, 24].map((m) => (
+              {[6, 12, 24, 36, 48].map((m) => (
                 <button key={m} type="button" className="fp-btn" style={{ height: 32, padding: "0 12px", ...(HM === m ? { background: INK, color: "#fff", borderColor: INK } : {}) }} onClick={() => { setHorizon(String(m)); setSolveMsg(null); }}>
                   {m} mån
                 </button>
