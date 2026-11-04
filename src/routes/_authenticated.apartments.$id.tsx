@@ -23,6 +23,7 @@ import {
 import { LoggbokFilterBar, loggbokEmptyText, useLoggbokFilter } from "@/components/LoggbokFilterBar";
 import { actionKindOf, actionKindLabel } from "@/lib/logbook";
 import { ApartmentAuditTimeline } from "@/components/ApartmentAuditTimeline";
+import { ApartmentSublet } from "@/components/ApartmentSublet";
 import { useRecordScopeGuard } from "@/hooks/useRecordScopeGuard";
 import { useMyArendeScope, useMyContactId } from "@/hooks/useMyContactId";
 import { canEdit } from "@/lib/permissions";
@@ -664,6 +665,16 @@ function InfoTab({ apt, isMobile }: { apt: Apartment; isMobile: boolean }) {
         </div>
       )}
       </form>
+
+      {/* Andrahand sits OUTSIDE the <form> too. Admin-only: the component
+          renders nothing for other roles, and the table is admin-only (RLS). */}
+      {apt.property_id && (
+        <ApartmentSublet
+          propertyId={apt.property_id}
+          apartmentId={apt.id}
+          memberName={apt.tenant_name}
+        />
+      )}
 
       {/* Kopplade objekt sits OUTSIDE the <form> too, same reasoning as
           Historik below — "Koppla bort" is a button of its own. */}
