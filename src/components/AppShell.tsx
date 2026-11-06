@@ -53,6 +53,7 @@ const SECTIONS: NavSection[] = [
       { to: "/dag-rapport", label: "Dag Rapport", icon: CalendarCheckIn01Icon },
       { to: "/dashboard", label: "Översikt", icon: DashboardSquare01Icon },
       { to: "/chatt", label: "Chatt", icon: Chatting01Icon },
+      { to: "/hemsidechatt", label: "Hemsidechatt", icon: <SAMMA-IKON-SOM-CHATT> },
     ],
   },
   {
