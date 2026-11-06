@@ -1,9 +1,5 @@
-import { useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { HeroBell } from "@/components/HomeKit";
-
-const DAY_IMG = `${import.meta.env.BASE_URL}assets/hero-day.jpg`;
-const NIGHT_IMG = `${import.meta.env.BASE_URL}assets/hero-night.jpg`;
 
 export type HeroTile = {
   label: string;
@@ -24,107 +20,120 @@ export type HeroNext = {
 };
 export type HeroChip = { id: string; name: string; level: "ok" | "warn" | "bad" };
 
+/**
+ * Startsidornas hjälte: bara text, inga bilder.
+ * BAYT-uttrycket kommer från guldlinjen överst, den korta färgstaplen på varje ruta
+ * och den svaga takkonturen i hörnet (samma form som A:et i loggan).
+ * Allt under hjälten (rubriker, paneler, fastighetskort) får samma språk via reglerna längst ned.
+ */
 export const HERO_STYLES = `
   .id-hero {
-    position: relative; margin-top: 8px; border-radius: 26px; min-height: 600px;
-    background: radial-gradient(ellipse at 30% 45%, #21503f 0%, #0f2a21 55%, #0b1d17 100%);
-    border: 1px solid rgba(255,255,255,0.08);
-    display: grid; grid-template-columns: minmax(0, 400px) minmax(0, 1fr); grid-template-rows: 1fr; gap: 28px; align-items: start;
-    padding: 40px 44px 96px; perspective: 1200px;
+    position: relative; margin-top: 8px; border-radius: 24px; padding: 34px 38px 30px;
+    background: linear-gradient(160deg, #163a2d 0%, #0f2a21 55%, #0b1d17 100%);
+    border: 1px solid rgba(255,255,255,0.08); border-top: 3px solid #E8C464;
+    display: grid; gap: 22px;
   }
-  /* Bara bilderna klipps, så att klockans meny kan sticka ut ur hjälten. */
-  .id-clip { position: absolute; inset: 0; z-index: 0; overflow: hidden; border-radius: 25px; pointer-events: none; }
-  .id-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  .id-photo.night { opacity: 0; animation: idDayNight 18s ease-in-out infinite alternate; }
-  @keyframes idDayNight { 0%, 25% { opacity: 0; } 75%, 100% { opacity: 1; } }
-  .id-shade {
-    position: absolute; inset: 0;
-    background: linear-gradient(90deg, rgba(8,22,17,0.70) 0%, rgba(8,22,17,0.30) 55%, rgba(8,22,17,0.55) 100%),
-                linear-gradient(0deg, rgba(8,22,17,0.85) 0%, rgba(8,22,17,0) 38%);
-  }
-  .id-col-l { position: relative; z-index: 2; grid-column: 1; grid-row: 1; display: grid; gap: 14px; }
-  .id-col-r { position: relative; z-index: 60; grid-column: 2; grid-row: 1; }
+  /* Takkontur i hörnet. Dekoration, bara linjer. */
+  .id-roof { position: absolute; right: 0; top: 0; width: 380px; height: 230px; pointer-events: none; overflow: hidden; border-radius: 0 24px 0 0; }
+  .id-roof svg { position: absolute; right: 70px; top: 40px; width: 420px; height: auto; }
 
-  .id-glass {
-    background: rgba(14,31,26,0.58); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.14); border-radius: 22px;
-    box-shadow: 0 24px 50px -20px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.12);
-    transform: perspective(1000px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
-    transition: transform 0.25s ease-out;
-  }
-  .id-col-l .id-glass { transform: perspective(1000px) rotateX(calc(var(--rx, 0deg) * -0.8)) rotateY(calc(var(--ry, 0deg) * -0.8)); }
-
-  .id-main { padding: 22px 26px; }
-  .id-hello { color: #5CB84A; font-size: 15px; font-weight: 600; margin: 0 0 6px; }
-  .id-headline { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 32px; line-height: 1.1; font-weight: 600; margin: 0 0 10px; }
+  .id-top { position: relative; z-index: 60; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: start; }
+  .id-hello { display: inline-flex; align-items: center; gap: 10px; color: #E8C464; font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin: 0 0 12px; }
+  .id-hello::before { content: ""; width: 26px; height: 2px; background: #E8C464; border-radius: 2px; }
+  .id-headline { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 46px; line-height: 1.05; font-weight: 600; margin: 0 0 12px; color: #f2f7ec; letter-spacing: -0.01em; }
   .id-headline.bad { color: #F2E3BC; }
-  .id-sub { font-size: 14.5px; line-height: 1.55; color: #c9d6c3; margin: 0; }
+  .id-sub { font-size: 16px; line-height: 1.55; color: #bccdb6; margin: 0; max-width: 640px; }
 
-  .id-bellslot { display: flex; justify-content: flex-end; padding-right: 6px; }
+  .id-bellslot { display: flex; justify-content: flex-end; }
   .id-bellslot .hk-herobell { position: static; transform: none; flex-direction: row-reverse; gap: 12px; }
   .id-bellslot .hk-bell-label { display: block; }
   .id-bellslot .hk-bellring { position: relative; }
   .id-bellslot .hk-bellring [role="dialog"] { top: calc(100% + 14px) !important; right: 0 !important; left: auto !important; }
-  .id-bellslot .hk-bellring button[aria-label] { width: 72px !important; height: 72px !important; min-width: 72px !important; min-height: 72px !important; }
-  .id-bellslot .hk-bellring button[aria-label] svg { width: 34px; height: 34px; }
-  .id-bellslot .hk-bellring button[aria-label] > span { min-width: 24px !important; height: 24px !important; font-size: 12px !important; }
+  .id-bellslot .hk-bellring button[aria-label] { width: 64px !important; height: 64px !important; min-width: 64px !important; min-height: 64px !important; }
+  .id-bellslot .hk-bellring button[aria-label] svg { width: 30px; height: 30px; }
+  .id-bellslot .hk-bellring button[aria-label] > span { min-width: 22px !important; height: 22px !important; font-size: 11.5px !important; }
 
-  .id-next { padding: 20px 22px; display: block; text-decoration: none; color: inherit; }
-  a.id-next:hover { border-color: rgba(92,184,74,0.6); }
-  .id-next-label { font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: #9fb79f; }
-  .id-next-title { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 22px; font-weight: 600; margin: 8px 0 4px; overflow-wrap: anywhere; }
-  .id-next-sub { font-size: 13px; color: #b9c8b4; margin-bottom: 12px; }
-  .id-next-empty { font-size: 14px; color: #c9d6c3; margin-top: 8px; }
+  .id-next {
+    position: relative; z-index: 2; display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+    padding: 16px 20px 16px 22px; border-radius: 16px; text-decoration: none; color: inherit;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-left: 4px solid #E8C464;
+  }
+  a.id-next:hover { border-color: rgba(232,196,100,0.6); border-left-color: #E8C464; background: rgba(255,255,255,0.07); }
+  .id-next.empty { border-left-color: #5CB84A; }
+  .id-next-label { flex: 0 0 150px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #E8C464; }
+  .id-next.empty .id-next-label { color: #8be07a; }
+  .id-next-body { flex: 1; min-width: 200px; }
+  .id-next-title { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 20px; font-weight: 600; overflow-wrap: anywhere; }
+  .id-next-sub { font-size: 13px; color: #a9bda5; margin-top: 2px; }
+  .id-next-empty { font-size: 15px; color: #c9d6c3; }
+  .id-next-go { color: #E8C464; font-size: 20px; line-height: 1; }
 
-  .id-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .id-tile { padding: 14px 16px; border-radius: 18px; }
-  .id-tile.wide { grid-column: span 2; }
+  .id-tiles { position: relative; z-index: 2; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .id-tile {
+    position: relative; padding: 20px 18px 16px; border-radius: 16px; overflow: hidden;
+    background: rgba(255,255,255,0.045); border: 1px solid rgba(255,255,255,0.09);
+    --accent: #5CB84A;
+  }
+  .id-tile::before { content: ""; position: absolute; left: 18px; top: 0; width: 34px; height: 3px; border-radius: 0 0 3px 3px; background: var(--accent); }
   a.id-tile, button.id-tile {
     display: block; text-decoration: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
     -webkit-appearance: none; appearance: none; width: 100%; box-sizing: border-box;
   }
-  a.id-tile:hover, button.id-tile:hover { border-color: rgba(92,184,74,0.7); }
-  .id-tile-l { font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: #9fb79f; }
-  .id-tile-n { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 32px; font-weight: 600; line-height: 1.1; margin-top: 4px; color: #e6efd8; }
-  .id-tile.bad { border-color: #8B1A2B; background: rgba(122,20,38,0.5); }
-  .id-tile.bad .id-tile-n { color: #F2E3BC; }
+  a.id-tile::after, button.id-tile::after { content: "→"; position: absolute; right: 16px; top: 16px; font-size: 16px; color: #9fb79f; opacity: 0.55; transition: transform 0.15s ease, opacity 0.15s ease; }
+  a.id-tile:hover, button.id-tile:hover { border-color: rgba(92,184,74,0.7); background: rgba(255,255,255,0.07); }
+  a.id-tile:hover::after, button.id-tile:hover::after { opacity: 1; transform: translateX(3px); color: #fff; }
+  .id-tile-l { font-size: 11px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: #9fb79f; padding-right: 22px; min-height: 28px; line-height: 14px; }
+  .id-tile-n { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 44px; font-weight: 600; line-height: 1; margin-top: 12px; color: #eaf2df; }
+  .id-tile.bad { --accent: #E0566F; border-color: #8B1A2B; background: rgba(122,20,38,0.34); }
+  .id-tile.bad .id-tile-n { color: #F8E9C8; }
+  .id-tile.warn { --accent: #FFD37A; }
   .id-tile.warn .id-tile-n { color: #ffd37a; }
+  .id-tile.good { --accent: #8be07a; }
   .id-tile.good .id-tile-n { color: #8be07a; }
 
-  .id-props { position: absolute; left: 44px; right: 44px; bottom: 26px; z-index: 3; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  .id-props-label { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #d3e0cf; margin-right: 4px; }
+  .id-props { position: relative; z-index: 2; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding-top: 18px; border-top: 1px solid rgba(255,255,255,0.08); }
+  .id-props-label { font-size: 11.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #9fb79f; margin-right: 6px; }
   .id-chip {
-    display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 16px; border-radius: 999px; cursor: pointer; font: inherit;
-    font-size: 13px; font-weight: 600; color: #e6efd8; background: rgba(14,31,26,0.62); border: 1px solid rgba(255,255,255,0.18);
-    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px; border-radius: 999px; cursor: pointer; font: inherit;
+    font-size: 13px; font-weight: 600; color: #dbe8d4; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.14);
   }
-  .id-chip:hover { border-color: rgba(92,184,74,0.7); }
-  .id-chip[aria-pressed="true"] { border-color: #5CB84A; background: rgba(61,138,48,0.5); }
+  .id-chip:hover { border-color: rgba(92,184,74,0.7); color: #fff; }
+  .id-chip[aria-pressed="true"] { border-color: #E8C464; background: rgba(232,196,100,0.14); color: #fff; }
   .id-dot { width: 8px; height: 8px; border-radius: 50%; background: #8be07a; }
   .id-dot.warn { background: #ffd37a; }
-  .id-dot.bad { background: #C2334D; }
+  .id-dot.bad { background: #E0566F; }
+
+  /* ---------- Resten av startsidan i samma språk ---------- */
+  .hk-h2 { display: flex; align-items: center; gap: 12px; letter-spacing: -0.005em; }
+  .hk-h2::before { content: ""; width: 4px; height: 22px; border-radius: 2px; background: #E8C464; flex-shrink: 0; }
+  .hk-panel { border-radius: 18px; background: rgba(255,255,255,0.045); border: 1px solid rgba(255,255,255,0.09); border-top: 3px solid rgba(92,184,74,0.55); padding: 2px 0 6px; }
+  .hk-panel-title { display: flex; align-items: center; gap: 10px; font-family: Outfit, Inter, system-ui, sans-serif; font-size: 17px; font-weight: 600; }
+  .hk-row { border-top-color: rgba(255,255,255,0.07); }
+  .hk-prop { border-radius: 16px; border-left: 4px solid rgba(92,184,74,0.55); }
+  .hk-prop[aria-pressed="true"] { border-color: #E8C464; box-shadow: 0 0 0 1px rgba(232,196,100,0.5); }
+  .hk-action { background: rgba(255,255,255,0.05); }
 
   @media (max-width: 1100px) {
-    .id-hero { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; padding: 32px 28px 100px; min-height: 0; }
-    .id-col-l, .id-col-r { grid-column: 1; grid-row: auto; }
-    .id-props { left: 28px; right: 28px; }
+    .id-hero { padding: 28px 26px 26px; }
+    .id-headline { font-size: 38px; }
+    .id-roof { width: 260px; }
   }
   @media (max-width: 768px) {
-    /* Utan perspective på hjälten blir "fixed" relativt skärmen, inte hjälten. */
-    .id-hero { padding: 24px 14px 110px; border-radius: 20px; perspective: none; }
-    .id-clip { border-radius: 19px; }
-    .id-main { padding: 20px; }
-    .id-headline { font-size: 28px; }
-    .id-props { left: 14px; right: 14px; bottom: 16px; }
-    .id-glass, .id-col-l .id-glass { transform: none; }
+    .id-hero { padding: 22px 16px 20px; border-radius: 20px; gap: 16px; }
+    .id-top { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+    .id-bellslot { justify-content: flex-start; order: -1; }
+    .id-bellslot .hk-herobell { flex-direction: row; }
+    .id-headline { font-size: 30px; }
+    .id-sub { font-size: 14.5px; }
+    .id-next-label { flex-basis: 100%; }
+    .id-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .id-tile { padding: 18px 14px 14px; }
+    .id-tile-n { font-size: 34px; }
+    .id-roof { display: none; }
     .id-bellslot .hk-bellring [role="dialog"] {
       position: fixed !important; top: 70px !important; left: 8px !important; right: 8px !important; width: auto !important;
     }
   }
-  @media (hover: none), (prefers-reduced-motion: reduce) {
-    .id-glass, .id-col-l .id-glass { transform: none !important; transition: none; }
-  }
-  @media (prefers-reduced-motion: reduce) { .id-photo.night { animation: none; opacity: 0; } }
 `;
 
 function scrollToId(id: string) {
@@ -162,93 +171,79 @@ export function Hero({
   selected?: string | null;
   onSelect?: (id: string) => void;
 }) {
-  const [noDay, setNoDay] = useState(false);
-  const [noNight, setNoNight] = useState(false);
-  const ref = useRef<HTMLElement | null>(null);
-
-  const onMove = (e: React.MouseEvent<HTMLElement>) => {
-    const el = ref.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width - 0.5;
-    const y = (e.clientY - r.top) / r.height - 0.5;
-    el.style.setProperty("--ry", `${(x * 7).toFixed(2)}deg`);
-    el.style.setProperty("--rx", `${(-y * 6).toFixed(2)}deg`);
-  };
-  const onLeave = () => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.setProperty("--ry", "0deg");
-    el.style.setProperty("--rx", "0deg");
-  };
-
   return (
     <>
       <style>{HERO_STYLES}</style>
-      <section ref={ref} className="id-hero" onMouseMove={onMove} onMouseLeave={onLeave}>
-        <div className="id-clip" aria-hidden="true">
-          {!noDay && <img src={DAY_IMG} alt="" className="id-photo" onError={() => setNoDay(true)} />}
-          {!noNight && <img src={NIGHT_IMG} alt="" className="id-photo night" onError={() => setNoNight(true)} />}
-          <div className="id-shade" />
+      <section className="id-hero">
+        <div className="id-roof" aria-hidden="true">
+          <svg viewBox="0 0 420 260" fill="none">
+            <path d="M10 260 L210 20 L410 260" stroke="rgba(232,196,100,0.10)" strokeWidth="2" />
+            <path d="M80 260 L210 104 L340 260" stroke="rgba(255,255,255,0.05)" strokeWidth="2" />
+            <circle cx="210" cy="190" r="5" fill="rgba(232,196,100,0.18)" />
+          </svg>
         </div>
 
-        <div className="id-col-l">
-          <div className="id-glass id-main">
+        <div className="id-top">
+          <div>
             <p className="id-hello">{hello}</p>
             <h1 className={`id-headline${bad ? " bad" : ""}`}>{loading ? "Hämtar läget…" : headline}</h1>
             <p className="id-sub">{loading ? "" : sub}</p>
           </div>
-
-          {next ? (
-            <Link to={next.to as never} className="id-glass id-next">
-              <div className="id-next-label">{next.label}</div>
-              <div className="id-next-title">{next.title}</div>
-              <div className="id-next-sub">{next.sub}</div>
-              {next.chip && <span className={`hk-chip ${next.chip.cls}`}>{next.chip.text}</span>}
-            </Link>
-          ) : (
-            <div className="id-glass id-next">
-              <div className="id-next-label">Nästa upp</div>
-              <div className="id-next-empty">{emptyNext}</div>
-            </div>
-          )}
-
-          <div className="id-tiles">
-            {tiles.map((t) => {
-              const cls = `id-glass id-tile${t.tone ? ` ${t.tone}` : ""}${t.wide ? " wide" : ""}`;
-              const inner = (
-                <>
-                  <div className="id-tile-l">{t.label}</div>
-                  <div className="id-tile-n">{t.n}</div>
-                </>
-              );
-              if (t.to) {
-                return (
-                  <Link key={t.label} to={t.to as never} className={cls}>
-                    {inner}
-                  </Link>
-                );
-              }
-              if (t.anchor) {
-                return (
-                  <button key={t.label} type="button" className={cls} onClick={() => scrollToId(t.anchor!)}>
-                    {inner}
-                  </button>
-                );
-              }
-              return (
-                <div key={t.label} className={cls}>
-                  {inner}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="id-col-r">
           <div className="id-bellslot">
             <HeroBell />
           </div>
+        </div>
+
+        {next ? (
+          <Link to={next.to as never} className="id-next">
+            <div className="id-next-label">{next.label}</div>
+            <div className="id-next-body">
+              <div className="id-next-title">{next.title}</div>
+              <div className="id-next-sub">{next.sub}</div>
+            </div>
+            {next.chip && <span className={`hk-chip ${next.chip.cls}`}>{next.chip.text}</span>}
+            <span className="id-next-go" aria-hidden="true">
+              →
+            </span>
+          </Link>
+        ) : (
+          <div className="id-next empty">
+            <div className="id-next-label">Nästa upp</div>
+            <div className="id-next-body">
+              <div className="id-next-empty">{emptyNext}</div>
+            </div>
+          </div>
+        )}
+
+        <div className="id-tiles">
+          {tiles.map((t) => {
+            const cls = `id-tile${t.tone ? ` ${t.tone}` : ""}`;
+            const inner = (
+              <>
+                <div className="id-tile-l">{t.label}</div>
+                <div className="id-tile-n">{t.n}</div>
+              </>
+            );
+            if (t.to) {
+              return (
+                <Link key={t.label} to={t.to as never} className={cls}>
+                  {inner}
+                </Link>
+              );
+            }
+            if (t.anchor) {
+              return (
+                <button key={t.label} type="button" className={cls} onClick={() => scrollToId(t.anchor!)}>
+                  {inner}
+                </button>
+              );
+            }
+            return (
+              <div key={t.label} className={cls}>
+                {inner}
+              </div>
+            );
+          })}
         </div>
 
         {chips && chips.length > 0 && (
