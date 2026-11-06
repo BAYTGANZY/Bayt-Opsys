@@ -34,6 +34,7 @@ import { StatusDot } from "@/components/StatusDot";
 import { useMyArenden } from "@/hooks/useMyArenden";
 import { TEKNIK_NAV_ICON } from "@/lib/teknik-config";
 import { PRESENTATION_NAV_ICON } from "@/lib/presentation-config";
+import { useWebchatBadge } from "@/hooks/useWebchatBadge";
 
 
 type SubItem = { to: string; label: string };
@@ -214,6 +215,33 @@ function NavDot({ dot, mini = false }: { dot: ArendeDot; mini?: boolean }) {
   );
 }
 
+/** Röd räknare vid Hemsidechatt: antal samtal som väntar på personalens svar. */
+function CountBadge({ n, mini = false }: { n: number; mini?: boolean }) {
+  return (
+    <span
+      role="status"
+      title={`${n} samtal behöver svar`}
+      aria-label={`${n} samtal behöver svar`}
+      style={{
+        background: "#C2334D",
+        color: "#fff",
+        fontSize: 11,
+        fontWeight: 700,
+        borderRadius: 999,
+        minWidth: 18,
+        height: 18,
+        padding: "0 5px",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        ...(mini ? { position: "absolute" as const, top: 6, right: 6 } : { marginLeft: 6 }),
+      }}
+    >
+      {n > 99 ? "99+" : n}
+    </span>
+  );
+}
+
 export function AppShell() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
@@ -249,6 +277,8 @@ export function AppShell() {
   const sections = sectionsForRole(profile?.role);
   // Tom karta för alla utom entreprenör — ingen extra fråga körs för dem.
   const arendeDots = useMyArendeDots();
+  // Antal hemsidechatt-samtal som väntar på svar (bara admin).
+  const webchatCount = useWebchatBadge(profile?.role === "admin");
   const bottomNav = BOTTOM_NAV.filter((i) => i.to === "/start" || canAccess(profile?.role, i.to));
 
   return (
@@ -345,6 +375,7 @@ export function AppShell() {
                   >
                     <HugeiconsIcon icon={item.icon} size={20} />
                     {dot && <NavDot dot={dot} mini />}
+                    {item.to === "/hemsidechatt" && webchatCount > 0 && <CountBadge n={webchatCount} mini />}
                   </Link>
                   {item.children && (
                     <div className="bayt-mini-flyout">
@@ -523,6 +554,7 @@ export function AppShell() {
                           <HugeiconsIcon icon={item.icon} size={18} />
                           <span style={{ flex: 1 }}>{item.label}</span>
                           {dot && <NavDot dot={dot} />}
+                          {item.to === "/hemsidechatt" && webchatCount > 0 && <CountBadge n={webchatCount} />}
                           {!isMobile && hasChildren && (
                             <HugeiconsIcon
                               icon={ArrowRight01Icon}
