@@ -54,6 +54,7 @@ function ChatWidget() {
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState("");
   const [mode, setMode] = useState<"chat" | "ticket">("chat");
+  const [showCall, setShowCall] = useState(false);
   const [tk, setTk] = useState({ apartment_number: "", trappa: "", name: "", phone: "", email: "", description: "" });
   const endRef = useRef<HTMLDivElement | null>(null);
 
@@ -125,7 +126,7 @@ function ChatWidget() {
     return (
       <div key={i} style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "85%" }}>
         {!mine && (
-          <div style={{ fontSize: 11, color: MUTED, margin: "0 4px 2px" }}>{m.sender === "ai" ? "AI-assistent" : "Personal"}</div>
+          <div style={{ fontSize: 11, color: MUTED, margin: "0 4px 2px" }}>{m.sender === "ai" ? "AI-assistent" : "Kundservice"}</div>
         )}
         <div style={{
           padding: "9px 12px", borderRadius: 14, fontSize: 14.5, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere",
@@ -137,16 +138,27 @@ function ChatWidget() {
   };
 
   return (
-    <div style={{ height: "100dvh", display: "flex", flexDirection: "column", background: "#fff", fontFamily: "Inter, system-ui, sans-serif", color: INK }}>
+    <div style={{ height: "100dvh", position: "relative", display: "flex", flexDirection: "column", background: "#fff", fontFamily: "Inter, system-ui, sans-serif", color: INK }}>
       <div style={{ background: INK, color: "#fff", padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, borderBottom: `3px solid ${GOLD}` }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 800, fontSize: 16 }}>BAYT</div>
-          <div style={{ fontSize: 12, color: "#c9d8c3" }}>Chatt med föreningen{st.opening_hours ? ` · ${st.opening_hours}` : ""}</div>
+          <img
+            src={`${import.meta.env.BASE_URL}assets/bayt-logo.png`}
+            alt="BAYT"
+            style={{ height: 24, width: "auto", display: "block" }}
+          />
+          <div style={{ fontSize: 13, color: "#fff", marginTop: 6, fontWeight: 600 }}>Chatta med BAYT</div>
+          <div style={{ fontSize: 11.5, color: "#c9d8c3", marginTop: 2, lineHeight: 1.4 }}>
+            Öppet dygnet runt, där AI-assistenten svarar. Personal svarar vanligtvis inom 1–2 timmar.
+          </div>
         </div>
         {tel && (
-          <a href={`tel:${tel}`} target="_top" style={{ background: GOLD, color: INK, fontWeight: 800, fontSize: 13, borderRadius: 999, padding: "7px 12px", textDecoration: "none", whiteSpace: "nowrap" }}>
+          <button
+            type="button"
+            onClick={() => setShowCall(true)}
+            style={{ background: GOLD, color: INK, fontWeight: 800, fontSize: 13, borderRadius: 999, padding: "7px 12px", border: 0, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" }}
+          >
             Ring jour
-          </a>
+          </button>
         )}
         <button type="button" onClick={close} aria-label="Stäng" style={{ background: "transparent", border: 0, color: "#fff", fontSize: 24, lineHeight: 1, cursor: "pointer" }}>×</button>
       </div>
@@ -155,19 +167,20 @@ function ChatWidget() {
         <>
           <div style={{ flex: 1, overflowY: "auto", padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ fontSize: 12, color: MUTED, background: "#F7F9F6", border: `1px solid ${LINE}`, borderRadius: 10, padding: "8px 10px", lineHeight: 1.5 }}>
-              Du chattar med en AI-assistent och personal. Samtalet sparas i 90 dagar. Skriv inga känsliga uppgifter. Vid akuta fel, ring jour.
+              Du chattar med en AI-assistent och kundservice. Samtalet sparas i 90 dagar. Skriv inga känsliga uppgifter. Vid akuta fel, ring jour.
             </div>
-            {st.messages.length === 0 && bubble({ sender: "ai", body: "Hej! Jag är BAYT:s AI-assistent. Fråga om ordningsregler, öppettider eller felanmälan. Vill du anmäla ett fel, tryck på Anmäl fel.", created_at: "" }, -1)}
+            {st.messages.length === 0 && bubble({ sender: "ai", body: "Hej! Jag är BAYT:s AI-assistent och finns här dygnet runt. Fråga om ordningsregler, öppettider eller felanmälan. Vill du anmäla ett fel, tryck på Anmäl fel.", created_at: "" }, -1)}
             {st.messages.map(bubble)}
             {st.status === "needs_human" && (
-              <div style={{ fontSize: 12.5, color: MUTED, textAlign: "center" }}>Personalen har fått ärendet och svarar så snart de kan.</div>
+              <div style={{ fontSize: 12.5, color: MUTED, textAlign: "center" }}>
+                Kundservice har fått ärendet och svarar vanligtvis inom 1–2 timmar.
+              </div>
             )}
             <div ref={endRef} />
           </div>
           {err && <div style={{ color: "#B91C1C", fontSize: 13, padding: "0 14px 6px" }}>{err}</div>}
           <div style={{ padding: 10, borderTop: `1px solid ${LINE}`, display: "grid", gap: 8 }}>
-            <button type="button" onClick={() => { setErr(""); setMode("ticket"); }} style={{ height: 36, borderRadius: 8, border: `1px solid ${GREEN}`, background: "#fff", color: GREEN, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
-              Anmäl fel
+<button type="button" onClick={() => { setErr(""); setMode("ticket"); }} style={{ height: 40, borderRadius: 8, border: 0, background: INK, color: "#fff", fontWeight: 800, fontSize: 14.5, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }}>              Anmäl fel
             </button>
             <div style={{ display: "flex", gap: 8 }}>
               <input
@@ -205,6 +218,39 @@ function ChatWidget() {
             </button>
           </div>
           <div style={{ fontSize: 12, color: MUTED, lineHeight: 1.5 }}>Dina uppgifter används bara för att hantera felanmälan.</div>
+        </div>
+      )}
+
+      {showCall && tel && (
+        <div
+          onClick={() => setShowCall(false)}
+          style={{ position: "absolute", inset: 0, background: "rgba(13,43,30,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 10 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: "#fff", borderRadius: 18, padding: "22px 20px 18px", width: "100%", maxWidth: 320, textAlign: "center", boxShadow: "0 10px 40px rgba(0,0,0,0.25)" }}
+          >
+            <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: 1, color: INK }}>BAYT Jour</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: GREEN, marginTop: 4 }}>{st.jour_phone}</div>
+            <div style={{ fontSize: 12.5, color: MUTED, marginTop: 8, lineHeight: 1.5 }}>För akuta fel som inte kan vänta.</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 16 }}>
+              <button
+                type="button"
+                onClick={() => setShowCall(false)}
+                style={{ height: 44, borderRadius: 999, border: `1px solid ${LINE}`, background: "#fff", color: INK, fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Avbryt
+              </button>
+              <a
+                href={`tel:${tel}`}
+                target="_top"
+                onClick={() => window.setTimeout(() => setShowCall(false), 300)}
+                style={{ height: 44, borderRadius: 999, background: GREEN, color: "#fff", fontWeight: 700, fontSize: 15, textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center" }}
+              >
+                Ring
+              </a>
+            </div>
+          </div>
         </div>
       )}
     </div>
