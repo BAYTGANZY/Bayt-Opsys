@@ -35,6 +35,7 @@ const STYRELSE_ROUTES = [
   "/loggbok",
   "/dokument",
   "/underhallsplan",
+  "/ekonomi-oversikt",
   "/objects",
   "/installningar",
   "/chatt",

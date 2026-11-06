@@ -1,0 +1,39 @@
+name: PR check
+
+# Bygger och typkontrollerar varje pull request innan den går att slå ihop,
+# så att ett fel syns som rött kryss här i stället för som ett trasigt bygge på main.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Samma bygge som deploy.yml kör. Rött här = rött på main.
+      - run: npm run build
+      # Typkontroll. Äldre filer från Lovable-tiden kan ha gamla typfel, därför fäller
+      # bara fel i de filer som den här pull requesten rör — se `git diff` mot main.
+      - name: tsc (fel i ändrade filer fäller bygget)
+        run: |
+          npx tsc --noEmit > tsc.log 2>&1 || true
+          git fetch --no-tags --depth=1 origin ${{ github.base_ref }}
+          git diff --name-only origin/${{ github.base_ref }}...HEAD -- 'src/**/*.ts' 'src/**/*.tsx' > changed.txt || true
+          echo "Ändrade filer:"; cat changed.txt
+          fail=0
+          while read -r f; do
+            [ -z "$f" ] && continue
+            if grep -F "$f(" tsc.log; then fail=1; fi
+          done < changed.txt
+          echo "Totalt antal typfel i repot (info): $(grep -c 'error TS' tsc.log || true)"
+          exit $fail
