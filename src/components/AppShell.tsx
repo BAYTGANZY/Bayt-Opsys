@@ -73,6 +73,7 @@ const SECTIONS: NavSection[] = [
       { to: "/projects", label: "Projekt", icon: Briefcase01Icon },
       { to: "/underhallsplan", label: "Underhållsplan", icon: CalendarCheckIn01Icon },
       { to: "/ekonomi", label: "Ekonomi & Avgift", icon: Briefcase01Icon },
+      { to: "/ekonomi-oversikt", label: "Ekonomi – översikt", icon: Briefcase01Icon },
       { to: "/andrahand", label: "Andrahand", icon: UserGroupIcon },
       { to: "/entreprenorer", label: "Entreprenörer", icon: UserGroupIcon },
       { to: "/genomgang-av-fastighet", label: "Genomgång av fastighet", icon: EyeIcon },
