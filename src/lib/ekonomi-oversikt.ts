@@ -15,6 +15,8 @@ export type GroupKey =
   | "energi"
   | "rantor"
   | "skotsel"
+  | "forvaltning"
+  | "konsult"
   | "hissar"
   | "slitage"
   | "reparationer"
@@ -36,10 +38,12 @@ export const GROUPS: GroupDef[] = [
   { key: "ovrigin", kind: "in", label: "Annat vi fått in", kid: "Småsummor, till exempel avgifter när någon flyttar och ränta från banken." },
   { key: "energi", kind: "ut", label: "Värme, el, vatten och sopor", kid: "Det som går åt för att huset ska vara varmt och ha ljus, vatten och sophämtning." },
   { key: "rantor", kind: "ut", label: "Räntor på lånen", kid: "Hyran vi betalar till banken för att ha lånat pengar till huset." },
-  { key: "skotsel", kind: "ut", label: "Skötsel och förvaltning", kid: "Städning, trädgård, snöskottning, styrelsen och dem som sköter pappersarbetet." },
+  { key: "skotsel", kind: "ut", label: "Skötsel", kid: "Fastighetsskötaren, larm och serviceavtal — dem som ser till att huset fungerar varje dag." },
+  { key: "forvaltning", kind: "ut", label: "Förvaltning", kid: "Styrelsen, revisorn, ekonomisk förvaltning, juridik, bank och allt pappersarbete." },
+  { key: "konsult", kind: "ut", label: "Konsultarvode", kid: "Inhyrda experter som hjälper till med särskilda uppgifter." },
   { key: "hissar", kind: "ut", label: "Hissar", kid: "Service och reparationer av hissarna så att de går att åka i." },
   { key: "slitage", kind: "ut", label: "Slitage på husen", kid: "Hus blir äldre och slits. Det bokförs som en kostnad fast inga pengar lämnar kontot." },
-  { key: "reparationer", kind: "ut", label: "Reparationer och underhåll", kid: "Att laga det som gått sönder, till exempel tak, rör, dörrar och tvättstugor." },
+  { key: "reparationer", kind: "ut", label: "Reparationer och underhåll", kid: "Att laga det som gått sönder och hålla huset i trim: tak, rör, dörrar, tvättstugor, besiktningar, brandskydd, trädgård och snöröjning." },
   { key: "tomtratt", kind: "ut", label: "Tomträtt", kid: "Marken under husen ägs av kommunen. Vi betalar hyra för att få ha husen där." },
   { key: "forsakring", kind: "ut", label: "Försäkring och skatt", kid: "Skydd om något händer med huset, och skatt till staten." },
   { key: "annat", kind: "ut", label: "Annat", kid: "Sådant som inte passar in i de andra lådorna, till exempel kabel-tv och bredband." },
@@ -67,9 +71,13 @@ export function groupOf(account: string): GroupKey | null {
   if (n >= 4740 && n < 4750) return "tomtratt";
   if ((n >= 4700 && n < 4740) || (n >= 4800 && n < 4900)) return "forsakring";
   if (n >= 4300 && n < 4600) return "reparationer";
+  // Besiktning, OVK, underhållsplan, brandskydd, trädgård och snöröjning räknas som underhåll.
+  if ((n >= 4140 && n < 4150) || (n >= 4160 && n < 4180)) return "reparationer";
   if (n >= 4100 && n < 4200) return "skotsel";
-  if (n >= 5000 && n < 7000) return "skotsel";
-  if (n >= 7500 && n < 7700) return "skotsel";
+  if (n >= 5000 && n < 6000) return "skotsel";
+  if (n === 6550 || n === 6599) return "konsult";
+  if (n >= 6000 && n < 7000) return "forvaltning";
+  if (n >= 7500 && n < 7700) return "forvaltning";
   if (n >= 7800 && n < 7900) return "slitage";
   return "annat";
 }

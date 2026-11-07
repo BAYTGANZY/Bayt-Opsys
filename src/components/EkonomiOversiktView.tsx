@@ -244,7 +244,7 @@ function Home({ ov, open }: { ov: Overview; open: (v: View) => void }) {
 
       <section>
         <h3 style={h3}>Vart tar pengarna vägen?</h3>
-        <p style={sub}>Om vi delar upp 100 kronor av allt vi betalat ut, så här många kronor går till varje sak:</p>
+        <p style={sub}>Så här stor del av allt vi betalat ut går till varje sak:</p>
         <div style={{ display: "grid", gap: 10 }}>
           {ut.map((g) => {
             const share = ov.utNow > 0 ? (g.now / ov.utNow) * 100 : 0;
@@ -253,7 +253,7 @@ function Home({ ov, open }: { ov: Overview; open: (v: View) => void }) {
               <button key={g.key} style={clickable} onClick={() => open({ t: "group", key: g.key })}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
                   <span style={{ fontWeight: 600, fontSize: 17 }}>{g.label}</span>
-                  <span style={{ fontFamily: "Outfit, Inter, sans-serif", fontWeight: 600, fontSize: 20, whiteSpace: "nowrap" }}>{Math.round(share)} kr <span style={{ fontSize: 14, fontWeight: 500, color: MUTED }}>av 100</span></span>
+                  <span style={{ fontFamily: "Outfit, Inter, sans-serif", fontWeight: 600, fontSize: 20, whiteSpace: "nowrap" }}>{g.now > 0 && share < 0.5 ? "<1" : Math.round(share)} %</span>
                 </div>
                 <div style={{ height: 8, background: "#EEF2EC", borderRadius: 4, margin: "10px 0 6px" }}>
                   <div style={{ width: `${Math.max(2, Math.min(100, share))}%`, height: 8, background: ACCENT, borderRadius: 4 }} />
