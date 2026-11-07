@@ -111,14 +111,14 @@ export function PropertyContextNav({ onNavigate }: { onNavigate?: () => void }) 
     fontWeight: 600,
     letterSpacing: "0.12em",
     textTransform: "uppercase",
-    color: "rgba(255,255,255,0.4)",
+    color: "#6B7A70",
   };
 
   const headerBtn: React.CSSProperties = {
     width: "100%",
     background: "transparent",
     border: "none",
-    color: "#ffffff",
+    color: "#0D2B1E",
     fontSize: 13,
     fontWeight: 600,
     padding: "8px 17px",
@@ -131,7 +131,7 @@ export function PropertyContextNav({ onNavigate }: { onNavigate?: () => void }) 
   };
 
   return (
-    <div style={{ marginBottom: 8, borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: 8 }}>
+    <div style={{ marginBottom: 8, borderBottom: "1px solid #E6DFD0", paddingBottom: 8 }}>
       <div style={sectionLabel}>Aktiv fastighet</div>
 
       {effectivePropertyId && (
@@ -143,7 +143,7 @@ export function PropertyContextNav({ onNavigate }: { onNavigate?: () => void }) 
             </span>
           </button>
           {propOpen && (
-            <div style={{ paddingLeft: 22, marginLeft: 18, borderLeft: "1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ paddingLeft: 22, marginLeft: 18, borderLeft: "1px solid #E6DFD0" }}>
               {allowedSubNav.map((n) => {
                 const active = activePropKey === n.key && !apartmentId;
                 return (
@@ -155,7 +155,7 @@ export function PropertyContextNav({ onNavigate }: { onNavigate?: () => void }) 
                       display: "block",
                       padding: "6px 10px",
                       borderRadius: 6,
-                      color: active ? "#ffffff" : "rgba(255,255,255,0.75)",
+                      color: active ? "#0D2B1E" : "#0D2B1E",
                       background: active ? "rgba(92,184,74,0.18)" : "transparent",
                       textDecoration: "none",
                       fontSize: 13,
@@ -174,7 +174,7 @@ export function PropertyContextNav({ onNavigate }: { onNavigate?: () => void }) 
                     display: "block",
                     padding: "6px 10px",
                     borderRadius: 6,
-                    color: "rgba(255,255,255,0.75)",
+                    color: "#0D2B1E",
                     textDecoration: "none",
                     fontSize: 13,
                     fontWeight: 500,
@@ -197,7 +197,7 @@ export function PropertyContextNav({ onNavigate }: { onNavigate?: () => void }) 
             </span>
           </button>
           {aptOpen && (
-            <div style={{ paddingLeft: 22, marginLeft: 18, borderLeft: "1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ paddingLeft: 22, marginLeft: 18, borderLeft: "1px solid #E6DFD0" }}>
               {APARTMENT_SUB_NAV.map((n) => {
                 const active = activeAptTab === n.key;
                 const base = apartmentScope === "property"
@@ -215,7 +215,7 @@ export function PropertyContextNav({ onNavigate }: { onNavigate?: () => void }) 
                       display: "block",
                       padding: "6px 10px",
                       borderRadius: 6,
-                      color: active ? "#ffffff" : "rgba(255,255,255,0.75)",
+                      color: active ? "#0D2B1E" : "#0D2B1E",
                       background: active ? "rgba(92,184,74,0.18)" : "transparent",
                       textDecoration: "none",
                       fontSize: 13,

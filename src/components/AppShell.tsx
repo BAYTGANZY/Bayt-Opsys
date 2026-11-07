@@ -35,6 +35,7 @@ import { useMyArenden } from "@/hooks/useMyArenden";
 import { TEKNIK_NAV_ICON } from "@/lib/teknik-config";
 import { PRESENTATION_NAV_ICON } from "@/lib/presentation-config";
 import { useWebchatBadge } from "@/hooks/useWebchatBadge";
+import { useFavorites } from "@/hooks/useFavorites";
 
 
 type SubItem = { to: string; label: string };
@@ -96,6 +97,50 @@ const SECTIONS: NavSection[] = [
 ];
 
 const ALL_ITEMS = SECTIONS.flatMap((s) => s.items);
+
+/**
+ * Ljust tema (2026-11): beige bakgrund, ljus meny, mörkgrön text. Ljusgrönt är till
+ * för stjärnor och detaljer — aldrig som textfärg på beige, där når det inte kontrast.
+ */
+const T = {
+  bg: "#F6F1E7",
+  side: "#FBF8F1",
+  card: "#FFFDF8",
+  line: "#E6DFD0",
+  ink: "#0D2B1E",
+  muted: "#6B7A70",
+  star: "#5CB84A",
+  btn: "#3D8A30",
+  shadow: "0 1px 2px rgba(13,43,30,0.04), 0 8px 24px -12px rgba(13,43,30,0.12)",
+};
+
+/** Stjärna för favoriter. Ifylld ljusgrön = favorit, kontur = inte. */
+function StarSvg({ on, size = 18 }: { on: boolean; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" fill={on ? T.star : "none"} stroke={on ? T.star : "#B3AD9F"} strokeWidth={1.7} strokeLinejoin="round">
+      <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" />
+    </svg>
+  );
+}
+
+function FavStarButton({ on, label, onToggle }: { on: boolean; label: string; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onToggle();
+      }}
+      aria-label={on ? `Ta bort ${label} från favoriter` : `Lägg till ${label} i favoriter`}
+      aria-pressed={on}
+      title={on ? "Ta bort från favoriter" : "Lägg till i favoriter"}
+      style={{ background: "transparent", border: "none", cursor: "pointer", padding: "0 10px", display: "flex", alignItems: "center", justifyContent: "center", minWidth: 36 }}
+    >
+      <StarSvg on={on} />
+    </button>
+  );
+}
 
 const BOTTOM_NAV: NavItem[] = [
   { to: "/dashboard", label: "Översikt", icon: DashboardSquare01Icon },
@@ -205,7 +250,7 @@ function NavDot({ dot, mini = false }: { dot: ArendeDot; mini?: boolean }) {
         display: "inline-flex",
         flexShrink: 0,
         borderRadius: "50%",
-        boxShadow: "0 0 0 2px rgba(13,43,30,0.95)",
+        boxShadow: `0 0 0 2px ${T.side}`,
         ...(mini
           ? { position: "absolute" as const, top: 12, right: 13 }
           : { marginLeft: 6 }),
@@ -263,6 +308,26 @@ export function AppShell() {
   const toggle = (to: string) =>
     setExpanded((e) => ({ ...e, [to]: !e[to] }));
 
+  // Hopfällda grupper (och Favoriter) minns man mellan besök, per webbläsare.
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(window.localStorage.getItem("bayt.nav.collapsed") ?? "{}") as Record<string, boolean>;
+    } catch {
+      return {};
+    }
+  });
+  const toggleCollapsed = (key: string) =>
+    setCollapsed((c) => {
+      const next = { ...c, [key]: !c[key] };
+      try {
+        window.localStorage.setItem("bayt.nav.collapsed", JSON.stringify(next));
+      } catch {
+        /* lagring blockerad — gruppen är hopfälld bara tills sidan laddas om */
+      }
+      return next;
+    });
+  const { routes: favRoutes, toggle: toggleFavorite, isFavorite } = useFavorites();
+
   const handleLogout = async () => {
     await signOut();
     navigate({ to: "/login" });
@@ -276,6 +341,11 @@ export function AppShell() {
   // Loggan leder till rollens startsida: entreprenör → Snabbåtkomst, övriga → Översikt.
   const homeTo = profile?.role === "entreprenor" ? "/start" : "/styrelse";
   const sections = sectionsForRole(profile?.role);
+  // Bara sådant rollen faktiskt får öppna — en gammal stjärna får aldrig öppna en dörr.
+  const allowedItems = sections.flatMap((s) => s.items);
+  const favItems = favRoutes
+    .map((r) => allowedItems.find((i) => i.to === r))
+    .filter((i): i is NavItem => !!i);
   // Tom karta för alla utom entreprenör — ingen extra fråga körs för dem.
   const arendeDots = useMyArendeDots();
   // Antal hemsidechatt-samtal som väntar på svar (bara admin).
@@ -291,11 +361,11 @@ export function AppShell() {
         width: "100%",
         maxWidth: "100vw",
         overflowX: "hidden",
-        background: "linear-gradient(180deg, #FBFBFA 0%, #F6F7F5 100%)",
+        background: T.bg,
         padding: isMobile ? 0 : 12,
         gap: isMobile ? 0 : 12,
         fontFamily: "Inter, system-ui, sans-serif",
-        color: "#1a1a1a",
+        color: T.ink,
       }}
     >
       {/* Mobile overlay backdrop */}
@@ -316,7 +386,7 @@ export function AppShell() {
         <aside
           style={{
             width: 64,
-            background: "linear-gradient(180deg, #123526 0%, #0D2B1E 55%, #0B241A 100%)",
+            background: T.side,
             position: "sticky",
             top: 12,
             alignSelf: "flex-start",
@@ -327,8 +397,8 @@ export function AppShell() {
             alignItems: "center",
             borderRadius: 20,
             overflow: "hidden",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
-            border: "1px solid rgba(255,255,255,0.04)",
+            boxShadow: T.shadow,
+            border: `1px solid ${T.line}`,
           }}
         >
           <Link
@@ -345,7 +415,7 @@ export function AppShell() {
               textDecoration: "none",
             }}
           >
-            <img src={`${import.meta.env.BASE_URL}assets/bayt-icon.png`} alt="BAYT" style={{ height: 28, width: "auto", display: "block" }} />
+            <img src={`${import.meta.env.BASE_URL}assets/bayt-icon-dark.png`} alt="BAYT" style={{ height: 28, width: "auto", display: "block" }} />
           </Link>
           <nav
             className="bayt-sidebar-nav"
@@ -366,11 +436,10 @@ export function AppShell() {
                       alignItems: "center",
                       justifyContent: "center",
                       height: 48,
-                      color: active ? "#5CB84A" : "rgba(255,255,255,0.7)",
-                      background: active ? "rgba(92,184,74,0.15)" : "transparent",
-                      borderLeft: active
-                        ? "3px solid #5CB84A"
-                        : "3px solid transparent",
+                      color: active ? "#fff" : T.ink,
+                      background: active ? T.ink : "transparent",
+                      borderRadius: 10,
+                      margin: "2px 8px",
                       textDecoration: "none",
                     }}
                   >
@@ -418,7 +487,7 @@ export function AppShell() {
               height: 56,
               background: "transparent",
               border: "none",
-              color: "rgba(255,255,255,0.7)",
+              color: T.muted,
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
@@ -435,7 +504,7 @@ export function AppShell() {
         <aside
           style={{
             width: 240,
-            background: "linear-gradient(180deg, #123526 0%, #0D2B1E 55%, #0B241A 100%)",
+            background: T.side,
             position: isMobile ? "fixed" : "sticky",
             top: isMobile ? 0 : 12,
             left: isMobile ? 0 : undefined,
@@ -445,8 +514,8 @@ export function AppShell() {
             display: "flex",
             flexDirection: "column",
             borderRadius: isMobile ? 0 : 20,
-            boxShadow: isMobile ? "none" : "0 4px 16px rgba(0,0,0,0.08)",
-            border: "1px solid rgba(255,255,255,0.04)",
+            boxShadow: isMobile ? "none" : T.shadow,
+            border: `1px solid ${T.line}`,
           }}
         >
           <div
@@ -466,7 +535,7 @@ export function AppShell() {
               aria-label="Till startsidan"
               style={{ display: "inline-flex", textDecoration: "none" }}
             >
-              <img src={`${import.meta.env.BASE_URL}assets/bayt-logo.png`} alt="BAYT" style={{ height: 32, width: "auto", display: "block" }} />
+              <img src={`${import.meta.env.BASE_URL}assets/bayt-logo-green.png`} alt="BAYT" style={{ height: 32, width: "auto", display: "block" }} />
             </Link>
             {isMobile && (
               <button
@@ -479,7 +548,7 @@ export function AppShell() {
                   transform: "translateY(-50%)",
                   background: "transparent",
                   border: "none",
-                  color: "#ffffff",
+                  color: T.ink,
                   cursor: "pointer",
                   padding: 8,
                   minWidth: 40,
@@ -498,24 +567,74 @@ export function AppShell() {
             style={{ flex: 1, paddingTop: 4, paddingBottom: 12, overflowY: "auto" }}
           >
             <PropertyContextNav onNavigate={() => setOpen(false)} />
+            {/* Favoriter: sidor man stjärnmarkerat, alltid överst. */}
+            <div style={{ marginBottom: 6 }}>
+              <button
+                type="button"
+                onClick={() => toggleCollapsed("__fav")}
+                aria-expanded={!collapsed["__fav"]}
+                style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", cursor: "pointer", padding: "10px 22px 6px", color: T.ink, fontFamily: "inherit", fontSize: 14, fontWeight: 700, textAlign: "left" }}
+              >
+                <StarSvg on size={16} />
+                <span style={{ flex: 1 }}>Favoriter{favItems.length > 0 ? ` (${favItems.length})` : ""}</span>
+                <HugeiconsIcon icon={collapsed["__fav"] ? ArrowDown01Icon : ArrowRight01Icon} size={12} style={{ transform: collapsed["__fav"] ? "none" : "rotate(-90deg)", opacity: 0.6 }} />
+              </button>
+              {!collapsed["__fav"] && favItems.length === 0 && (
+                <div style={{ padding: "2px 22px 8px", fontSize: 12.5, color: T.muted, lineHeight: 1.5 }}>
+                  Tryck på stjärnan vid en sida så hamnar den här.
+                </div>
+              )}
+              {!collapsed["__fav"] &&
+                favItems.map((item) => {
+                  const active = isItemActive(item.to);
+                  const dot = arendeDots[item.to];
+                  return (
+                    <div key={item.to} className="bayt-nav-item" style={{ display: "flex", alignItems: "stretch", background: active ? T.ink : "transparent", borderRadius: 10, margin: "2px 10px" }}>
+                      <Link
+                        to={item.to}
+                        onClick={() => setOpen(false)}
+                        style={{ flex: 1, display: "flex", alignItems: "center", gap: 12, padding: "10px 8px 10px 12px", color: active ? "#fff" : T.ink, textDecoration: "none", fontSize: 14, fontWeight: active ? 600 : 500, minHeight: 40 }}
+                      >
+                        <HugeiconsIcon icon={item.icon} size={18} />
+                        <span style={{ flex: 1 }}>{item.label}</span>
+                        {dot && <NavDot dot={dot} />}
+                      </Link>
+                      <FavStarButton on label={item.label} onToggle={() => toggleFavorite(item.to)} />
+                    </div>
+                  );
+                })}
+              <div style={{ borderBottom: `1px solid ${T.line}`, margin: "8px 20px 2px" }} />
+            </div>
             {sections.map((section, sIdx) => (
 
               <div key={section.label ?? sIdx} style={{ marginBottom: 8 }}>
                 {section.label && (
-                  <div
+                  <button
+                    type="button"
+                    onClick={() => toggleCollapsed(section.label!)}
+                    aria-expanded={!collapsed[section.label]}
                     style={{
-                      padding: "14px 20px 6px",
-                      fontSize: 10,
-                      fontWeight: 600,
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: "14px 22px 6px",
+                      fontFamily: "inherit",
+                      fontSize: 11,
+                      fontWeight: 700,
                       letterSpacing: "0.12em",
                       textTransform: "uppercase",
-                      color: "rgba(255,255,255,0.4)",
+                      color: T.muted,
                     }}
                   >
-                    {section.label}
-                  </div>
+                    <span>{section.label}</span>
+                    <HugeiconsIcon icon={collapsed[section.label] ? ArrowDown01Icon : ArrowRight01Icon} size={12} style={{ transform: collapsed[section.label] ? "none" : "rotate(-90deg)", opacity: 0.7 }} />
+                  </button>
                 )}
-                {section.items.map((item) => {
+                {(section.label && collapsed[section.label] ? [] : section.items).map((item) => {
                   const active = isItemActive(item.to);
                   const hasChildren = !!item.children?.length;
                   const isOpen = !!expanded[item.to];
@@ -528,12 +647,9 @@ export function AppShell() {
                         style={{
                           display: "flex",
                           alignItems: "stretch",
-                          background:
-                            active && !hasChildren ? "rgba(92,184,74,0.15)" : "transparent",
-                          borderLeft:
-                            active && !hasChildren
-                              ? "3px solid #5CB84A"
-                              : "3px solid transparent",
+                          background: active && !hasChildren ? T.ink : "transparent",
+                          borderRadius: 10,
+                          margin: "2px 10px",
                         }}
                       >
                         <Link
@@ -544,8 +660,8 @@ export function AppShell() {
                             display: "flex",
                             alignItems: "center",
                             gap: 12,
-                            padding: "10px 12px 10px 17px",
-                            color: active ? "#5CB84A" : "rgba(255,255,255,0.85)",
+                            padding: "10px 8px 10px 12px",
+                            color: active && !hasChildren ? "#fff" : T.ink,
                             textDecoration: "none",
                             fontSize: 14,
                             fontWeight: active ? 600 : 500,
@@ -568,6 +684,7 @@ export function AppShell() {
                             />
                           )}
                         </Link>
+                        <FavStarButton on={isFavorite(item.to)} label={item.label} onToggle={() => toggleFavorite(item.to)} />
                         {isMobile && hasChildren && (
                           <button
                             type="button"
@@ -666,7 +783,7 @@ export function AppShell() {
           {/* Profile footer */}
           <div
             style={{
-              borderTop: "1px solid rgba(255,255,255,0.06)",
+              borderTop: `1px solid ${T.line}`,
               padding: "12px 16px",
               display: "flex",
               alignItems: "center",
@@ -683,7 +800,7 @@ export function AppShell() {
                 flex: 1,
                 minWidth: 0,
                 textDecoration: "none",
-                color: "#ffffff",
+                color: T.ink,
               }}
             >
               <UserAvatar url={profile?.avatar_url ?? null} initial={initial} size={36} />
@@ -704,7 +821,7 @@ export function AppShell() {
                     fontSize: 10,
                     textTransform: "uppercase",
                     letterSpacing: "0.08em",
-                    color: "rgba(255,255,255,0.5)",
+                    color: T.muted,
                   }}
                 >
                   {profile?.role ?? "användare"}
@@ -718,7 +835,7 @@ export function AppShell() {
               style={{
                 background: "transparent",
                 border: "none",
-                color: "rgba(255,255,255,0.6)",
+                color: T.muted,
                 cursor: "pointer",
                 padding: 8,
                 display: "flex",
@@ -745,7 +862,7 @@ export function AppShell() {
         <header
           style={{
             height: 56,
-            background: "#0D2B1E",
+            background: T.bg,
             display: "flex",
             alignItems: "center",
             padding: "0 16px",
@@ -754,8 +871,8 @@ export function AppShell() {
             top: isMobile ? 0 : 12,
             zIndex: 30,
             borderRadius: isMobile ? 0 : 16,
-            boxShadow: isMobile ? "none" : "0 4px 16px rgba(0,0,0,0.08)",
-            border: isMobile ? "none" : "1px solid rgba(255,255,255,0.04)",
+            boxShadow: "none",
+            border: "none",
           }}
         >
           {isMobile && (
@@ -765,7 +882,7 @@ export function AppShell() {
               style={{
                 background: "transparent",
                 border: "none",
-                color: "#ffffff",
+                color: T.ink,
                 cursor: "pointer",
                 padding: 8,
                 minWidth: 44,
@@ -807,8 +924,8 @@ export function AppShell() {
               left: 0,
               right: 0,
               height: 64,
-              background: "#0D2B1E",
-              borderTop: "1px solid rgba(255,255,255,0.06)",
+              background: T.side,
+              borderTop: `1px solid ${T.line}`,
               display: "flex",
               alignItems: "stretch",
               zIndex: 45,
@@ -829,7 +946,7 @@ export function AppShell() {
                       alignItems: "center",
                       justifyContent: "center",
                       textDecoration: "none",
-                      color: "#FFFFFF",
+                      color: T.ink,
                       position: "relative",
                     }}
                   >
@@ -845,7 +962,7 @@ export function AppShell() {
                         alignItems: "center",
                         justifyContent: "center",
                         boxShadow: "0 6px 16px rgba(0,0,0,0.3)",
-                        border: "4px solid #0D2B1E",
+                        border: `4px solid ${T.side}`,
                       }}
                     >
                       <HugeiconsIcon icon={item.icon} size={26} color="#FFFFFF" />
@@ -866,7 +983,7 @@ export function AppShell() {
                     justifyContent: "center",
                     gap: 2,
                     textDecoration: "none",
-                    color: active ? "#5CB84A" : "rgba(255,255,255,0.65)",
+                    color: active ? T.btn : T.muted,
                     fontSize: 10,
                     fontWeight: 600,
                   }}
@@ -891,14 +1008,14 @@ function MainWithSwipe({ isMobile }: { isMobile: boolean }) {
       style={{
         flex: 1,
         minHeight: 0,
-        background: "#FFFFFF",
+        background: T.card,
         padding: 0,
         paddingBottom: isMobile ? 72 : 0,
         borderRadius: isMobile ? 0 : 20,
         boxShadow: isMobile
           ? "none"
           : "0 1px 2px rgba(13,43,30,0.03), 0 10px 30px -12px rgba(13,43,30,0.10)",
-        border: isMobile ? "none" : "1px solid #E5E7EB",
+        border: isMobile ? "none" : `1px solid ${T.line}`,
         overflowY: "auto",
         overflowX: "hidden",
       }}

@@ -242,11 +242,12 @@ export function GlobalSearch() {
           display: "flex",
           alignItems: "center",
           gap: 8,
-          background: "rgba(255,255,255,0.06)",
+          background: "#FFFDF8",
+          border: "1px solid #E6DFD0",
           borderRadius: 8,
           padding: "0 12px",
           height: 36,
-          color: "#ffffff",
+          color: "#0D2B1E",
           fontSize: 13,
         }}
       >
@@ -264,7 +265,7 @@ export function GlobalSearch() {
             background: "transparent",
             border: "none",
             outline: "none",
-            color: "#ffffff",
+            color: "#0D2B1E",
             fontSize: 13,
           }}
         />
