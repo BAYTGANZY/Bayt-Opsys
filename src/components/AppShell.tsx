@@ -136,9 +136,9 @@ function FavStarButton({ on, label, onToggle }: { on: boolean; label: string; on
       aria-label={on ? `Ta bort ${label} från favoriter` : `Lägg till ${label} i favoriter`}
       aria-pressed={on}
       title={on ? "Ta bort från favoriter" : "Lägg till i favoriter"}
-      style={{ background: "transparent", border: "none", cursor: "pointer", padding: "0 10px", display: "flex", alignItems: "center", justifyContent: "center", minWidth: 36 }}
+      style={{ background: "transparent", border: "none", cursor: "pointer", padding: "0 12px", display: "flex", alignItems: "center", justifyContent: "center", minWidth: 44 }}
     >
-      <StarSvg on={on} />
+      <StarSvg on={on} size={22} />
     </button>
   );
 }
@@ -152,9 +152,9 @@ const BOTTOM_NAV: NavItem[] = [
 /** Menyns storlek: tre steg, väljs med pilarna på menyns kant och minns per webbläsare. */
 type NavSize = "small" | "normal" | "large";
 const NAV_SIZES: Record<NavSize, { width: number; font: number; icon: number; padY: number; minH: number; head: number; label: number }> = {
-  small: { width: 240, font: 14, icon: 18, padY: 10, minH: 40, head: 14, label: 11 },
-  normal: { width: 300, font: 16, icon: 21, padY: 12, minH: 46, head: 16, label: 12 },
-  large: { width: 360, font: 18, icon: 24, padY: 14, minH: 52, head: 18, label: 13 },
+  small: { width: 290, font: 17, icon: 22, padY: 11, minH: 48, head: 17, label: 13 },
+  normal: { width: 340, font: 19, icon: 25, padY: 13, minH: 54, head: 19, label: 14 },
+  large: { width: 400, font: 22, icon: 29, padY: 15, minH: 62, head: 22, label: 16 },
 };
 const NAV_ORDER: NavSize[] = ["small", "normal", "large"];
 
@@ -617,7 +617,7 @@ export function AppShell() {
               aria-label="Till startsidan"
               style={{ display: "inline-flex", textDecoration: "none" }}
             >
-              <img src={`${import.meta.env.BASE_URL}assets/bayt-logo-green.png`} alt="BAYT" style={{ height: navSize === "small" ? 32 : navSize === "normal" ? 38 : 44, width: "auto", display: "block" }} />
+              <img src={`${import.meta.env.BASE_URL}assets/bayt-logo-green.png`} alt="BAYT" style={{ height: navSize === "small" ? 38 : navSize === "normal" ? 44 : 52, width: "auto", display: "block" }} />
             </Link>
             {isMobile && (
               <button
@@ -889,7 +889,7 @@ export function AppShell() {
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div
                   style={{
-                    fontSize: 13,
+                    fontSize: NS.font - 3,
                     fontWeight: 600,
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -900,7 +900,7 @@ export function AppShell() {
                 </div>
                 <div
                   style={{
-                    fontSize: 10,
+                    fontSize: NS.label - 2,
                     textTransform: "uppercase",
                     letterSpacing: "0.08em",
                     color: T.muted,
