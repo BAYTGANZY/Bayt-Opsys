@@ -1,0 +1,198 @@
+import { useEffect, useRef, useState } from "react";
+import { Link, useRouterState } from "@tanstack/react-router";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { supabase } from "@/lib/supabase";
+import { Screensaver } from "@/components/Screensaver";
+import { sectionsForRole, type NavItem } from "@/components/AppShell";
+import { useFavorites } from "@/hooks/useFavorites";
+
+const whiteLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
+
+function Star({ on, size = 20 }: { on: boolean; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" fill={on ? "#5CB84A" : "none"} stroke={on ? "#5CB84A" : "#7a9476"} strokeWidth={1.7} strokeLinejoin="round">
+      <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" />
+    </svg>
+  );
+}
+
+/**
+ * Toppmeny i bredd för Översikt: samma innehåll som vänstermenyn (sidor, grupper och
+ * stjärnor) men utlagt på tvären, i sidans mörkgröna stil. Under den ligger favoriterna
+ * som stora knappar. Bara sidor rollen får öppna visas.
+ */
+export function HomeWideMenu({
+  role,
+  name,
+  roleLabel,
+  logoTo,
+}: {
+  role: string | null | undefined;
+  name: string | null;
+  roleLabel: string;
+  logoTo: string;
+}) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { routes, toggle, isFavorite } = useFavorites();
+  const sections = sectionsForRole(role);
+  const allowed = sections.flatMap((s) => s.items);
+  const favItems = routes.map((r) => allowed.find((i) => i.to === r)).filter((i): i is NavItem => !!i);
+
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!openKey) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpenKey(null);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpenKey(null);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [openKey]);
+
+  const isActive = (to: string) => pathname === to || pathname.startsWith(to + "/");
+
+  return (
+    <div className="hk-top wm-root">
+      <style>{WIDE_MENU_STYLES}</style>
+      <Screensaver />
+      <div className="wm-top" ref={ref}>
+        <Link to={logoTo as never} className="wm-logolink" title="Till Start" aria-label="Till Start">
+          <img src={whiteLogo} alt="BAYT" className="wm-logo" />
+        </Link>
+
+        <nav className="wm-nav" aria-label="Meny">
+          {sections.map((section, i) =>
+            section.label ? (
+              <div className="wm-group" key={section.label}>
+                <button
+                  type="button"
+                  className={`wm-btn${section.items.some((it) => isActive(it.to)) ? " active" : ""}`}
+                  aria-expanded={openKey === section.label}
+                  onClick={() => setOpenKey((k) => (k === section.label ? null : section.label!))}
+                >
+                  {section.label} <span aria-hidden="true">▾</span>
+                </button>
+                {openKey === section.label && (
+                  <div className="wm-pop" role="menu">
+                    {section.items.map((item) => (
+                      <div className="wm-pop-row" key={item.to}>
+                        <Link to={item.to as never} className={isActive(item.to) ? "on" : ""} onClick={() => setOpenKey(null)} role="menuitem">
+                          <HugeiconsIcon icon={item.icon} size={22} />
+                          <span>{item.label}</span>
+                        </Link>
+                        <button
+                          type="button"
+                          className="wm-star"
+                          onClick={() => toggle(item.to)}
+                          aria-pressed={isFavorite(item.to)}
+                          aria-label={isFavorite(item.to) ? `Ta bort ${item.label} från favoriter` : `Lägg till ${item.label} i favoriter`}
+                          title={isFavorite(item.to) ? "Ta bort från favoriter" : "Lägg till i favoriter"}
+                        >
+                          <Star on={isFavorite(item.to)} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="wm-first" key={i}>
+                {section.items.map((item) => (
+                  <Link key={item.to} to={item.to as never} className={`wm-link${isActive(item.to) ? " active" : ""}`}>
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            ),
+          )}
+        </nav>
+
+        <div className="wm-user">
+          <div className="wm-user-name">
+            {name ?? ""}
+            <div className="wm-user-role">{roleLabel}</div>
+          </div>
+          <button
+            type="button"
+            className="wm-out"
+            onClick={async () => {
+              await supabase.auth.signOut();
+              window.location.href = "/login";
+            }}
+          >
+            Logga ut
+          </button>
+        </div>
+      </div>
+
+      <div className="wm-favs" aria-label="Favoriter">
+        <span className="wm-favs-label">
+          <Star on size={22} /> Favoriter
+        </span>
+        {favItems.length === 0 ? (
+          <span className="wm-favs-empty">Öppna en meny ovan och tryck på stjärnan vid en sida så får du en knapp här.</span>
+        ) : (
+          favItems.map((item) => (
+            <Link key={item.to} to={item.to as never} className="wm-fav">
+              <HugeiconsIcon icon={item.icon} size={24} />
+              <span>{item.label}</span>
+            </Link>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+const WIDE_MENU_STYLES = `
+  .hk-top.wm-root { display: block; padding: 0; gap: 0; }
+  .wm-top { display: flex; align-items: center; gap: 18px; padding: 22px 0 12px; position: relative; z-index: 50; }
+  .wm-logolink { display: inline-flex; flex-shrink: 0; text-decoration: none; }
+  .wm-logo { height: 40px; width: auto; display: block; }
+  .wm-nav { display: flex; align-items: center; gap: 2px; flex: 1; min-width: 0; flex-wrap: wrap; }
+  .wm-first { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+  .wm-link, .wm-btn { padding: 10px 14px; border-radius: 10px; font: inherit; font-size: 20px; text-decoration: none; color: #b9ccb5; white-space: nowrap; background: transparent; border: none; cursor: pointer; }
+  .wm-link:hover, .wm-btn:hover, .wm-btn[aria-expanded="true"] { color: #fff; background: rgba(255,255,255,0.08); }
+  .wm-link.active, .wm-btn.active { color: #fff; box-shadow: inset 0 -3px 0 #5CB84A; border-radius: 10px 10px 0 0; }
+  .wm-group { position: relative; }
+  .wm-pop {
+    position: absolute; top: calc(100% + 8px); left: 0; min-width: 300px; padding: 8px; z-index: 300;
+    background: rgba(14,31,26,0.97); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.14); border-radius: 16px; box-shadow: 0 20px 44px -16px rgba(0,0,0,0.75);
+    display: grid; gap: 2px;
+  }
+  .wm-pop-row { display: flex; align-items: stretch; border-radius: 10px; }
+  .wm-pop-row:hover { background: rgba(92,184,74,0.14); }
+  .wm-pop-row a { flex: 1; display: flex; align-items: center; gap: 12px; padding: 12px 14px; font-size: 20px; text-decoration: none; color: #d9e6d3; min-width: 0; }
+  .wm-pop-row a.on { color: #fff; font-weight: 600; }
+  .wm-star { background: transparent; border: none; cursor: pointer; padding: 0 14px; display: flex; align-items: center; }
+  .wm-user { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .wm-user-name { font-size: 18px; color: #c9d6c3; text-align: right; line-height: 1.25; }
+  .wm-user-role { font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: #7a9476; }
+  .wm-out { height: 44px; padding: 0 16px; border-radius: 8px; font-size: 18px; cursor: pointer; font-family: inherit; background: transparent; color: #b9ccb5; border: 1px solid rgba(151,186,72,0.25); }
+  .wm-out:hover { color: #fff; border-color: rgba(92,184,74,0.6); }
+
+  .wm-favs { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 4px 0 8px; position: relative; z-index: 10; }
+  .wm-favs-label { display: inline-flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 600; color: #e6efd8; margin-right: 4px; }
+  .wm-favs-empty { font-size: 18px; color: #8aa38a; }
+  .wm-fav { display: inline-flex; align-items: center; gap: 12px; min-height: 60px; padding: 0 22px; border-radius: 16px; font-size: 21px; font-weight: 600; text-decoration: none; color: #e6efd8; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); }
+  .wm-fav:hover { border-color: rgba(92,184,74,0.8); color: #fff; background: rgba(92,184,74,0.14); }
+
+  @media (max-width: 1100px) {
+    .wm-user-name { display: none; }
+  }
+  @media (max-width: 768px) {
+    .wm-top { flex-wrap: wrap; gap: 10px; padding-top: 16px; }
+    .wm-logo { height: 30px; }
+    .wm-nav { order: 3; flex-basis: 100%; }
+    .wm-link, .wm-btn { font-size: 18px; padding: 9px 11px; }
+    .wm-user { margin-left: auto; }
+    .wm-pop { min-width: min(300px, 86vw); }
+    .wm-fav { min-height: 54px; font-size: 19px; padding: 0 16px; }
+  }
+`;
