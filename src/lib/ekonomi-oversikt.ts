@@ -38,7 +38,7 @@ export const GROUPS: GroupDef[] = [
   { key: "ovrigin", kind: "in", label: "Annat vi fått in", kid: "Småsummor, till exempel avgifter när någon flyttar och ränta från banken." },
   { key: "energi", kind: "ut", label: "Värme, el, vatten och sopor", kid: "Det som går åt för att huset ska vara varmt och ha ljus, vatten och sophämtning." },
   { key: "rantor", kind: "ut", label: "Räntor på lånen", kid: "Hyran vi betalar till banken för att ha lånat pengar till huset." },
-  { key: "skotsel", kind: "ut", label: "Skötsel", kid: "Fastighetsskötaren, larm och serviceavtal — dem som ser till att huset fungerar varje dag." },
+  { key: "skotsel", kind: "ut", label: "Skötsel", kid: "Avtalet för fastighetsskötsel och teknisk förvaltning, larm och serviceavtal — det som får huset att fungera varje dag." },
   { key: "forvaltning", kind: "ut", label: "Förvaltning", kid: "Styrelsen, revisorn, ekonomisk förvaltning, juridik, bank och allt pappersarbete." },
   { key: "konsult", kind: "ut", label: "Konsultarvode", kid: "Inhyrda experter som hjälper till med särskilda uppgifter." },
   { key: "hissar", kind: "ut", label: "Hissar", kid: "Service och reparationer av hissarna så att de går att åka i." },
@@ -52,6 +52,20 @@ export const GROUPS: GroupDef[] = [
 export const GROUP_BY_KEY: Record<GroupKey, GroupDef> = Object.fromEntries(
   GROUPS.map((g) => [g.key, g]),
 ) as Record<GroupKey, GroupDef>;
+
+/**
+ * Kontonamn i bokföringen som blir missvisande när de läses av någon som inte är
+ * ekonom. 4110 heter "Fastskötsel/teknisk förv arvode": ett samlat arvode för både
+ * fastighetsskötsel och teknisk förvaltning — inte fastighetsskötarens egen lön — och
+ * ska inte läsas som att en enskild person kostar så mycket.
+ */
+export const ACCOUNT_LABEL: Record<string, string> = {
+  "4110": "Arvode teknisk förvaltning och fastighetsskötsel",
+};
+
+export function accountLabel(account: string, name: string | undefined): string {
+  return ACCOUNT_LABEL[account] ?? name ?? `Konto ${account}`;
+}
 
 const HISS_KONTON = new Set([4150, 4346, 4546]);
 

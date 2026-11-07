@@ -15,6 +15,7 @@ import {
   periodLabel,
   type Balance,
   type GroupKey,
+  accountLabel,
   type GroupSummary,
   type Overview,
 } from "@/lib/ekonomi-oversikt";
@@ -61,7 +62,7 @@ export function useFinanceData(propertyId: string) {
       const names: Record<string, string> = {};
       const acc = await supabase.from("finance_accounts").select("account, name").eq("property_id", propertyId).limit(5000);
       if (acc.error) throw acc.error;
-      for (const a of acc.data ?? []) names[a.account as string] = a.name as string;
+      for (const a of acc.data ?? []) names[a.account as string] = accountLabel(a.account as string, a.name as string);
 
       const imp = await supabase
         .from("finance_imports")
