@@ -200,9 +200,7 @@ function Home({ ov, open }: { ov: Overview; open: (v: View) => void }) {
   const res = ov.inNow - ov.utNow;
   const even = Math.abs(res) < 0.01 * Math.max(ov.utNow, 1);
   const cashRes = res + ov.nonCash;
-  // Arvodet (teknisk förvaltning + fastighetsskötsel, konto 4110) visas på egen plats, inte i listan.
-  const arvode = ov.groups.find((g) => g.key === "skotsel" && g.now > 0) ?? null;
-  const ut = ov.groups.filter((g) => g.kind === "ut" && g.now > 0 && g.key !== "skotsel").sort((a, b) => b.now - a.now);
+  const ut = ov.groups.filter((g) => g.kind === "ut" && g.now > 0).sort((a, b) => b.now - a.now);
   const inArrow = arrow("in", ov.inNow, ov.inBefore, ov.hasBefore);
   const utArrow = arrow("ut", ov.utNow, ov.utBefore, ov.hasBefore);
 
@@ -245,32 +243,14 @@ function Home({ ov, open }: { ov: Overview; open: (v: View) => void }) {
         </button>
       </div>
 
-      {arvode && (
-        <section>
-          <h3 style={h3}>{arvode.label}</h3>
-          <p style={sub}>Räknas för sig, inte ihop med något annat.</p>
-          <button style={clickable} onClick={() => open({ t: "group", key: arvode.key })}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline", flexWrap: "wrap" }}>
-              <span style={{ fontFamily: "Outfit, Inter, sans-serif", fontSize: 30, fontWeight: 600 }}>{fmtStort(arvode.now)}</span>
-              <span style={{ fontFamily: "Outfit, Inter, sans-serif", fontWeight: 600, fontSize: 20 }}>
-                {ov.utNow > 0 ? Math.round((arvode.now / ov.utNow) * 100) : 0} %
-              </span>
-            </div>
-            <div style={{ color: MUTED, fontSize: 15, marginTop: 6 }}>
-              {periodLabel(ov.upTo)} {ov.year} · cirka {fmtStort(arvode.now / Math.max(1, ov.upTo))} i månaden · andel av alla utgifter
-            </div>
-            <div style={{ color: GREEN, fontSize: 14, fontWeight: 600, marginTop: 8 }}>Se vad det består av ›</div>
-          </button>
-        </section>
-      )}
-
       <section>
         <h3 style={h3}>Vart tar pengarna vägen?</h3>
-        <p style={sub}>Så här stor del av allt vi betalat ut går till varje sak. Arvodet ovan ingår inte i listan, men i procenten:</p>
+        <p style={sub}>Så här stor del av allt vi betalat ut går till varje sak:</p>
         <div style={{ display: "grid", gap: 10 }}>
           {ut.map((g) => {
             const share = ov.utNow > 0 ? (g.now / ov.utNow) * 100 : 0;
-            const a = arrow("ut", g.now, g.before, ov.hasBefore);
+            // Fastighetsskötsel visas utan jämförelse med förra året (klientens önskemål).
+            const a = g.key === "skotsel" ? null : arrow("ut", g.now, g.before, ov.hasBefore);
             return (
               <button key={g.key} style={clickable} onClick={() => open({ t: "group", key: g.key })}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
@@ -363,7 +343,7 @@ const h3: CSSProperties = { fontFamily: "Outfit, Inter, sans-serif", fontSize: 2
 const sub: CSSProperties = { margin: "0 0 12px", color: MUTED, fontSize: 15 };
 
 function GroupView({ g, total, has, onAccount }: { g: GroupSummary; total: number; has: boolean; onAccount: (account: string) => void }) {
-  const a = arrow(g.kind, g.now, g.before, has);
+  const a = g.key === "skotsel" ? null : arrow(g.kind, g.now, g.before, has);
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <div style={{ ...card, padding: 22 }}>
@@ -376,7 +356,7 @@ function GroupView({ g, total, has, onAccount }: { g: GroupSummary; total: numbe
       <div style={{ display: "grid", gap: 10 }}>
         {g.accounts.map((r) => {
           const share = total > 0 ? Math.max(0, (r.now / total) * 100) : 0;
-          const ra = arrow(g.kind, r.now, r.before, has);
+          const ra = g.key === "skotsel" ? null : arrow(g.kind, r.now, r.before, has);
           return (
             <button key={r.account} style={clickable} onClick={() => onAccount(r.account)}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
