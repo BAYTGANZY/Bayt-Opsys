@@ -50,9 +50,9 @@ type NavSection = { label?: string; items: NavItem[] };
 const SECTIONS: NavSection[] = [
   {
     items: [
-      { to: "/styrelse", label: "Start", icon: GridViewIcon },
+      { to: "/styrelse", label: "Översikt", icon: GridViewIcon },
       { to: "/dag-rapport", label: "Dag Rapport", icon: CalendarCheckIn01Icon },
-      { to: "/dashboard", label: "Översikt", icon: DashboardSquare01Icon },
+      { to: "/dashboard", label: "Start", icon: DashboardSquare01Icon },
       { to: "/chatt", label: "Chatt", icon: Chatting01Icon },
       { to: "/hemsidechatt", label: "Hemsidechatt", icon: Chatting01Icon },
     ],
@@ -142,8 +142,8 @@ function FavStarButton({ on, label, onToggle }: { on: boolean; label: string; on
 }
 
 const BOTTOM_NAV: NavItem[] = [
-  { to: "/dashboard", label: "Översikt", icon: DashboardSquare01Icon },
-  { to: "/start", label: "Start", icon: GridViewIcon },
+  { to: "/dashboard", label: "Start", icon: DashboardSquare01Icon },
+  { to: "/start", label: "Översikt", icon: GridViewIcon },
   { to: "/installningar", label: "Inställn.", icon: Settings01Icon },
 ];
 
@@ -156,7 +156,7 @@ const NAV_SIZES: Record<NavSize, { width: number; font: number; icon: number; pa
 };
 const NAV_ORDER: NavSize[] = ["small", "normal", "large"];
 
-/** Sidor rollen får öppna — används av favoritknapparna på Översikt. */
+/** Sidor rollen får öppna — används av favoritknapparna på Start. */
 export function allowedNavItems(role: string | null | undefined): NavItem[] {
   return sectionsForRole(role).flatMap((s) => s.items);
 }
@@ -372,7 +372,14 @@ export function AppShell() {
 
   const initial = getInitial(profile?.full_name);
   // Loggan leder till rollens startsida: entreprenör → Snabbåtkomst, övriga → Översikt.
-  const homeTo = profile?.role === "entreprenor" ? "/start" : "/styrelse";
+  // Loggan: på Start (/dashboard) går den till Översikt (/styrelse), och överallt annars till Start.
+  // Styrelse har ingen Start-sida, de landar på Översikt; entreprenör på Mina uppdrag.
+  const homeTo =
+    profile?.role === "entreprenor"
+      ? "/mina-uppdrag"
+      : profile?.role === "admin" && pathname !== "/dashboard"
+        ? "/dashboard"
+        : "/styrelse";
   const sections = sectionsForRole(profile?.role);
   // Bara sådant rollen faktiskt får öppna — en gammal stjärna får aldrig öppna en dörr.
   const allowedItems = sections.flatMap((s) => s.items);
@@ -384,9 +391,9 @@ export function AppShell() {
   // Antal hemsidechatt-samtal som väntar på svar (bara admin).
   const webchatCount = useWebchatBadge(profile?.role === "admin");
   // Mittenknappen ("Start") går till rollens egen startsida.
-  const bottomNav = BOTTOM_NAV.map((i) => (i.to === "/start" ? { ...i, to: homeTo } : i)).filter(
-    (i) => i.label === "Start" || canAccess(profile?.role, i.to),
-  );
+  const bottomNav = BOTTOM_NAV.map((i) =>
+    i.to === "/start" ? { ...i, to: profile?.role === "entreprenor" ? "/mina-uppdrag" : "/styrelse", label: profile?.role === "entreprenor" ? "Start" : i.label } : i,
+  ).filter((i) => i.icon === GridViewIcon || canAccess(profile?.role, i.to));
 
   return (
     <div
@@ -1016,7 +1023,7 @@ export function AppShell() {
           >
             {bottomNav.map((item) => {
               const active = isItemActive(item.to);
-              const isStart = item.label === "Start";
+              const isStart = item.icon === GridViewIcon;
               if (isStart) {
                 return (
                   <Link

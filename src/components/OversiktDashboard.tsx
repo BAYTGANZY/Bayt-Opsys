@@ -294,7 +294,7 @@ export function OversiktDashboard({ propertyId }: { propertyId?: string } = {}) 
         <h1
           style={{ fontFamily: T.outfit, fontWeight: 600, fontSize: 26, margin: 0, color: T.text }}
         >
-          Översikt
+          Start
         </h1>
         <div style={{ color: T.secondary, fontSize: 13 }}>{fmtTimestamp(now)}</div>
       </div>

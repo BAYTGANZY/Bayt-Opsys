@@ -106,6 +106,7 @@ export function TopBar({
   items,
   roleLabel,
   light = false,
+  logoTo = "/start",
 }: {
   role: string | null | undefined;
   name: string | null;
@@ -113,6 +114,8 @@ export function TopBar({
   roleLabel: string;
   /** Beige sida: byt till den mörka logotypen. */
   light?: boolean;
+  /** Dit loggan länkar. */
+  logoTo?: string;
 }) {
   const nav = items.filter((n) => canAccess(role, n.to));
   const split = nav.length > 7;
@@ -141,7 +144,7 @@ export function TopBar({
     <>
       <Screensaver />
       <div className="hk-top">
-        <Link to={"/start" as never} className="hk-logolink" title="Till Hem" aria-label="Till Hem">
+        <Link to={logoTo as never} className="hk-logolink" title="Till Start" aria-label="Till Start">
           <img src={light ? greenLogo : whiteLogo} alt="BAYT" className="hk-logo" />
         </Link>
         <div className="hk-navwrap">
