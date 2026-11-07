@@ -133,7 +133,7 @@ export function NotificationBell({ isMobile }: { isMobile: boolean }) {
           position: "relative",
           background: "transparent",
           border: "none",
-          color: hasAkut ? "#FF6B6B" : open ? "#ffffff" : "rgba(255,255,255,0.7)",
+          color: hasAkut ? "#C2334D" : open ? "#0D2B1E" : "rgba(13,43,30,0.7)",
           cursor: "pointer",
           padding: 8,
           minWidth: 40,

@@ -320,7 +320,7 @@
 
 /* --- Sidebar nav hover --------------------------------------------------- */
 .bayt-nav-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(13, 43, 30, 0.05);
 }
 
 /* --- Mini sidebar flyout ------------------------------------------------- */
@@ -378,7 +378,7 @@
   width: 6px;
 }
 .bayt-sidebar-nav::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(13, 43, 30, 0.15);
   border-radius: 3px;
 }
 
