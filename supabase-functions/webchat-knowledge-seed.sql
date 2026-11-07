@@ -35,9 +35,18 @@ from (values
   (210, 'Hur kontaktar jag er?', 'Telefon 040-630 46 00 och e-post info@bayt.se. Adress: BAYT AB, Gräsvallsvägen 3, 238 34 Oxie. Organisationsnummer 559006-2708.'),
   (220, 'Var finns ni?', 'Vi har adress på Gräsvallsvägen 3, 238 34 Oxie, och arbetar i Malmö.'),
   (230, 'Vad är era ordningsregler? Var hittar jag stadgar och boendeinformation?', 'Ordningsregler, stadgar och boendeinformation tillhör den enskilda föreningen och finns inte på BAYT:s hemsida. Fråga din förenings styrelse. Vill du ha hjälp att komma vidare kan du kontakta BAYT på telefon 040-630 46 00 eller e-post info@bayt.se.'),
-  (240, 'Hur hanterar ni personuppgifter?', 'Vi behandlar de uppgifter du skickar in i formuläret för att kontakta dig. Det står närmare i vår integritetspolicy på bayt.se/integritetspolicy.')
+  (240, 'Hur hanterar ni personuppgifter?', 'Vi behandlar de uppgifter du skickar in i formuläret för att kontakta dig. Det står närmare i vår integritetspolicy på bayt.se/integritetspolicy.'),
+  (250, 'Varför ska vi anlita en fastighetssamordnare?', 'Utan fast rutin lägger styrelsen kvällar och helger på felanmälan. Boende hör av sig direkt till styrelsens privata mobiler, ingen vet vem som gjorde vad senast, och hissen kan stå eller soprummet svämma över på helgen. Med BAYT tar vi felanmälan, hantverkare och uppföljning.'),
+  (260, 'Vad kostar det att inte ha ordning på fastigheten?', 'Det som kostar är inte själva fastighetssamordningen. Det är kvällarna i styrelsen, felanmälningarna som aldrig tar slut och boende som inte får svar. Det kallar vi den dolda kostnaden: styrelsens tid och missnöjda boende.'),
+  (270, 'Vad får vi med BAYT?', 'Du får en kontakt som svarar inom en arbetsdag, ett fast månadspris efter platsbesöket, veckologg och bilder till styrelsen. Vi tar felanmälan, hantverkare och uppföljning.'),
+  (280, 'Är det någon bindningstid?', 'Nej. Uppsägningstiden är tre månader, om inget annat anges i avtalet.'),
+  (290, 'Varför bara Malmö?', 'Vi är inte rikstäckande, vi är i Malmö. Därför kan vi vara på plats när det behövs, vi känner leverantörerna och vi tar ansvar hela vägen.'),
+  (300, 'Är det bara för stora föreningar?', 'Nej. Vi är öppna för alla bostadsrättsföreningar och fastighetsägare i Malmö, stora som små.'),
+  (310, 'Vad gör SBF Skydd?', 'SBF Skydd är ett brandskyddsföretag som vänder sig till bostadsrättsföreningar, fastighetsägare och företag. De hjälper till med systematiskt brandskyddsarbete (SBA), alltså rutiner, riskinventeringar och regelbundna kontroller. De sköter också service, installation och underhåll av brandlarm, sprinklersystem, nödljus, rökluckor, stigarledningar och släcksystem. Dessutom gör de brandtätning och brandskyddsbeskrivningar och säljer och installerar brandklassade laddskåp och förvaringsskåp.'),
+  (320, 'Behöver vi jaga hantverkare själva?', 'Nej. Det gör vi åt er. Ni ska ha ordning, inte jaga hantverkare.'),
+  (330, 'Vad är BRF RTB?', 'BRF RTB är en bostadsrättsförening i Malmö med 104 lägenheter och cirka 8 lokaler.')
 ) as v(sort_order, title, body)
 where not exists (select 1 from public.webchat_knowledge k where k.title = v.title);
 
--- Kontroll: antal poster (ska vara minst 24).
+-- Kontroll: antal poster (ska vara minst 33).
 -- select count(*) from public.webchat_knowledge;
