@@ -26,14 +26,14 @@ export function FavoritesBar() {
             borderRadius: 14,
             padding: "14px 18px",
             color: "#6B7A70",
-            fontSize: 18,
+            fontSize: 15,
             lineHeight: 1.5,
           }}
         >
           Tryck på stjärnan vid en sida i menyn så får du en snabbknapp till den här.
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>
           {items.map((item) => (
             <Link
               key={item.to}
@@ -42,7 +42,7 @@ export function FavoritesBar() {
                 display: "flex",
                 alignItems: "center",
                 gap: 12,
-                minHeight: 72,
+                minHeight: 60,
                 padding: "12px 16px",
                 background: "#FFFDF8",
                 border: `1px solid ${line}`,
@@ -50,11 +50,11 @@ export function FavoritesBar() {
                 boxShadow: "0 1px 2px rgba(13,43,30,0.04), 0 8px 24px -12px rgba(13,43,30,0.12)",
                 color: ink,
                 textDecoration: "none",
-                fontSize: 20,
+                fontSize: 17,
                 fontWeight: 600,
               }}
             >
-              <HugeiconsIcon icon={item.icon} size={28} />
+              <HugeiconsIcon icon={item.icon} size={24} />
               <span style={{ flex: 1, minWidth: 0 }}>{item.label}</span>
               <svg width={18} height={18} viewBox="0 0 24 24" aria-hidden="true" fill="#5CB84A" stroke="#5CB84A" strokeWidth={1.7} strokeLinejoin="round">
                 <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" />
