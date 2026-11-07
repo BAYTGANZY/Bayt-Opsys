@@ -358,7 +358,7 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
   })();
 
   return (
-    <div style={{ display: "grid", gap: 18 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 18 }}>
       {/* Hjälte */}
       <div style={{ background: "radial-gradient(ellipse at 20% 0%, #21503f 0%, #0f2a21 55%, #0b1d17 100%)", borderRadius: 18, padding: "24px 26px", color: "#e6efd8" }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "#7fe08a" }}>{propertyName ?? "Fastigheten"} · Ekonomi & Avgift</div>

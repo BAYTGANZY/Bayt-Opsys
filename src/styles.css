@@ -515,3 +515,19 @@
 }
 
 
+
+/* --- Mobil: enkolumns-grids får aldrig bli bredare än skärmen ---------------
+   Ett `display: grid` utan egna kolumner har ETT implicit `auto`-spår, och ett
+   auto-spår kan aldrig bli smalare än sitt bredaste innehåll (en tabell, en lång
+   rad, en minmax(260px…)-grid). Då blåses alla kort i kolumnen upp förbi skärmkanten
+   och höger sida klipps — så såg Ekonomi & Avgift ut i mobilen. minmax(0, 1fr) låter
+   spåret krympa; innehållet som är för brett scrollar i sin egen ruta i stället.
+   Grids som själva anger kolumner, flöde eller områden rörs inte. */
+.bayt-app [style*="display: grid"]:not([style*="grid-template"]):not([style*="grid-auto"]) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.bayt-app main > div,
+.bayt-app main > div > div {
+  min-width: 0;
+  max-width: 100%;
+}
