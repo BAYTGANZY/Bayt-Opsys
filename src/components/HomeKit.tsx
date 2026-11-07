@@ -31,6 +31,7 @@ export const homeSketch = homeLogo;
 
 // Den vita loggan som används uppe till vänster (samma som på styrelsevyn).
 const whiteLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
+const greenLogo = `${import.meta.env.BASE_URL}assets/bayt-logo-green.png`;
 
 // Dessa val ligger alltid synliga i menyn. Resten hamnar under "Mer" när menyn är lång.
 const PRIMARY_NAV = new Set(["/dag-rapport", "/fastigheter", "/issues", "/inspections", "/projects", "/chatt"]);
@@ -104,11 +105,14 @@ export function TopBar({
   name,
   items,
   roleLabel,
+  light = false,
 }: {
   role: string | null | undefined;
   name: string | null;
   items: Array<{ to: string; label: string }>;
   roleLabel: string;
+  /** Beige sida: byt till den mörka logotypen. */
+  light?: boolean;
 }) {
   const nav = items.filter((n) => canAccess(role, n.to));
   const split = nav.length > 7;
@@ -138,7 +142,7 @@ export function TopBar({
       <Screensaver />
       <div className="hk-top">
         <Link to={"/start" as never} className="hk-logolink" title="Till Hem" aria-label="Till Hem">
-          <img src={whiteLogo} alt="BAYT" className="hk-logo" />
+          <img src={light ? greenLogo : whiteLogo} alt="BAYT" className="hk-logo" />
         </Link>
         <div className="hk-navwrap">
           <nav className="hk-nav" aria-label="Meny">
@@ -389,4 +393,32 @@ export const HOME_STYLES = `
     .hk-row { flex-wrap: wrap; padding: 12px 14px; }
     .hk-row-right { width: 100%; grid-auto-flow: column; justify-content: space-between; justify-items: start; }
   }
+`;
+
+/**
+ * Beige variant av startsidorna: sidan runt om är ljus, men hjälten och korten behåller
+ * sitt mörkgröna utseende. Läggs på `.hk-page.hk-beige`, så andra startsidor påverkas inte.
+ */
+export const BEIGE_STYLES = `
+  .hk-page.hk-beige { background: #F6F1E7; color: #0D2B1E; }
+  .hk-beige .hk-nav a, .hk-beige .hk-more-btn { color: #3F5448; }
+  .hk-beige .hk-nav a:hover, .hk-beige .hk-more-btn:hover, .hk-beige .hk-more-btn[aria-expanded="true"] { color: #0D2B1E; background: rgba(13,43,30,0.07); }
+  .hk-beige .hk-user-name { color: #0D2B1E; }
+  .hk-beige .hk-user-role { color: #6B7A70; }
+  .hk-beige .hk-out { color: #0D2B1E; border-color: #D9D1BF; background: #FFFDF8; }
+  .hk-beige .hk-out:hover { color: #0D2B1E; border-color: #3D8A30; }
+
+  /* Hjälten och korten: solid mörkgrönt i stället för genomskinligt. */
+  .hk-beige .id-hero { color: #e6efd8; box-shadow: 0 18px 40px -22px rgba(13,43,30,0.55); }
+  .hk-beige .hk-panel, .hk-beige .hk-prop, .hk-beige .hk-kpi { background: #12302A; color: #e6efd8; border-color: rgba(255,255,255,0.08); box-shadow: 0 12px 28px -20px rgba(13,43,30,0.6); }
+  .hk-beige .hk-panel { border-top: 3px solid rgba(92,184,74,0.7); }
+  .hk-beige .hk-prop { border-left: 4px solid rgba(92,184,74,0.7); }
+
+  /* Text direkt på beige. */
+  .hk-beige .hk-h2 { color: #0D2B1E; }
+  .hk-beige .hk-note { color: #6B7A70; }
+  .hk-beige .hk-filter { color: #0D2B1E; }
+  .hk-beige .hk-filter button { color: #0D2B1E; background: #FFFDF8; border-color: #3D8A30; }
+  .hk-beige > .hk-wrap > .hk-empty, .hk-beige .hk-wrap > .hk-empty { color: #3F5448; }
+  .hk-beige .hk-wrap > .hk-empty .hk-link { color: #3D8A30; font-weight: 600; }
 `;

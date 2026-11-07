@@ -13,6 +13,7 @@ import {
 import { inspectionTypeLabel } from "@/lib/inspection-tokens";
 import {
   HOME_STYLES,
+  BEIGE_STYLES,
   TopBar,
   Panel,
   Row,
@@ -221,9 +222,10 @@ function StyrelsePage() {
   return (
     <>
       <style>{HOME_STYLES}</style>
-      <div className="hk-page">
+      <style>{BEIGE_STYLES}</style>
+      <div className="hk-page hk-beige">
         <div className="hk-wrap">
-          <TopBar role={role} name={name} items={NAV} roleLabel={role === "admin" ? "Förhandsvisning" : "Styrelse"} />
+          <TopBar role={role} name={name} items={NAV} roleLabel={role === "admin" ? "Förhandsvisning" : "Styrelse"} light />
 
           {role === undefined && <div className="hk-empty">Laddar…</div>}
           {role !== undefined && !allowed && (
