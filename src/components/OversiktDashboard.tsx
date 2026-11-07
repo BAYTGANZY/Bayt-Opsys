@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/lib/supabase";
 import { LIFECYCLE_OF } from "@/lib/issue-tokens";
+import { FavoritesBar } from "@/components/FavoritesBar";
 
 // ---------- design tokens ----------
 const T = {
@@ -297,6 +298,9 @@ export function OversiktDashboard({ propertyId }: { propertyId?: string } = {}) 
         </h1>
         <div style={{ color: T.secondary, fontSize: 13 }}>{fmtTimestamp(now)}</div>
       </div>
+
+      {/* Favoriter som snabbknappar (bara på den globala översikten) */}
+      {!propertyId && <FavoritesBar />}
 
       {/* Row 1 — hero cards */}
       <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 20 }}>
