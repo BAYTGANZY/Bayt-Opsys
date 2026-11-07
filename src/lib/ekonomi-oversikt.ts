@@ -38,7 +38,7 @@ export const GROUPS: GroupDef[] = [
   { key: "ovrigin", kind: "in", label: "Annat vi fått in", kid: "Småsummor, till exempel avgifter när någon flyttar och ränta från banken." },
   { key: "energi", kind: "ut", label: "Värme, el, vatten och sopor", kid: "Det som går åt för att huset ska vara varmt och ha ljus, vatten och sophämtning." },
   { key: "rantor", kind: "ut", label: "Räntor på lånen", kid: "Hyran vi betalar till banken för att ha lånat pengar till huset." },
-  { key: "skotsel", kind: "ut", label: "Skötsel", kid: "Avtalet för fastighetsskötsel och teknisk förvaltning, larm och serviceavtal — det som får huset att fungera varje dag." },
+  { key: "skotsel", kind: "ut", label: "Arvode teknisk förvaltning och fastighetsskötsel", kid: "Det fasta arvodet till företaget som sköter huset och den tekniska förvaltningen. Räknas för sig, inte ihop med annat." },
   { key: "forvaltning", kind: "ut", label: "Förvaltning", kid: "Styrelsen, revisorn, ekonomisk förvaltning, juridik, bank och allt pappersarbete." },
   { key: "konsult", kind: "ut", label: "Konsultarvode", kid: "Inhyrda experter som hjälper till med särskilda uppgifter." },
   { key: "hissar", kind: "ut", label: "Hissar", kid: "Service och reparationer av hissarna så att de går att åka i." },
@@ -87,8 +87,12 @@ export function groupOf(account: string): GroupKey | null {
   if (n >= 4300 && n < 4600) return "reparationer";
   // Besiktning, OVK, underhållsplan, brandskydd, trädgård och snöröjning räknas som underhåll.
   if ((n >= 4140 && n < 4150) || (n >= 4160 && n < 4180)) return "reparationer";
-  if (n >= 4100 && n < 4200) return "skotsel";
-  if (n >= 5000 && n < 6000) return "skotsel";
+  // Arvodet (konto 4110) står helt för sig. Larm, serviceavtal, förbrukningsmaterial m.m.
+  // räknas som drift och underhåll av huset, aldrig ihop med arvodet.
+  if (n === 4110) return "skotsel";
+  if (n === 4190) return "annat";
+  if (n >= 4100 && n < 4200) return "reparationer";
+  if (n >= 5000 && n < 6000) return "reparationer";
   if (n === 6550 || n === 6599) return "konsult";
   if (n >= 6000 && n < 7000) return "forvaltning";
   if (n >= 7500 && n < 7700) return "forvaltning";
