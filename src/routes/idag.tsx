@@ -31,8 +31,11 @@ export const Route = createFileRoute("/idag")({
   beforeLoad: async () => {
     const { data } = await supabase.auth.getSession();
     if (!data.session) throw redirect({ to: "/login" });
+    // Gamla "Idag"-sidan är ersatt av Översikt (/styrelse). Behålls som redirect så att
+    // bokmärken och gamla länkar inte slutar fungera.
+    throw redirect({ to: "/styrelse" });
   },
-  head: () => ({ meta: [{ title: "Idag — BAYT" }] }),
+  head: () => ({ meta: [{ title: "Översikt — BAYT" }] }),
   component: IdagPage,
 });
 

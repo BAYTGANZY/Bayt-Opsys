@@ -63,7 +63,7 @@ export const PROPERTY_SECTIONS_FOR_ROLE: Record<string, ReadonlyArray<string>> =
 
 /** Where each role lands when it hits something it may not open. */
 export const HOME_FOR_ROLE: Record<string, string> = {
-  admin: "/idag",
+  admin: "/styrelse",
   styrelse: "/styrelse",
   entreprenor: "/mina-uppdrag",
 };
