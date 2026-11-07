@@ -211,7 +211,7 @@ function StyrelsePage() {
       <style>{HOME_STYLES}</style>
       <div className="hk-page">
         <div className="hk-wrap">
-          <HomeWideMenu role={role} name={name} roleLabel={role === "admin" ? "Förhandsvisning" : "Styrelse"} logoTo={role === "admin" ? "/dashboard" : "/styrelse"} />
+          <HomeWideMenu role={role} name={name} roleLabel={role === "admin" ? "Förhandsvisning" : "Styrelse"} logoTo={role === "styrelse" ? "/styrelse" : "/dashboard"} />
 
           {role === undefined && <div className="hk-empty">Laddar…</div>}
           {role !== undefined && !allowed && (
