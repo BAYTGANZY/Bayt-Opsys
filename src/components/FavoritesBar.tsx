@@ -5,7 +5,7 @@ import { useFavorites } from "@/hooks/useFavorites";
 import { allowedNavItems } from "@/components/AppShell";
 
 /**
- * Snabbknappar överst på Översikt: en stor knapp per stjärnmarkerad sida.
+ * Snabbknappar överst på Start: en stor knapp per stjärnmarkerad sida.
  * Bara sidor rollen faktiskt får öppna visas — en gammal stjärna öppnar aldrig en dörr.
  */
 export function FavoritesBar() {

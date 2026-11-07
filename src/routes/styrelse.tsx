@@ -225,7 +225,7 @@ function StyrelsePage() {
       <style>{BEIGE_STYLES}</style>
       <div className="hk-page hk-beige">
         <div className="hk-wrap">
-          <TopBar role={role} name={name} items={NAV} roleLabel={role === "admin" ? "Förhandsvisning" : "Styrelse"} light />
+          <TopBar role={role} name={name} items={NAV} roleLabel={role === "admin" ? "Förhandsvisning" : "Styrelse"} light logoTo={role === "admin" ? "/dashboard" : "/styrelse"} />
 
           {role === undefined && <div className="hk-empty">Laddar…</div>}
           {role !== undefined && !allowed && (
