@@ -335,7 +335,10 @@ const GLOSSARY: Array<[string, string]> = [
   ["Slitage (avskrivning)", "Hus blir äldre och slits. Därför bokför man en del av husets värde som en kostnad varje år. Inga pengar lämnar kontot, men det är med i resultatet."],
   ["Ränta", "Hyran man betalar för att ha lånat pengar. Ju större lån, desto mer ränta."],
   ["Tomträtt", "Marken under husen ägs av kommunen. Föreningen betalar en avgift för att få ha husen där."],
-  ["Förvaltning", "Dem som sköter vardagen åt föreningen: fastighetsskötsel, ekonomi och pappersarbete."],
+  ["Fastighetsskötsel", "Avtalet med dem som ser till att huset fungerar i vardagen: tillsyn, löpande skötsel och att små fel åtgärdas."],
+  ["Arvode förvaltning & teknisk förvaltning", "Betalning till dem som sköter föreningens ekonomi, pappersarbete och tekniska frågor, till exempel underhållsplanen. Fastighetsskötseln ingår inte här, den har en egen rad."],
+  ["Reparationer och underhåll", "Att laga det som gått sönder och hålla huset i trim: tak, rör, dörrar, tvättstugor, hissar, besiktningar, brandskydd, trädgård och snöröjning."],
+  ["Konsultarvode", "Inhyrda experter som hjälper föreningen med särskilda uppgifter."],
   ["Underskott och överskott", "Överskott är när det blir pengar över. Underskott är när det går ut mer än det kommer in."],
 ];
 
