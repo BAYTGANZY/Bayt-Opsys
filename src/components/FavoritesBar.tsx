@@ -33,7 +33,7 @@ export function FavoritesBar() {
           Tryck på stjärnan vid en sida i menyn så får du en snabbknapp till den här.
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
           {items.map((item) => (
             <Link
               key={item.to}
@@ -52,11 +52,12 @@ export function FavoritesBar() {
                 textDecoration: "none",
                 fontSize: 17,
                 fontWeight: 600,
+                minWidth: 0,
               }}
             >
-              <HugeiconsIcon icon={item.icon} size={24} />
-              <span style={{ flex: 1, minWidth: 0 }}>{item.label}</span>
-              <svg width={18} height={18} viewBox="0 0 24 24" aria-hidden="true" fill="#5CB84A" stroke="#5CB84A" strokeWidth={1.7} strokeLinejoin="round">
+              <span style={{ flexShrink: 0, display: "inline-flex" }}><HugeiconsIcon icon={item.icon} size={24} /></span>
+              <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere", hyphens: "auto", lineHeight: 1.25 }}>{item.label}</span>
+              <svg style={{ flexShrink: 0 }} width={18} height={18} viewBox="0 0 24 24" aria-hidden="true" fill="#5CB84A" stroke="#5CB84A" strokeWidth={1.7} strokeLinejoin="round">
                 <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" />
               </svg>
             </Link>
