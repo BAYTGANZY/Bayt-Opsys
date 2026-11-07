@@ -210,7 +210,8 @@ export function computeOverview(
   const interestPerMonth = rantor.now > 0 && upTo > 0 ? rantor.now / upTo : null;
 
   const dearer = groups
-    .filter((g) => g.kind === "ut" && g.key !== "slitage")
+    // Slitaget och arvodet (4110) visas på egna platser och jämförs inte i "dyrare"-listan.
+    .filter((g) => g.kind === "ut" && g.key !== "slitage" && g.key !== "skotsel")
     .flatMap((g) => g.accounts.map((r) => ({ ...r, group: g.key, diff: r.now - r.before, pct: r.before > 0 ? (r.now - r.before) / r.before : null })))
     .filter((r) => hasBefore && r.diff >= 50000 && (r.pct === null || r.pct >= 0.1))
     .sort((a, b) => b.diff - a.diff)
