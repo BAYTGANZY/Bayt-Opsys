@@ -39,13 +39,13 @@ import { useFavorites } from "@/hooks/useFavorites";
 
 
 type SubItem = { to: string; label: string };
-type NavItem = {
+export type NavItem = {
   to: string;
   label: string;
   icon: typeof DashboardSquare01Icon;
   children?: SubItem[];
 };
-type NavSection = { label?: string; items: NavItem[] };
+export type NavSection = { label?: string; items: NavItem[] };
 
 const SECTIONS: NavSection[] = [
   {
@@ -162,7 +162,7 @@ export function allowedNavItems(role: string | null | undefined): NavItem[] {
 }
 
 /** Drop links this role can't reach, then drop sections left empty. */
-function sectionsForRole(role: string | null | undefined): NavSection[] {
+export function sectionsForRole(role: string | null | undefined): NavSection[] {
   return SECTIONS.map((s) => ({ ...s, items: s.items.filter((i) => canAccess(role, i.to)) })).filter(
     (s) => s.items.length > 0,
   );

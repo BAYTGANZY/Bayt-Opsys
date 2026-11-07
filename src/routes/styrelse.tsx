@@ -13,8 +13,6 @@ import {
 import { inspectionTypeLabel } from "@/lib/inspection-tokens";
 import {
   HOME_STYLES,
-  BEIGE_STYLES,
-  TopBar,
   Panel,
   Row,
   useHomeUser,
@@ -26,6 +24,7 @@ import {
   type Kind,
 } from "@/components/HomeKit";
 import { Hero } from "@/components/HeroKit";
+import { HomeWideMenu } from "@/components/HomeWideMenu";
 
 export const Route = createFileRoute("/styrelse")({
   ssr: false,
@@ -58,18 +57,6 @@ type Entry = {
 
 const TABLE: Record<Kind, string> = { issue: "issues", inspection: "inspections", project: "projects" };
 const LEVEL_LABEL: Record<Level, string> = { ok: "Under kontroll", warn: "Uppmärksamhet", bad: "Åtgärd krävs" };
-
-const NAV: Array<{ to: string; label: string }> = [
-  { to: "/dag-rapport", label: "Dag Rapport" },
-  { to: "/fastigheter", label: "Fastigheter" },
-  { to: "/issues", label: "Felanmälningar" },
-  { to: "/inspections", label: "Besiktningar" },
-  { to: "/projects", label: "Projekt" },
-  { to: "/underhallsplan", label: "Underhållsplan" },
-  { to: "/loggbok", label: "Loggbok" },
-  { to: "/chatt", label: "Chatt" },
-  { to: "/installningar", label: "Inställningar" },
-];
 
 function lifecycleFor(kind: Kind, row: Row_): Lifecycle {
   const map = LIFECYCLE_OF as Record<string, Lifecycle>;
@@ -222,10 +209,9 @@ function StyrelsePage() {
   return (
     <>
       <style>{HOME_STYLES}</style>
-      <style>{BEIGE_STYLES}</style>
-      <div className="hk-page hk-beige">
+      <div className="hk-page">
         <div className="hk-wrap">
-          <TopBar role={role} name={name} items={NAV} roleLabel={role === "admin" ? "Förhandsvisning" : "Styrelse"} light logoTo={role === "admin" ? "/dashboard" : "/styrelse"} />
+          <HomeWideMenu role={role} name={name} roleLabel={role === "admin" ? "Förhandsvisning" : "Styrelse"} logoTo={role === "admin" ? "/dashboard" : "/styrelse"} />
 
           {role === undefined && <div className="hk-empty">Laddar…</div>}
           {role !== undefined && !allowed && (
