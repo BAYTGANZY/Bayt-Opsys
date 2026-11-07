@@ -141,11 +141,9 @@ function FavStarButton({ on, label, onToggle }: { on: boolean; label: string; on
   );
 }
 
-const BOTTOM_NAV: NavItem[] = [
-  { to: "/dashboard", label: "Start", icon: DashboardSquare01Icon },
-  { to: "/start", label: "Översikt", icon: GridViewIcon },
-  { to: "/installningar", label: "Inställn.", icon: Settings01Icon },
-];
+// Mobilens nedre meny: en enda mittenknapp som växlar mellan Start och Översikt
+// (se `centerNav` i AppShell) och Inställningar till höger.
+const SETTINGS_NAV: NavItem = { to: "/installningar", label: "Inställn.", icon: Settings01Icon };
 
 /** Menyns storlek: tre steg, väljs med pilarna på menyns kant och minns per webbläsare. */
 type NavSize = "small" | "normal" | "large";
@@ -390,10 +388,20 @@ export function AppShell() {
   const arendeDots = useMyArendeDots();
   // Antal hemsidechatt-samtal som väntar på svar (bara admin).
   const webchatCount = useWebchatBadge(profile?.role === "admin");
-  // Mittenknappen ("Start") går till rollens egen startsida.
-  const bottomNav = BOTTOM_NAV.map((i) =>
-    i.to === "/start" ? { ...i, to: profile?.role === "entreprenor" ? "/mina-uppdrag" : "/styrelse", label: profile?.role === "entreprenor" ? "Start" : i.label } : i,
-  ).filter((i) => i.icon === GridViewIcon || canAccess(profile?.role, i.to));
+  // Mittenknappen är EN knapp som pekar på den andra av Start och Översikt: på Start leder
+  // den till Översikt, på alla andra sidor till Start. Styrelse har bara Översikt,
+  // entreprenör bara Mina uppdrag.
+  const centerNav: NavItem =
+    profile?.role === "entreprenor"
+      ? { to: "/mina-uppdrag", label: "Start", icon: GridViewIcon }
+      : profile?.role === "admin" && pathname !== "/dashboard"
+        ? { to: "/dashboard", label: "Start", icon: GridViewIcon }
+        : { to: "/styrelse", label: "Översikt", icon: GridViewIcon };
+  const bottomNav: NavItem[] = [
+    { to: "__spacer", label: "", icon: GridViewIcon },
+    centerNav,
+    ...(canAccess(profile?.role, SETTINGS_NAV.to) ? [SETTINGS_NAV] : []),
+  ];
 
   return (
     <div
@@ -1022,8 +1030,9 @@ export function AppShell() {
             }}
           >
             {bottomNav.map((item) => {
+              if (item.to === "__spacer") return <div key="spacer" style={{ flex: 1 }} />;
               const active = isItemActive(item.to);
-              const isStart = item.icon === GridViewIcon;
+              const isStart = item === centerNav;
               if (isStart) {
                 return (
                   <Link

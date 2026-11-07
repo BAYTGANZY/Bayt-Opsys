@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { GridViewIcon, Settings01Icon } from "@hugeicons/core-free-icons";
 import { supabase } from "@/lib/supabase";
 import { Screensaver } from "@/components/Screensaver";
 import { sectionsForRole, type NavItem } from "@/components/AppShell";
@@ -130,6 +131,22 @@ export function HomeWideMenu({
         </div>
       </div>
 
+      {role === "admin" && (
+        <nav className="wm-bottom" aria-label="Snabbmeny">
+          <span className="wm-bottom-spacer" />
+          <Link to={"/dashboard" as never} className="wm-bottom-center">
+            <span className="wm-bottom-circle">
+              <HugeiconsIcon icon={GridViewIcon} size={26} color="#FFFFFF" />
+            </span>
+            <span className="wm-bottom-label">Start</span>
+          </Link>
+          <Link to={"/installningar" as never} className="wm-bottom-side">
+            <HugeiconsIcon icon={Settings01Icon} size={20} />
+            <span>Inställn.</span>
+          </Link>
+        </nav>
+      )}
+
       <div className="wm-favs" aria-label="Favoriter">
         <span className="wm-favs-label">
           <Star on size={22} /> Favoriter
@@ -186,7 +203,15 @@ const WIDE_MENU_STYLES = `
   @media (max-width: 1100px) {
     .wm-user-name { display: none; }
   }
+  .wm-bottom { display: none; }
   @media (max-width: 768px) {
+    .hk-page { padding-bottom: 100px; }
+    .wm-bottom { display: flex; align-items: stretch; position: fixed; left: 0; right: 0; bottom: 0; height: 64px; z-index: 45; background: #0b1d17; border-top: 1px solid rgba(255,255,255,0.12); }
+    .wm-bottom-spacer { flex: 1; }
+    .wm-bottom-center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none; position: relative; color: #e6efd8; }
+    .wm-bottom-circle { position: absolute; top: -22px; width: 56px; height: 56px; border-radius: 50%; background: #5CB84A; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 16px rgba(0,0,0,0.4); border: 4px solid #0b1d17; }
+    .wm-bottom-label { font-size: 10px; font-weight: 600; margin-top: 36px; }
+    .wm-bottom-side { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; text-decoration: none; color: #8aa38a; font-size: 10px; font-weight: 600; }
     .wm-top { flex-wrap: wrap; gap: 10px; padding-top: 16px; }
     .wm-logo { height: 30px; }
     .wm-nav { order: 3; flex-basis: 100%; }
