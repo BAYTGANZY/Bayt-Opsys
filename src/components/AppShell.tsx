@@ -17,6 +17,7 @@ import {
   Cancel01Icon,
   ArrowDown01Icon,
   ArrowRight01Icon,
+  ArrowLeft01Icon,
   GridViewIcon,
   CalendarCheckIn01Icon,
   Chatting01Icon,
@@ -147,6 +148,20 @@ const BOTTOM_NAV: NavItem[] = [
   { to: "/start", label: "Start", icon: GridViewIcon },
   { to: "/installningar", label: "Inställn.", icon: Settings01Icon },
 ];
+
+/** Menyns storlek: tre steg, väljs med pilarna på menyns kant och minns per webbläsare. */
+type NavSize = "small" | "normal" | "large";
+const NAV_SIZES: Record<NavSize, { width: number; font: number; icon: number; padY: number; minH: number; head: number; label: number }> = {
+  small: { width: 240, font: 14, icon: 18, padY: 10, minH: 40, head: 14, label: 11 },
+  normal: { width: 300, font: 16, icon: 21, padY: 12, minH: 46, head: 16, label: 12 },
+  large: { width: 360, font: 18, icon: 24, padY: 14, minH: 52, head: 18, label: 13 },
+};
+const NAV_ORDER: NavSize[] = ["small", "normal", "large"];
+
+/** Sidor rollen får öppna — används av favoritknapparna på Översikt. */
+export function allowedNavItems(role: string | null | undefined): NavItem[] {
+  return sectionsForRole(role).flatMap((s) => s.items);
+}
 
 /** Drop links this role can't reach, then drop sections left empty. */
 function sectionsForRole(role: string | null | undefined): NavSection[] {
@@ -328,6 +343,26 @@ export function AppShell() {
     });
   const { routes: favRoutes, toggle: toggleFavorite, isFavorite } = useFavorites();
 
+  const [navSize, setNavSize] = useState<NavSize>(() => {
+    try {
+      const v = window.localStorage.getItem("bayt.nav.size");
+      return v === "small" || v === "large" ? v : "normal";
+    } catch {
+      return "normal";
+    }
+  });
+  const stepNavSize = (dir: -1 | 1) =>
+    setNavSize((cur) => {
+      const next = NAV_ORDER[Math.min(NAV_ORDER.length - 1, Math.max(0, NAV_ORDER.indexOf(cur) + dir))];
+      try {
+        window.localStorage.setItem("bayt.nav.size", next);
+      } catch {
+        /* lagring blockerad — storleken gäller tills sidan laddas om */
+      }
+      return next;
+    });
+  const NS = NAV_SIZES[navSize];
+
   const handleLogout = async () => {
     await signOut();
     navigate({ to: "/login" });
@@ -503,7 +538,8 @@ export function AppShell() {
       {showFullSidebar && (
         <aside
           style={{
-            width: 240,
+            width: isMobile ? "min(86vw, 320px)" : NS.width,
+            transition: "width 0.2s ease",
             background: T.side,
             position: isMobile ? "fixed" : "sticky",
             top: isMobile ? 0 : 12,
@@ -518,6 +554,52 @@ export function AppShell() {
             border: `1px solid ${T.line}`,
           }}
         >
+          {!isMobile && (
+            <div
+              style={{
+                position: "absolute",
+                right: -15,
+                top: "50%",
+                transform: "translateY(-50%)",
+                zIndex: 60,
+                display: "flex",
+                flexDirection: "column",
+                background: T.card,
+                border: `1px solid ${T.line}`,
+                borderRadius: 999,
+                boxShadow: T.shadow,
+                overflow: "hidden",
+              }}
+            >
+              {([
+                { dir: 1 as const, icon: ArrowRight01Icon, label: "Gör menyn större", off: navSize === "large" },
+                { dir: -1 as const, icon: ArrowLeft01Icon, label: "Gör menyn mindre", off: navSize === "small" },
+              ]).map((b) => (
+                <button
+                  key={b.dir}
+                  type="button"
+                  onClick={() => stepNavSize(b.dir)}
+                  disabled={b.off}
+                  aria-label={b.label}
+                  title={b.label}
+                  style={{
+                    width: 30,
+                    height: 34,
+                    background: "transparent",
+                    border: "none",
+                    cursor: b.off ? "default" : "pointer",
+                    color: T.ink,
+                    opacity: b.off ? 0.25 : 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <HugeiconsIcon icon={b.icon} size={16} />
+                </button>
+              ))}
+            </div>
+          )}
           <div
             style={{
               padding: "16px 20px 12px",
@@ -535,7 +617,7 @@ export function AppShell() {
               aria-label="Till startsidan"
               style={{ display: "inline-flex", textDecoration: "none" }}
             >
-              <img src={`${import.meta.env.BASE_URL}assets/bayt-logo-green.png`} alt="BAYT" style={{ height: 32, width: "auto", display: "block" }} />
+              <img src={`${import.meta.env.BASE_URL}assets/bayt-logo-green.png`} alt="BAYT" style={{ height: navSize === "small" ? 32 : navSize === "normal" ? 38 : 44, width: "auto", display: "block" }} />
             </Link>
             {isMobile && (
               <button
@@ -573,14 +655,14 @@ export function AppShell() {
                 type="button"
                 onClick={() => toggleCollapsed("__fav")}
                 aria-expanded={!collapsed["__fav"]}
-                style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", cursor: "pointer", padding: "10px 22px 6px", color: T.ink, fontFamily: "inherit", fontSize: 14, fontWeight: 700, textAlign: "left" }}
+                style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", cursor: "pointer", padding: "10px 22px 6px", color: T.ink, fontFamily: "inherit", fontSize: NS.head, fontWeight: 700, textAlign: "left" }}
               >
-                <StarSvg on size={16} />
+                <StarSvg on size={NS.icon} />
                 <span style={{ flex: 1 }}>Favoriter{favItems.length > 0 ? ` (${favItems.length})` : ""}</span>
                 <HugeiconsIcon icon={collapsed["__fav"] ? ArrowDown01Icon : ArrowRight01Icon} size={12} style={{ transform: collapsed["__fav"] ? "none" : "rotate(-90deg)", opacity: 0.6 }} />
               </button>
               {!collapsed["__fav"] && favItems.length === 0 && (
-                <div style={{ padding: "2px 22px 8px", fontSize: 12.5, color: T.muted, lineHeight: 1.5 }}>
+                <div style={{ padding: "2px 22px 8px", fontSize: NS.font - 2, color: T.muted, lineHeight: 1.5 }}>
                   Tryck på stjärnan vid en sida så hamnar den här.
                 </div>
               )}
@@ -593,9 +675,9 @@ export function AppShell() {
                       <Link
                         to={item.to}
                         onClick={() => setOpen(false)}
-                        style={{ flex: 1, display: "flex", alignItems: "center", gap: 12, padding: "10px 8px 10px 12px", color: active ? "#fff" : T.ink, textDecoration: "none", fontSize: 14, fontWeight: active ? 600 : 500, minHeight: 40 }}
+                        style={{ flex: 1, display: "flex", alignItems: "center", gap: 12, padding: `${NS.padY}px 8px ${NS.padY}px 12px`, color: active ? "#fff" : T.ink, textDecoration: "none", fontSize: NS.font, fontWeight: active ? 600 : 500, minHeight: NS.minH }}
                       >
-                        <HugeiconsIcon icon={item.icon} size={18} />
+                        <HugeiconsIcon icon={item.icon} size={NS.icon} />
                         <span style={{ flex: 1 }}>{item.label}</span>
                         {dot && <NavDot dot={dot} />}
                       </Link>
@@ -623,7 +705,7 @@ export function AppShell() {
                       cursor: "pointer",
                       padding: "14px 22px 6px",
                       fontFamily: "inherit",
-                      fontSize: 11,
+                      fontSize: NS.label,
                       fontWeight: 700,
                       letterSpacing: "0.12em",
                       textTransform: "uppercase",
@@ -660,15 +742,15 @@ export function AppShell() {
                             display: "flex",
                             alignItems: "center",
                             gap: 12,
-                            padding: "10px 8px 10px 12px",
+                            padding: `${NS.padY}px 8px ${NS.padY}px 12px`,
                             color: active && !hasChildren ? "#fff" : T.ink,
                             textDecoration: "none",
-                            fontSize: 14,
+                            fontSize: NS.font,
                             fontWeight: active ? 600 : 500,
-                            minHeight: 40,
+                            minHeight: NS.minH,
                           }}
                         >
-                          <HugeiconsIcon icon={item.icon} size={18} />
+                          <HugeiconsIcon icon={item.icon} size={NS.icon} />
                           <span style={{ flex: 1 }}>{item.label}</span>
                           {dot && <NavDot dot={dot} />}
                           {item.to === "/hemsidechatt" && webchatCount > 0 && <CountBadge n={webchatCount} />}
