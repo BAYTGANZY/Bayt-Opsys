@@ -22,7 +22,6 @@ import {
   CalendarCheckIn01Icon,
   Chatting01Icon,
   EyeIcon,
-  Home01Icon,
 } from "@hugeicons/core-free-icons";
 import { useAuth } from "@/lib/auth";
 import { canAccess } from "@/lib/permissions";
@@ -52,7 +51,6 @@ const SECTIONS: NavSection[] = [
   {
     items: [
       { to: "/styrelse", label: "Start", icon: GridViewIcon },
-      { to: "/start", label: "Hem", icon: Home01Icon },
       { to: "/dag-rapport", label: "Dag Rapport", icon: CalendarCheckIn01Icon },
       { to: "/dashboard", label: "Översikt", icon: DashboardSquare01Icon },
       { to: "/chatt", label: "Chatt", icon: Chatting01Icon },
@@ -385,7 +383,10 @@ export function AppShell() {
   const arendeDots = useMyArendeDots();
   // Antal hemsidechatt-samtal som väntar på svar (bara admin).
   const webchatCount = useWebchatBadge(profile?.role === "admin");
-  const bottomNav = BOTTOM_NAV.filter((i) => i.to === "/start" || canAccess(profile?.role, i.to));
+  // Mittenknappen ("Start") går till rollens egen startsida.
+  const bottomNav = BOTTOM_NAV.map((i) => (i.to === "/start" ? { ...i, to: homeTo } : i)).filter(
+    (i) => i.label === "Start" || canAccess(profile?.role, i.to),
+  );
 
   return (
     <div
@@ -1015,7 +1016,7 @@ export function AppShell() {
           >
             {bottomNav.map((item) => {
               const active = isItemActive(item.to);
-              const isStart = item.to === "/start";
+              const isStart = item.label === "Start";
               if (isStart) {
                 return (
                   <Link

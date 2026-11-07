@@ -69,7 +69,7 @@ export const HOME_FOR_ROLE: Record<string, string> = {
 };
 
 export function homeForRole(role: string | null | undefined): string {
-  return (role && HOME_FOR_ROLE[role]) || "/start";
+  return (role && HOME_FOR_ROLE[role]) || "/dashboard";
 }
 
 export function canAccess(role: string | null | undefined, to: string): boolean {
