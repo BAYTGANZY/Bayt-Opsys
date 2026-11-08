@@ -21,6 +21,7 @@ const NAV = [
   { to: "/issues", label: "Felanmälningar" },
   { to: "/inspections", label: "Besiktningar" },
   { to: "/projects", label: "Projekt" },
+  { to: "/loggbok", label: "Loggbok" },
   { to: "/chatt", label: "Chatt" },
   { to: "/installningar", label: "Inställningar" },
 ];

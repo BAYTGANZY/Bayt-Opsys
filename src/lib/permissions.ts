@@ -52,6 +52,7 @@ const ENTREPRENOR_ROUTES = [
   "/properties",
   "/dokument",
   "/underhallsplan",
+  "/loggbok",
   "/chatt",
 ];
 
