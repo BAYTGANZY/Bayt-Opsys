@@ -17,7 +17,7 @@ function IntegritetPage() {
 
       <h2 style={h2}>Personuppgiftsansvarig</h2>
       <p>
-        Bayt AB, org.nr 559006-2708, Gärsvallsvägen 3, 238 34 Oxie. Kontakt i integritetsfrågor: info@bayt.se.
+        Bayt AB, org.nr 559006-2708, Gräsvallsvägen 3, 238 34 Oxie. Kontakt i integritetsfrågor: info@bayt.se.
         För uppgifter som en bostadsrättsförening eller fastighetsägare lägger in om sina boende är kunden
         personuppgiftsansvarig och BAYT personuppgiftsbiträde. [BEKRÄFTA MED JURIST]
       </p>
