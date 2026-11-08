@@ -23,6 +23,7 @@ import {
 import { TEKNIK_SECTIONS } from "@/lib/teknik-config";
 import { MaintenancePlanView } from "@/components/MaintenancePlan";
 import { EkonomiAvgift } from "@/components/EkonomiAvgift";
+import { EkonomiOversiktView } from "@/components/EkonomiOversiktView";
 
 const baytLogo = `${import.meta.env.BASE_URL}assets/bayt-logo-green.png`;
 const buildingSketch = `${import.meta.env.BASE_URL}assets/building-sketch-2.png`;
@@ -1412,6 +1413,8 @@ function PresentationPage() {
         return <MaintenancePlanView key={propertyId} propertyId={propertyId} propertyName={propertyName} />;
       case "ekonomi":
         return <EkonomiAvgift key={propertyId} propertyId={propertyId} propertyName={propertyName} />;
+      case "ekonomioversikt":
+        return <EkonomiOversiktView key={propertyId} propertyId={propertyId} />;
       case "genomgang":
         return <WalkthroughSection key={propertyId} propertyId={propertyId} />;
       case "teknik":
@@ -1542,7 +1545,7 @@ function PresentationPage() {
         )}
 
         {allowed && !inForm && !openTile && sectionTile && (
-          <div className={`fp-panel${sectionTile.key === "underhallsplan" || sectionTile.key === "ekonomi" ? " fp-panel-wide" : ""}`}>
+          <div className={`fp-panel${sectionTile.key === "underhallsplan" || sectionTile.key === "ekonomi" || sectionTile.key === "ekonomioversikt" ? " fp-panel-wide" : ""}`}>
             <button type="button" className="fp-back" onClick={() => setView(null)}>
               ← Presentation
             </button>
