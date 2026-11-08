@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { canEdit } from "@/lib/permissions";
 import { sanitizeStorageName, useSignedFileUrls } from "@/lib/storage";
+import { removeBackground } from "@/lib/remove-background";
 import {
   deriveIssueStatus,
   deriveInspectionStatus,
@@ -1114,7 +1115,7 @@ const STYLES = `
   .fp-tile-add { color: ${MUTED}; }
 
   .fp-side { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; min-height: 0; min-width: 0; }
-  .fp-image { max-width: 100%; max-height: 74vh; width: auto; height: auto; border-radius: 6px; display: block; box-shadow: 0 10px 30px rgba(13,43,30,0.18); }
+  .fp-image { max-width: 100%; max-height: 74vh; width: auto; height: auto; border-radius: 6px; display: block; filter: drop-shadow(0 10px 18px rgba(13,43,30,0.22)); }
   .fp-sketch { max-width: 100%; max-height: 66vh; width: auto; height: auto; filter: invert(1); opacity: 0.35; }
 
   .fp-back { background: none; border: none; color: ${MUTED}; font-size: 14px; cursor: pointer; padding: 0; font-family: inherit; }
@@ -1340,8 +1341,23 @@ function PresentationPage() {
   });
   const tiles = tilesQ.data ?? [];
 
+  // Bakgrundsborttagning sker i webbläsaren och är förvald; går den fel sparas originalet.
+  const [removeBg, setRemoveBg] = useState(true);
+  const [coverPhase, setCoverPhase] = useState<"idle" | "bg" | "upload">("idle");
   const setCover = useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async (input: File) => {
+      let file = input;
+      if (removeBg) {
+        setCoverPhase("bg");
+        try {
+          file = await removeBackground(input);
+        } catch (e) {
+          console.error("bakgrundsborttagning misslyckades", e);
+          toast.error("Kunde inte ta bort bakgrunden. Originalbilden sparas i stället.");
+          file = input;
+        }
+      }
+      setCoverPhase("upload");
       const path = await uploadImage(file, `property/${propertyId}`);
       const { error } = await supabase
         .from("property_presentation")
@@ -1354,6 +1370,7 @@ function PresentationPage() {
       void qc.invalidateQueries({ queryKey: ["fp-cover", propertyId] });
     },
     onError: (e: Error) => toast.error(e.message ?? "Kunde inte spara bilden"),
+    onSettled: () => setCoverPhase("idle"),
   });
 
   const saveTile = useMutation({
@@ -1579,8 +1596,14 @@ function PresentationPage() {
                     }}
                   />
                   <button type="button" className="fp-btn" disabled={setCover.isPending} onClick={() => imageInput.current?.click()}>
-                    {setCover.isPending ? "Laddar upp…" : coverPath ? "Byt bild" : "Lägg till bild på fastigheten"}
+                    {setCover.isPending
+                      ? coverPhase === "bg" ? "Tar bort bakgrund… (kan ta en stund första gången)" : "Laddar upp…"
+                      : coverPath ? "Byt bild" : "Lägg till bild på fastigheten"}
                   </button>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 14, cursor: "pointer" }}>
+                    <input type="checkbox" checked={removeBg} disabled={setCover.isPending} onChange={(e) => setRemoveBg(e.target.checked)} />
+                    Ta bort bakgrunden på bilden
+                  </label>
                 </>
               )}
             </div>
