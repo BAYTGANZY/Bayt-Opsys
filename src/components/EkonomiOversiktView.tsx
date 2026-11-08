@@ -200,7 +200,7 @@ export function EkonomiOversiktView({ propertyId }: { propertyId: string }) {
 
 const GROUP_COLOR: Partial<Record<GroupKey, string>> = {
   energi: "#C2334D", // Värme, el, vatten och sopor
-  skotsel: "#3D8A30", // Fastighetsskötsel
+  skotsel: "#6B7280", // Fastighetsskötsel (grå; Övrigt är ljusare grå)
   reparationer: "#0D2B1E",
   rantor: "#E8C464",
   slitage: "#5B9BD5",
