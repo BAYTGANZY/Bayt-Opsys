@@ -8,8 +8,10 @@
  * Nav is filtered from this, and each route also guards itself — hiding a link
  * is not access control on its own.
  *
- * Chatt (/chatt): both styrelse and entreprenör may send messages; enforced by
- * the chat RLS policies, not by canEdit().
+ * Chatt (/chatt): every role with a login (admin, styrelse, entreprenör) may chat;
+ * styrelse and entreprenör can only start a conversation with an admin (see the
+ * recipient list in _authenticated.chatt.tsx). Enforced by the chat RLS policies,
+ * not by canEdit().
  *
  * Dokument (/dokument) is open to all roles: it only lists files that belong to
  * errands, and those tables are role-scoped by RLS.
@@ -50,6 +52,7 @@ const ENTREPRENOR_ROUTES = [
   "/properties",
   "/dokument",
   "/underhallsplan",
+  "/chatt",
 ];
 
 /**

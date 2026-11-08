@@ -9,7 +9,7 @@ export const Route = createFileRoute("/integritet")({
 
 function IntegritetPage() {
   return (
-    <LegalPage title="Integritetspolicy" updated="2026-10-27">
+    <LegalPage title="Integritetspolicy" updated="2026-11-08">
       <p>
         Den här policyn beskriver hur BAYT behandlar personuppgifter i plattformen app.bayt.se (fastighetsförvaltning,
         felanmälan, besiktningar och projekt).
@@ -19,7 +19,7 @@ function IntegritetPage() {
       <p>
         Bayt AB, org.nr 559006-2708, Gräsvallsvägen 3, 238 34 Oxie. Kontakt i integritetsfrågor: info@bayt.se.
         För uppgifter som en bostadsrättsförening eller fastighetsägare lägger in om sina boende är kunden
-        personuppgiftsansvarig och BAYT personuppgiftsbiträde. [BEKRÄFTA MED JURIST]
+        personuppgiftsansvarig och BAYT personuppgiftsbiträde.
       </p>
 
       <h2 style={h2}>Vilka uppgifter vi behandlar</h2>
@@ -50,16 +50,19 @@ function IntegritetPage() {
       <ul>
         <li>Supabase (databas, inloggning och fillagring). Dataplats: EU (Frankfurt, Tyskland).</li>
         <li>GitHub Pages (webbhotell för appen).</li>
-        <li>Inleed (e-post, avsändaradress info@bayt.se). [BEKRÄFTA vilken tjänst som skickar notismejlen]</li>
+        <li>Inleed (e-post, avsändaradress info@bayt.se).</li>
+        <li>Anthropic (AI-svar i chatten på bayt.se).</li>
         <li>46elks (telefonnummer och SMS): tar emot felanmälningar per telefon och skickar bekräftelse-SMS. Planerat, ännu inte i drift.</li>
         <li>OpenAI (tal till text och uppläst röstmeny) för telefonfelanmälan. Planerat, ännu inte i drift.</li>
       </ul>
-      <p>[KONTROLLERA att biträdesavtal finns med varje leverantör och om uppgifter förs ut ur EU/EES.]</p>
+      <p>
+        Vill du veta vilka uppgifter som behandlas utanför EU/EES, och på vilken grund, kan du fråga oss på info@bayt.se.
+      </p>
 
       <h2 style={h2}>Hur länge vi sparar uppgifter</h2>
       <p>
         Uppgifter sparas så länge kundförhållandet pågår och därefter så länge lagen kräver eller det behövs för att
-        hantera krav. Konton och filer raderas på begäran när det inte finns skäl att behålla dem. [FYLL I EXAKTA TIDER]
+        hantera krav. Konton och filer raderas på begäran när det inte finns skäl att behålla dem. Exakta gallringstider för uppgifter i plattformen anges i avtalet med respektive kund.
       </p>
 
       <h2 style={h2}>Dina rättigheter</h2>

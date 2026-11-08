@@ -1,4 +1,5 @@
 import { FloatingNav } from "@/components/FloatingNav";
+import { useArendeRealtime } from "@/hooks/useArendeRealtime";
 import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useRouterState, useNavigate } from "@tanstack/react-router";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -9,7 +10,7 @@ import {
   AlertCircleIcon,
   ClipboardCheckIcon,
   File02Icon,
-  UserGroupIcon,
+  Package01Icon,
   Briefcase01Icon,
   BookOpen01Icon,
   Settings01Icon,
@@ -34,6 +35,10 @@ import { useMyArendeDots, type ArendeDot } from "@/hooks/useMyArendeDots";
 import { StatusDot } from "@/components/StatusDot";
 import { useMyArenden } from "@/hooks/useMyArenden";
 import { TEKNIK_NAV_ICON } from "@/lib/teknik-config";
+import {
+  EKONOMI_NAV_ICON, EKONOMI_OVERSIKT_NAV_ICON, UNDERHALL_NAV_ICON, HEMSIDA_NAV_ICON,
+  ANDRAHAND_NAV_ICON, ENTREPRENOR_NAV_ICON, KONTAKT_NAV_ICON,
+} from "@/lib/nav-icons";
 import { PRESENTATION_NAV_ICON } from "@/lib/presentation-config";
 import { useWebchatBadge } from "@/hooks/useWebchatBadge";
 import { useFavorites } from "@/hooks/useFavorites";
@@ -55,7 +60,7 @@ const SECTIONS: NavSection[] = [
       { to: "/dag-rapport", label: "Dag Rapport", icon: CalendarCheckIn01Icon },
       { to: "/dashboard", label: "Start", icon: DashboardSquare01Icon },
       { to: "/chatt", label: "Chatt", icon: Chatting01Icon },
-      { to: "/hemsidechatt", label: "Hemsidechatt", icon: Chatting01Icon },
+      { to: "/hemsidechatt", label: "Hemsidechatt", icon: HEMSIDA_NAV_ICON },
     ],
   },
   {
@@ -63,7 +68,7 @@ const SECTIONS: NavSection[] = [
     items: [
       { to: "/fastigheter", label: "Fastigheter", icon: Building02Icon },
       { to: "/apartments", label: "Lägenheter", icon: DoorOpenIcon },
-      { to: "/objects", label: "Objekt", icon: Briefcase01Icon },
+      { to: "/objects", label: "Objekt", icon: Package01Icon },
     ],
   },
   {
@@ -72,11 +77,11 @@ const SECTIONS: NavSection[] = [
       { to: "/issues", label: "Felanmälningar", icon: AlertCircleIcon },
       { to: "/inspections", label: "Besiktningar", icon: ClipboardCheckIcon },
       { to: "/projects", label: "Projekt", icon: Briefcase01Icon },
-      { to: "/underhallsplan", label: "Underhållsplan", icon: CalendarCheckIn01Icon },
-      { to: "/ekonomi", label: "Ekonomi & Avgift", icon: Briefcase01Icon },
-      { to: "/ekonomi-oversikt", label: "Ekonomi – översikt", icon: Briefcase01Icon },
-      { to: "/andrahand", label: "Andrahand", icon: UserGroupIcon },
-      { to: "/entreprenorer", label: "Entreprenörer", icon: UserGroupIcon },
+      { to: "/underhallsplan", label: "Underhållsplan", icon: UNDERHALL_NAV_ICON },
+      { to: "/ekonomi", label: "Ekonomi & Avgift", icon: EKONOMI_NAV_ICON },
+      { to: "/ekonomi-oversikt", label: "Ekonomi – översikt", icon: EKONOMI_OVERSIKT_NAV_ICON },
+      { to: "/andrahand", label: "Andrahand", icon: ANDRAHAND_NAV_ICON },
+      { to: "/entreprenorer", label: "Entreprenörer", icon: ENTREPRENOR_NAV_ICON },
       { to: "/genomgang-av-fastighet", label: "Genomgång av fastighet", icon: EyeIcon },
       { to: "/teknik", label: "Teknik", icon: TEKNIK_NAV_ICON },
       { to: "/fastighetspresentation", label: "Fastighetspresentation", icon: PRESENTATION_NAV_ICON },
@@ -86,7 +91,7 @@ const SECTIONS: NavSection[] = [
     label: "Arkiv",
     items: [
       { to: "/dokument", label: "Dokument", icon: File02Icon },
-      { to: "/contacts", label: "Kontakter", icon: UserGroupIcon },
+      { to: "/contacts", label: "Kontakter", icon: KONTAKT_NAV_ICON },
       { to: "/loggbok", label: "Loggbok", icon: BookOpen01Icon },
     ],
   },
@@ -298,6 +303,16 @@ function CountBadge({ n, mini = false }: { n: number; mini?: boolean }) {
       {n > 99 ? "99+" : n}
     </span>
   );
+}
+
+/**
+ * Startar direktuppdateringen av tilldelade ärenden. Bara för entreprenör: det är där luckan
+ * fanns (en admin tilldelar i en annan webbläsare). Admin och styrelse skulle bara få onödiga
+ * omhämtningar av sina egna listor. Egen komponent så att hooken kan vara villkorad.
+ */
+function ArendeRealtimeMount() {
+  useArendeRealtime();
+  return null;
 }
 
 export function AppShell() {
@@ -1014,6 +1029,7 @@ export function AppShell() {
         <MainWithSwipe isMobile={isMobile} />
 
         {/* Fast Start-knapp + upp/ned-pilar på alla sidor i portalen. */}
+        {profile?.role === "entreprenor" && <ArendeRealtimeMount />}
         <FloatingNav role={profile?.role} inShell />
 
 
