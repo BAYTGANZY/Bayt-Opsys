@@ -36,3 +36,37 @@ export async function removeBackground(file: File): Promise<File> {
   const base = file.name.replace(/\.[^.]+$/, "") || "fastighet";
   return new File([out], `${base}.png`, { type: "image/png" });
 }
+
+/**
+ * Behåller hela bilden (träd, buskar, mark) men tonar ut kanterna till genomskinligt, så att
+ * fotot flyter ihop med sidan i stället för att ligga som en hård ruta. Ren canvas-kod: inget
+ * nätverk, ingen modell, och går på ett ögonblick.
+ */
+export async function featherEdges(file: File): Promise<File> {
+  const bmp = await createImageBitmap(file);
+  const k = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
+  const w = Math.round(bmp.width * k);
+  const h = Math.round(bmp.height * k);
+
+  const mask = document.createElement("canvas");
+  mask.width = w;
+  mask.height = h;
+  const mctx = mask.getContext("2d")!;
+  const inset = Math.round(Math.min(w, h) * 0.07);
+  mctx.filter = `blur(${Math.round(Math.min(w, h) * 0.05)}px)`;
+  mctx.fillStyle = "#000";
+  mctx.fillRect(inset, inset, w - inset * 2, h - inset * 2);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(bmp, 0, 0, w, h);
+  bmp.close();
+  ctx.globalCompositeOperation = "destination-in";
+  ctx.drawImage(mask, 0, 0);
+
+  const blob = await new Promise<Blob>((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("canvas"))), "image/png"));
+  const base = file.name.replace(/\.[^.]+$/, "") || "fastighet";
+  return new File([blob], `${base}.png`, { type: "image/png" });
+}
