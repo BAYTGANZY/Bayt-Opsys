@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { canEdit } from "@/lib/permissions";
 import { sanitizeStorageName, useSignedFileUrls } from "@/lib/storage";
-import { removeBackground } from "@/lib/remove-background";
+import { removeBackground, featherEdges } from "@/lib/remove-background";
 import {
   deriveIssueStatus,
   deriveInspectionStatus,
@@ -1342,12 +1342,18 @@ function PresentationPage() {
   const tiles = tilesQ.data ?? [];
 
   // Bakgrundsborttagning sker i webbläsaren och är förvald; går den fel sparas originalet.
-  const [removeBg, setRemoveBg] = useState(true);
+  const [imageMode, setImageMode] = useState<"original" | "feather" | "cutout">("feather");
   const [coverPhase, setCoverPhase] = useState<"idle" | "bg" | "upload">("idle");
   const setCover = useMutation({
     mutationFn: async (input: File) => {
       let file = input;
-      if (removeBg) {
+      if (imageMode === "feather") {
+        try {
+          file = await featherEdges(input);
+        } catch (e) {
+          console.error("mjuka kanter misslyckades", e);
+        }
+      } else if (imageMode === "cutout") {
         setCoverPhase("bg");
         try {
           file = await removeBackground(input);
@@ -1600,9 +1606,13 @@ function PresentationPage() {
                       ? coverPhase === "bg" ? "Tar bort bakgrund… (kan ta en stund första gången)" : "Laddar upp…"
                       : coverPath ? "Byt bild" : "Lägg till bild på fastigheten"}
                   </button>
-                  <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 14, cursor: "pointer" }}>
-                    <input type="checkbox" checked={removeBg} disabled={setCover.isPending} onChange={(e) => setRemoveBg(e.target.checked)} />
-                    Ta bort bakgrunden på bilden
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 14 }}>
+                    Bakgrund:
+                    <select value={imageMode} disabled={setCover.isPending} onChange={(e) => setImageMode(e.target.value as typeof imageMode)} style={{ fontSize: 14, padding: "4px 6px" }}>
+                      <option value="feather">Mjuka kanter (behåller träd)</option>
+                      <option value="cutout">Frilägg byggnaden (tar bort träd)</option>
+                      <option value="original">Originalbilden</option>
+                    </select>
                   </label>
                 </>
               )}
