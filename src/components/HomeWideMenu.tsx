@@ -27,11 +27,14 @@ export function HomeWideMenu({
   name,
   roleLabel,
   logoTo,
+  compact = false,
 }: {
   role: string | null | undefined;
   name: string | null;
   roleLabel: string;
   logoTo: string;
+  /** Utan sidmeny: bara logga, användare och favoriter. Navigeringen sker via favoriterna och den fasta Start-knappen. */
+  compact?: boolean;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { routes, toggle, isFavorite } = useFavorites();
@@ -66,6 +69,8 @@ export function HomeWideMenu({
           <img src={whiteLogo} alt="BAYT" className="wm-logo" />
         </Link>
 
+        {compact && <div className="wm-nav" />}
+        {!compact && (
         <nav className="wm-nav" aria-label="Meny">
           {sections.map((section, i) =>
             section.label ? (
@@ -112,6 +117,7 @@ export function HomeWideMenu({
             ),
           )}
         </nav>
+        )}
 
         <div className="wm-user">
           <div className="wm-user-name">
@@ -152,7 +158,11 @@ export function HomeWideMenu({
           <Star on size={22} /> Favoriter
         </span>
         {favItems.length === 0 ? (
-          <span className="wm-favs-empty">Öppna en meny ovan och tryck på stjärnan vid en sida så får du en knapp här.</span>
+          <span className="wm-favs-empty">
+            {compact
+              ? "Tryck på stjärnan vid en sida i menyn på Start så får du en knapp här."
+              : "Öppna en meny ovan och tryck på stjärnan vid en sida så får du en knapp här."}
+          </span>
         ) : (
           favItems.map((item) => (
             <Link key={item.to} to={item.to as never} className="wm-fav">

@@ -1,3 +1,4 @@
+import { FloatingNav } from "@/components/FloatingNav";
 import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useRouterState, useNavigate } from "@tanstack/react-router";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -1012,6 +1013,9 @@ export function AppShell() {
 
         <MainWithSwipe isMobile={isMobile} />
 
+        {/* Fast Start-knapp + upp/ned-pilar på alla sidor i portalen. */}
+        <FloatingNav role={profile?.role} inShell />
+
 
         {/* Mobile bottom nav */}
         {isMobile && (
@@ -1104,6 +1108,7 @@ function MainWithSwipe({ isMobile }: { isMobile: boolean }) {
   return (
     <main
       ref={ref as React.RefObject<HTMLDivElement>}
+      data-scroll-root
       style={{
         flex: 1,
         minHeight: 0,
