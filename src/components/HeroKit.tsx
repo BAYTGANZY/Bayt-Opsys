@@ -34,8 +34,8 @@ export const HERO_STYLES = `
     display: grid; gap: 22px;
   }
   /* Takkontur i hörnet. Dekoration, bara linjer. */
-  .id-roof { position: absolute; right: 0; top: 0; width: 380px; height: 230px; pointer-events: none; overflow: hidden; border-radius: 0 24px 0 0; }
-  .id-roof svg { position: absolute; right: 64px; top: 14px; width: 262px; height: auto; }
+  .id-roof { position: absolute; right: 0; top: 0; width: 480px; height: 230px; pointer-events: none; overflow: hidden; border-radius: 0 24px 0 0; }
+  .id-roof svg { position: absolute; right: 190px; top: 14px; width: 262px; height: auto; }
 
   .id-top { position: relative; z-index: 60; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: start; }
   .id-hello { display: inline-flex; align-items: center; gap: 10px; color: #E8C464; font-size: 19.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin: 0 0 12px; }
@@ -116,7 +116,8 @@ export const HERO_STYLES = `
   @media (max-width: 1100px) {
     .id-hero { padding: 28px 26px 26px; }
     .id-headline { font-size: 45.5px; }
-    .id-roof { width: 260px; }
+    .id-roof { width: 330px; }
+    .id-roof svg { right: 130px; width: 200px; }
   }
   @media (max-width: 768px) {
     .id-hero { padding: 22px 16px 20px; border-radius: 20px; gap: 16px; }
