@@ -14,6 +14,10 @@ export type ChartTheme = { ink: string; muted: string; grid: string };
 export const DARK_CHART: ChartTheme = { ink: "#e6efd8", muted: "#9db39a", grid: "rgba(255,255,255,0.10)" };
 export const LIGHT_CHART: ChartTheme = { ink: "#0D2B1E", muted: "#6B7280", grid: "#E3E7E2" };
 
+/** Serie­färger för kategorier, i fallande storlek. Grått är alltid "Övrigt". */
+export const SERIES_COLORS = ["#3D8A30", "#0D2B1E", "#E8C464", "#5B9BD5", "#C2334D", "#2AA198", "#8E5EA2"];
+export const OTHER_COLOR = "#9CA3AF";
+
 /** 1 200 000 → "1,2 mkr", 85 000 → "85 tkr". För axlar och förklaringar. */
 export function compactKr(n: number): string {
   const a = Math.abs(n);

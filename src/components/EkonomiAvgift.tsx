@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { kr, occurrences, type Action, type Plan } from "@/lib/maintenance";
 import { EkonomiUnderlag } from "@/components/EkonomiUnderlag";
+import { StackedBars, DonutChart, LIGHT_CHART, SERIES_COLORS, OTHER_COLOR, compactKr } from "@/components/MiniCharts";
 
 const INK = "#0D2B1E";
 const GREEN = "#3D8A30";
@@ -156,6 +157,38 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
     let cost = 0;
     for (const [y, c] of by) if (c > cost) { year = y; cost = c; }
     return year ? { year, cost } : null;
+  }, [plan, actionsQ.data]);
+
+  // Helhetsbild: kostnaden i underhållsplanen de närmaste tio åren, per år och per kategori.
+  const planView = useMemo(() => {
+    if (!plan || !actionsQ.data || actionsQ.data.length === 0) return null;
+    const from = plan.start_year;
+    const to = Math.min(plan.end_year, from + 9);
+    const occ = occurrences(actionsQ.data, plan, true).filter((o) => o.year >= from && o.year <= to);
+    if (occ.length === 0) return null;
+    const catOf = (o: (typeof occ)[number]) => o.action.category?.trim() || "Övrigt";
+    const byCat = new Map<string, number>();
+    for (const o of occ) byCat.set(catOf(o), (byCat.get(catOf(o)) ?? 0) + o.cost);
+    const ranked = [...byCat.entries()].sort((a, b) => b[1] - a[1]);
+    const top = ranked.filter(([c]) => c !== "Övrigt").slice(0, 6).map(([c]) => c);
+    const colorOf = (c: string) => (top.includes(c) ? SERIES_COLORS[top.indexOf(c)] : OTHER_COLOR);
+    const years: number[] = [];
+    for (let y = from; y <= to; y++) years.push(y);
+    const bars = years.map((y) => {
+      const sums = new Map<string, number>();
+      for (const o of occ) if (o.year === y) {
+        const c = top.includes(catOf(o)) ? catOf(o) : "Övrigt";
+        sums.set(c, (sums.get(c) ?? 0) + o.cost);
+      }
+      return {
+        label: String(y).slice(2),
+        parts: [...top, "Övrigt"].map((c) => ({ name: c, value: sums.get(c) ?? 0, color: colorOf(c) })),
+      };
+    });
+    const total = occ.reduce((s, o) => s + o.cost, 0);
+    const rest = ranked.filter(([c]) => !top.includes(c)).reduce((s, [, v]) => s + v, 0);
+    const slices = [...top.map((c) => ({ label: c, value: byCat.get(c) ?? 0, color: colorOf(c) })), { label: "Övrigt", value: rest, color: OTHER_COLOR }];
+    return { from, to, bars, slices, total };
   }, [plan, actionsQ.data]);
 
   if (finQ.isLoading || planQ.isLoading) return <div style={{ color: MUTED }}>Hämtar…</div>;
@@ -408,6 +441,22 @@ export function EkonomiAvgift({ propertyId, propertyName }: { propertyId: string
           </div>
         )}
       </div>
+
+      {/* Helhetsbild */}
+      {planView && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 18 }}>
+          <div style={{ ...card, padding: "16px 0 4px" }}>
+            <h3 style={{ ...h3, padding: "0 20px", margin: "0 0 2px" }}>Underhåll och investeringar per år</h3>
+            <div style={{ padding: "0 20px", fontSize: 14, color: MUTED }}>{planView.from}–{planView.to}, enligt underhållsplanen, inklusive moms.</div>
+            <StackedBars bars={planView.bars} theme={LIGHT_CHART} format={compactKr} height={200} empty="Underhållsplanen har inga åtgärder de här åren." />
+          </div>
+          <div style={{ ...card, padding: "16px 0 4px" }}>
+            <h3 style={{ ...h3, padding: "0 20px", margin: "0 0 2px" }}>Vart pengarna går</h3>
+            <div style={{ padding: "0 20px", fontSize: 14, color: MUTED }}>Fördelning per kategori, samma tio år.</div>
+            <DonutChart slices={planView.slices} total={compactKr(planView.total)} centerSub="på 10 år" showPercent theme={LIGHT_CHART} />
+          </div>
+        </div>
+      )}
 
       {/* Likviditet */}
       {haveCash && (
