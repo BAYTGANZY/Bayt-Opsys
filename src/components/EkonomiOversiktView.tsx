@@ -213,7 +213,11 @@ const GROUP_COLOR: Partial<Record<GroupKey, string>> = {
   konsult: "#B58A5B",
 };
 
+const DETAIL_PALETTE = ["#C2334D", "#5B9BD5", "#E8C464", "#0D2B1E", "#8E5EA2", "#2AA198", "#F2711C", "#B58A5B"];
+
 function Home({ ov, rows, open }: { ov: Overview; rows: Balance[]; open: (v: View) => void }) {
+  // Vald post i munken: "Övrigt" eller en av grupperna. Styr det extra diagrammet.
+  const [focus, setFocus] = useState<string | null>(null);
   const res = ov.inNow - ov.utNow;
   const even = Math.abs(res) < 0.01 * Math.max(ov.utNow, 1);
   const cashRes = res + ov.nonCash;
@@ -239,6 +243,23 @@ function Home({ ov, rows, open }: { ov: Overview; rows: Balance[]; open: (v: Vie
     ...ut.slice(0, 5).map((g) => ({ label: g.label, value: g.now, color: colorOf(g.key) })),
     { label: "Övrigt", value: restNow, color: OVRIGT_COLOR },
   ];
+
+  // Det extra diagrammet: vad som ingår i den valda posten och vad det kostat.
+  const detail = (() => {
+    if (!focus) return null;
+    if (focus === "Övrigt") {
+      const parts = ut.slice(5);
+      return { title: "Det här ligger under Övrigt", total: restNow, slices: parts.map((g) => ({ label: g.label, value: g.now, color: colorOf(g.key) })), drill: true };
+    }
+    const g = ut.find((x) => x.label === focus);
+    if (!g) return null;
+    const accs = g.accounts.filter((a) => a.now > 0);
+    const shown = accs.slice(0, DETAIL_PALETTE.length);
+    const more = accs.slice(DETAIL_PALETTE.length).reduce((sum, a) => sum + a.now, 0);
+    const slices = shown.map((a, i) => ({ label: a.name, value: a.now, color: DETAIL_PALETTE[i] }));
+    if (more > 0) slices.push({ label: "Övriga konton", value: more, color: "#9CA3AF" });
+    return { title: `Det här ingår i ${g.label}`, total: g.now, slices, drill: false };
+  })();
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
@@ -289,9 +310,27 @@ function Home({ ov, rows, open }: { ov: Overview; rows: Balance[]; open: (v: Vie
           </div>
           <div style={{ ...card, padding: "14px 0 4px" }}>
             <div style={{ padding: "0 20px", fontWeight: 600, fontSize: 17 }}>Vart pengarna går</div>
-            <DonutChart slices={costSlices} total={compactKr(ov.utNow)} centerSub="hittills i år" format={fullKr} showPercent theme={LIGHT_CHART} empty="Inga utgifter har bokförts ännu." />
+            <DonutChart slices={costSlices} total={compactKr(ov.utNow)} centerSub="hittills i år" format={fullKr} showPercent theme={LIGHT_CHART} empty="Inga utgifter har bokförts ännu." onSelect={(l) => setFocus((f) => (f === l ? null : l))} selected={focus} />
+            <div style={{ padding: "0 20px 14px", fontSize: 14, color: MUTED }}>Tryck på en rad för att se vad den består av.</div>
           </div>
         </div>
+        {detail && (
+          <div style={{ ...card, padding: "14px 0 4px", marginTop: 14 }}>
+            <div style={{ padding: "0 20px", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+              <span style={{ fontWeight: 600, fontSize: 17 }}>{detail.title}</span>
+              <button type="button" onClick={() => setFocus(null)} style={{ background: "transparent", border: 0, color: GREEN, fontWeight: 600, fontSize: 15, cursor: "pointer" }}>Stäng</button>
+            </div>
+            <DonutChart
+              slices={detail.slices}
+              total={compactKr(detail.total)}
+              centerSub="hittills i år"
+              format={fullKr}
+              theme={LIGHT_CHART}
+              empty="Inget har bokförts här ännu."
+              onSelect={detail.drill ? (l) => setFocus(l) : undefined}
+            />
+          </div>
+        )}
       </section>
 
       <section>

@@ -138,8 +138,13 @@ export function DonutChart({
   showPercent = false,
   theme = DARK_CHART,
   empty = "Inget att visa ännu.",
+  onSelect,
+  selected,
 }: {
   slices: Slice[];
+  /** Gör förklaringens rader klickbara; får radens etikett. */
+  onSelect?: (label: string) => void;
+  selected?: string | null;
   /** Stor siffra i mitten; standard är summan av delarna. */
   total?: string;
   centerSub?: string;
@@ -190,13 +195,29 @@ export function DonutChart({
         </div>
       </div>
       <div style={{ flex: 1, minWidth: 200, display: "grid", gap: 8 }}>
-        {parts.map((p, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 17, color: theme.ink }}>
-            <span style={{ width: 16, height: 16, borderRadius: 5, background: p.color, flexShrink: 0 }} />
-            <span style={{ flex: 1, minWidth: 0 }}>{p.label}</span>
-            <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{showPercent ? `${Math.round((p.value / sum) * 100)} %` : format(p.value)}</span>
-          </div>
-        ))}
+        {parts.map((p, i) => {
+          const row = (
+            <>
+              <span style={{ width: 16, height: 16, borderRadius: 5, background: p.color, flexShrink: 0 }} />
+              <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>{p.label}</span>
+              <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{showPercent ? `${Math.round((p.value / sum) * 100)} %` : format(p.value)}</span>
+              {onSelect && <span aria-hidden style={{ color: theme.muted }}>›</span>}
+            </>
+          );
+          const base = { display: "flex", alignItems: "center", gap: 10, fontSize: 17, color: theme.ink } as const;
+          return onSelect ? (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onSelect(p.label)}
+              style={{ ...base, width: "100%", background: selected === p.label ? "#F0F7EE" : "transparent", border: 0, borderRadius: 8, padding: "4px 6px", margin: "0 -6px", cursor: "pointer", font: "inherit", fontSize: 17 }}
+            >
+              {row}
+            </button>
+          ) : (
+            <div key={i} style={base}>{row}</div>
+          );
+        })}
       </div>
     </div>
   );
