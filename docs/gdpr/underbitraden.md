@@ -8,7 +8,7 @@ Vilka tjänster som behandlar personuppgifter för BAYT:s räkning. Kolumnen "At
 | **GitHub** (Pages + repo) | Driftar den publika webbapp-koden | Ingen personuppgift lagras; IP-adresser i åtkomstloggar | DPA/villkor, vem som äger kontot |
 | **Anthropic** | AI-svar i hemsidechatten (`chat-intake`) | Besökarens chattmeddelanden (kan innehålla namn/kontaktuppgifter som besökaren själv skriver) | DPA, att API-data inte används för träning enligt kontoinställning, dataplats |
 | **Inleed (e-post/SMTP)** | Utskick av notiser och inbjudningar via `info@bayt.se` | Mottagaradress, ärendetext | Mest sannolikt **Inleed**: koden skickar via BAYT:s egen SMTP-brevlåda (`SMTP_*`-hemligheter) och en kodkommentar i `notify-progress` nämner Inleeds mailserver. Bekräfta hos Inleed samt att biträdesavtal finns |
-| **46elks** (SMS) | **Planerat**, ej i drift. Nummer är skapat men inte taget i bruk | Mottagarens telefonnummer och SMS-text | Lägg in i listan och i integritetstexten **innan** första SMS skickas; DPA med 46elks; var de lagrar data |
+| **46elks** (SMS) | **Konto och avtal finns** (2026-11-08), ej i drift. Nummer är skapat men inte taget i bruk | Mottagarens telefonnummer och SMS-text | Lägg in i listan och i integritetstexten **innan** första SMS skickas; bekräfta att DPA ingår i avtalet med 46elks; var de lagrar data |
 | **Domän/DNS** | `bayt.se`, `app.bayt.se` | Ingen | Vem registrerar domänen |
 
 Regel: ny leverantör ⇒ ny rad här och information till föreningarna enligt PUB.

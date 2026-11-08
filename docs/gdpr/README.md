@@ -16,7 +16,7 @@ BAYT är **personuppgiftsbiträde** åt varje förening (föreningen är personu
 ## Bekräftat 2026-11-08
 
 - GitHub-kontot ägs av BAYT AB. Supabase: organisation `BaytFastighetOrg`, plan **Pro**, region **EU (Frankfurt)**, en enda Owner (`bayt.dev@outlook.com`).
-- SMS via 46elks är planerat, inte i drift.
+- SMS via 46elks: konto och avtal finns (bekräftat 2026-11-08), ännu inte i drift. Kvar: bekräfta att personuppgiftsbiträdesavtal ingår i avtalet.
 - Supabase Security Advisor visar **1 kritisk** varning: *Security Definer View* på `public.public_properties` (vyn som lämnar ut fastighetsnamn till felanmälningsformuläret). Troligen avsiktligt, men bör granskas (och ev. göras `security_invoker`) innan fler föreningar kopplas på. Övriga varningar är prestandatips (*Auth RLS Initialization Plan*), inte säkerhet.
 
 ## Status i koden (verifierat mot repot)
