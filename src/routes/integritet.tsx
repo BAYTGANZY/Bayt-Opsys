@@ -48,10 +48,10 @@ function IntegritetPage() {
 
       <h2 style={h2}>Underleverantörer (personuppgiftsbiträden)</h2>
       <ul>
-        <li>Supabase (databas, inloggning och fillagring). Dataplats: [FYLL I REGION].</li>
+        <li>Supabase (databas, inloggning och fillagring). Dataplats: EU (Frankfurt, Tyskland).</li>
         <li>GitHub Pages (webbhotell för appen).</li>
         <li>Inleed (e-post, avsändaradress info@bayt.se). [BEKRÄFTA vilken tjänst som skickar notismejlen]</li>
-        <li>46elks (SMS), om felanmälan via SMS används.</li>
+        <li>46elks (SMS), planerat för SMS-notiser. Inte i bruk ännu.</li>
       </ul>
       <p>[KONTROLLERA att biträdesavtal finns med varje leverantör och om uppgifter förs ut ur EU/EES.]</p>
 

@@ -54,5 +54,5 @@ Tillgång, rättelse, radering, begränsning, invändning och dataportabilitet. 
 1. Adressen på sidan stavades *Gärsvallsvägen*; rätt är **Gräsvallsvägen** (rättat i koden i samma PR).
 2. Hemsidechatten och AI-tjänsten (Anthropic) saknas på nuvarande sida.
 3. Kontominnet (`account_memory`) saknas.
-4. Sidan nämner Inleed (stämmer troligen: e-post går via BAYT:s brevlåda hos Inleed) och 46elks. 46elks förekommer **bara** på själva policysidan, inte i koden. **[BEKRÄFTA]** om SMS används; annars ta bort raden.
+4. Sidan nämner Inleed (stämmer troligen: e-post går via BAYT:s brevlåda hos Inleed) och 46elks. SMS via 46elks är **planerat** (nummer skapat, ännu inte i drift) och står bara på policysidan, inte i koden. Behåll raden, märk den "planerad", och se till att allt är på plats innan första SMS skickas.
 5. Dokument och mappar "personliga" som nämns på sidan: **[BEKRÄFTA]** att funktionen finns, annars ta bort raden.
