@@ -26,7 +26,7 @@ import {
   EyeIcon,
 } from "@hugeicons/core-free-icons";
 import { useAuth } from "@/lib/auth";
-import { canAccess } from "@/lib/permissions";
+import { canAccess, homeForRole } from "@/lib/permissions";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { PropertyContextNav } from "@/components/ContextNav";
 import { NotificationBell, NotificationToasts } from "@/components/NotificationCenter";
@@ -42,6 +42,7 @@ import {
 import { PRESENTATION_NAV_ICON } from "@/lib/presentation-config";
 import { useWebchatBadge } from "@/hooks/useWebchatBadge";
 import { useFavorites } from "@/hooks/useFavorites";
+import { usePageGrants, pageAllowed } from "@/hooks/usePageGrants";
 
 
 type SubItem = { to: string; label: string };
@@ -176,8 +177,8 @@ export function allowedNavItems(role: string | null | undefined): NavItem[] {
 }
 
 /** Drop links this role can't reach, then drop sections left empty. */
-export function sectionsForRole(role: string | null | undefined): NavSection[] {
-  return SECTIONS.map((s) => ({ ...s, items: s.items.filter((i) => canAccess(role, i.to)) })).filter(
+export function sectionsForRole(role: string | null | undefined, grants: Set<string> | null = null): NavSection[] {
+  return SECTIONS.map((s) => ({ ...s, items: s.items.filter((i) => canAccess(role, i.to) && pageAllowed(grants, i.to)) })).filter(
     (s) => s.items.length > 0,
   );
 }
@@ -404,7 +405,15 @@ export function AppShell() {
       : profile?.role === "admin" && pathname !== "/dashboard"
         ? "/dashboard"
         : "/styrelse";
-  const sections = sectionsForRole(profile?.role);
+  const { grants: pageGrants } = usePageGrants();
+  const sections = sectionsForRole(profile?.role, pageGrants);
+  // En sida admin har stängt av går inte att nå via adressen heller — tillbaka till startsidan.
+  useEffect(() => {
+    if (!pageGrants) return;
+    const top = "/" + (pathname.split("/")[1] ?? "");
+    const known = ALL_ITEMS.some((i) => i.to === top);
+    if (known && !pageAllowed(pageGrants, top)) navigate({ to: homeForRole(profile?.role) });
+  }, [pageGrants, pathname, navigate, profile?.role]);
   // Bara sådant rollen faktiskt får öppna — en gammal stjärna får aldrig öppna en dörr.
   const allowedItems = sections.flatMap((s) => s.items);
   const favItems = favRoutes

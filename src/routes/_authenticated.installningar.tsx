@@ -1,3 +1,5 @@
+import { allowedNavItems } from "@/components/AppShell";
+import { ALWAYS_ALLOWED } from "@/hooks/usePageGrants";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -891,7 +893,7 @@ function SettingsPage() {
                       </div>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4, alignSelf: "flex-start" }}>
-                      {p.role === "styrelse" && (
+                      {(p.role === "styrelse" || p.role === "entreprenor") && (
                         <button
                           type="button"
                           onClick={() => setAccessPanelUserId(p.id)}
@@ -948,7 +950,7 @@ function SettingsPage() {
                       <td style={{ ...td, color: C.muted }}>{fmtDate.format(new Date(p.created_at))}</td>
                       <td style={{ ...td, whiteSpace: "nowrap" }}>
                         <div style={{ display: "flex", gap: 4 }}>
-                          {p.role === "styrelse" && (
+                          {(p.role === "styrelse" || p.role === "entreprenor") && (
                             <button
                               type="button"
                               onClick={() => setAccessPanelUserId(p.id)}
@@ -985,6 +987,7 @@ function SettingsPage() {
         <StyrelseAccessDialog
           userId={accessPanelUserId}
           userName={profiles.find((p) => p.id === accessPanelUserId)?.full_name ?? null}
+          role={profiles.find((p) => p.id === accessPanelUserId)?.role ?? null}
           allProperties={allProperties}
           onClose={() => setAccessPanelUserId(null)}
         />
@@ -996,20 +999,42 @@ function SettingsPage() {
 function StyrelseAccessDialog({
   userId,
   userName,
+  role,
   allProperties,
   onClose,
 }: {
   userId: string;
   userName: string | null;
+  role: string | null;
   allProperties: Array<{ id: string; name: string }>;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const isStyrelseUser = role === "styrelse";
+  // Sidor rollen kan få — de som inte kan stängas av är alltid på och visas inte här.
+  const pageOptions = allowedNavItems(role).filter((i) => !ALWAYS_ALLOWED.includes(i.to));
+  const [pages, setPages] = useState<string[]>([]);
+  const pagesQ = useQuery({
+    queryKey: ["user-page-access", userId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("user_page_access").select("page_key").eq("profile_id", userId);
+      if (error) throw error;
+      return (data ?? []).map((r) => String(r.page_key));
+    },
+    retry: false,
+  });
+  useEffect(() => {
+    if (!pagesQ.data) return;
+    // Ingen rad = rollens standard = alla sidor.
+    setPages(pagesQ.data.length > 0 ? pagesQ.data : pageOptions.map((i) => i.to));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagesQ.data]);
 
   const { data: current, isLoading } = useQuery({
     queryKey: ["styrelse-properties", userId],
+    enabled: isStyrelseUser,
     queryFn: async () => {
       const { data, error } = await supabase.from("styrelse_properties").select("property_id").eq("profile_id", userId);
       if (error) throw error;
@@ -1024,6 +1049,22 @@ function StyrelseAccessDialog({
   async function handleSave() {
     setSaving(true);
     try {
+      if (pagesQ.data) {
+        const all = pages.length >= pageOptions.length;
+        const del = await supabase.from("user_page_access").delete().eq("profile_id", userId);
+        if (del.error) throw del.error;
+        // Alla ikryssade = ingen begränsning, så vi sparar inga rader.
+        if (!all && pages.length > 0) {
+          const ins = await supabase.from("user_page_access").insert(pages.map((page_key) => ({ profile_id: userId, page_key })));
+          if (ins.error) throw ins.error;
+        }
+        queryClient.invalidateQueries({ queryKey: ["user-page-access", userId] });
+      }
+      if (!isStyrelseUser) {
+        toast.success("Åtkomst uppdaterad");
+        onClose();
+        return;
+      }
       const before = new Set(current ?? []);
       const after = new Set(selected);
       const toAdd = selected.filter((id) => !before.has(id));
@@ -1059,7 +1100,27 @@ function StyrelseAccessDialog({
         <DialogHeader>
           <DialogTitle>Hantera åtkomst — {userName ?? "Styrelsemedlem"}</DialogTitle>
         </DialogHeader>
-        {isLoading ? (
+        {pagesQ.data && pageOptions.length > 0 && (
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.secondary, padding: "0 8px 4px" }}>Sidor {userName ?? "användaren"} får se</div>
+            <div style={{ maxHeight: 220, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
+              {pageOptions.map((i) => (
+                <label key={i.to} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", fontSize: 14, color: C.text, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={pages.includes(i.to)}
+                    onChange={(e) => setPages((prev) => (e.target.checked ? [...prev, i.to] : prev.filter((x) => x !== i.to)))}
+                  />
+                  {i.label}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+        {pagesQ.isError && (
+          <div style={{ fontSize: 13, color: C.muted, padding: 8 }}>Sidval är inte aktiverat ännu (SQL-filen har inte körts).</div>
+        )}
+        {!isStyrelseUser ? null : isLoading ? (
           <div style={{ padding: 16, color: C.secondary, fontSize: 14 }}>Laddar…</div>
         ) : (
           <div style={{ maxHeight: 320, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
@@ -1085,7 +1146,7 @@ function StyrelseAccessDialog({
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving || isLoading}
+            disabled={saving || (isStyrelseUser && isLoading)}
             style={{ height: 40, padding: "0 20px", background: C.primary, color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, fontFamily: bodyFont, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}
           >
             {saving ? "Sparar…" : "Spara"}
