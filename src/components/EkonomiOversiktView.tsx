@@ -20,7 +20,7 @@ import {
   type GroupSummary,
   type Overview,
 } from "@/lib/ekonomi-oversikt";
-import { StackedBars, DonutChart, LIGHT_CHART, SERIES_COLORS, OTHER_COLOR, compactKr, fullKr } from "@/components/MiniCharts";
+import { StackedBars, DonutChart, LIGHT_CHART, OTHER_COLOR, compactKr, fullKr } from "@/components/MiniCharts";
 
 const INK = "#0D2B1E";
 const GREEN = "#3D8A30";
@@ -198,6 +198,18 @@ export function EkonomiOversiktView({ propertyId }: { propertyId: string }) {
   );
 }
 
+const GROUP_COLOR: Partial<Record<GroupKey, string>> = {
+  energi: "#C2334D", // Värme, el, vatten och sopor
+  skotsel: "#3D8A30", // Fastighetsskötsel
+  reparationer: "#0D2B1E",
+  rantor: "#E8C464",
+  slitage: "#5B9BD5",
+  forvaltning: "#8E5EA2",
+  tomtratt: "#2AA198",
+  forsakring: "#F2711C",
+  konsult: "#B58A5B",
+};
+
 function Home({ ov, rows, open }: { ov: Overview; rows: Balance[]; open: (v: View) => void }) {
   const res = ov.inNow - ov.utNow;
   const even = Math.abs(res) < 0.01 * Math.max(ov.utNow, 1);
@@ -206,18 +218,22 @@ function Home({ ov, rows, open }: { ov: Overview; rows: Balance[]; open: (v: Vie
   const inArrow = arrow("in", ov.inNow, ov.inBefore, ov.hasBefore);
   const utArrow = arrow("ut", ov.utNow, ov.utBefore, ov.hasBefore);
 
+  // Fast färg per kostnadsgrupp (inte efter storleksordning), så att en grupp har samma färg
+  // i staplarna och i munken oavsett vilken period som visas.
+  const colorOf = (k: GroupKey) => GROUP_COLOR[k] ?? OTHER_COLOR;
+
   // Helhetsbild: kostnader per månad (staplar) och fördelning (munk). De fem största
   // posterna får egen färg, resten samlas under "Övrigt".
   const topKeys = ut.slice(0, 5).map((g) => g.key);
   const monthly = monthlyCostByGroup(rows, ov.year, ov.upTo);
   const costBars = monthly.map((m, i) => {
-    const top = topKeys.map((k, j) => ({ name: GROUP_BY_KEY[k].label, value: m[k] ?? 0, color: SERIES_COLORS[j] }));
+    const top = topKeys.map((k) => ({ name: GROUP_BY_KEY[k].label, value: m[k] ?? 0, color: colorOf(k) }));
     const rest = (Object.keys(m) as GroupKey[]).filter((k) => !topKeys.includes(k)).reduce((sum, k) => sum + (m[k] ?? 0), 0);
     return { label: MONTHS_SHORT[i] ?? String(i + 1), parts: [...top, { name: "Övrigt", value: rest, color: OTHER_COLOR }] };
   });
   const restNow = ut.slice(5).reduce((sum, g) => sum + g.now, 0);
   const costSlices = [
-    ...ut.slice(0, 5).map((g, j) => ({ label: g.label, value: g.now, color: SERIES_COLORS[j] })),
+    ...ut.slice(0, 5).map((g) => ({ label: g.label, value: g.now, color: colorOf(g.key) })),
     { label: "Övrigt", value: restNow, color: OTHER_COLOR },
   ];
 
