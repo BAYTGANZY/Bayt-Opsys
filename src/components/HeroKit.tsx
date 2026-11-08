@@ -35,7 +35,7 @@ export const HERO_STYLES = `
   }
   /* Takkontur i hörnet. Dekoration, bara linjer. */
   .id-roof { position: absolute; right: 0; top: 0; width: 380px; height: 230px; pointer-events: none; overflow: hidden; border-radius: 0 24px 0 0; }
-  .id-roof svg { position: absolute; right: 70px; top: 40px; width: 420px; height: auto; }
+  .id-roof svg { position: absolute; right: 64px; top: 14px; width: 262px; height: auto; }
 
   .id-top { position: relative; z-index: 60; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: start; }
   .id-hello { display: inline-flex; align-items: center; gap: 10px; color: #E8C464; font-size: 19.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin: 0 0 12px; }
@@ -176,10 +176,9 @@ export function Hero({
       <style>{HERO_STYLES}</style>
       <section className="id-hero">
         <div className="id-roof" aria-hidden="true">
-          <svg viewBox="0 0 420 260" fill="none">
-            <path d="M10 260 L210 20 L410 260" stroke="rgba(232,196,100,0.10)" strokeWidth="2" />
-            <path d="M80 260 L210 104 L340 260" stroke="rgba(255,255,255,0.05)" strokeWidth="2" />
-            <circle cx="210" cy="190" r="5" fill="rgba(232,196,100,0.18)" />
+          <svg viewBox="0 0 300 242" fill="none">
+            <polygon points="150,0 300,242 247,242 150,82 54,242 0,242" fill="rgba(251,246,236,0.17)" />
+            <polygon points="150,126 194,174 194,238 107,238 107,174" fill="rgba(92,184,74,0.55)" />
           </svg>
         </div>
 
