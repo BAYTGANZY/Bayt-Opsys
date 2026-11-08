@@ -198,9 +198,12 @@ export function EkonomiOversiktView({ propertyId }: { propertyId: string }) {
   );
 }
 
+/** "Övrigt" är grönt i den här vyn; ljusgrått är fastighetsskötsel. */
+const OVRIGT_COLOR = "#3D8A30";
+
 const GROUP_COLOR: Partial<Record<GroupKey, string>> = {
   energi: "#C2334D", // Värme, el, vatten och sopor
-  skotsel: "#6B7280", // Fastighetsskötsel (grå; Övrigt är ljusare grå)
+  skotsel: "#9CA3AF", // Fastighetsskötsel (ljusgrå)
   reparationer: "#0D2B1E",
   rantor: "#E8C464",
   slitage: "#5B9BD5",
@@ -229,12 +232,12 @@ function Home({ ov, rows, open }: { ov: Overview; rows: Balance[]; open: (v: Vie
   const costBars = monthly.map((m, i) => {
     const top = topKeys.map((k) => ({ name: GROUP_BY_KEY[k].label, value: m[k] ?? 0, color: colorOf(k) }));
     const rest = (Object.keys(m) as GroupKey[]).filter((k) => !topKeys.includes(k)).reduce((sum, k) => sum + (m[k] ?? 0), 0);
-    return { label: MONTHS_SHORT[i] ?? String(i + 1), parts: [...top, { name: "Övrigt", value: rest, color: OTHER_COLOR }] };
+    return { label: MONTHS_SHORT[i] ?? String(i + 1), parts: [...top, { name: "Övrigt", value: rest, color: OVRIGT_COLOR }] };
   });
   const restNow = ut.slice(5).reduce((sum, g) => sum + g.now, 0);
   const costSlices = [
     ...ut.slice(0, 5).map((g) => ({ label: g.label, value: g.now, color: colorOf(g.key) })),
-    { label: "Övrigt", value: restNow, color: OTHER_COLOR },
+    { label: "Övrigt", value: restNow, color: OVRIGT_COLOR },
   ];
 
   return (
