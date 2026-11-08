@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { canEdit } from "@/lib/permissions";
 import { TEKNIK_SECTIONS, TeknikIcon } from "@/lib/teknik-config";
+import { photoToSketch, cleanSketch } from "@/lib/sketch-image";
 
 const baytLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
 const buildingSketch = `${import.meta.env.BASE_URL}assets/building-sketch-2.png`;
@@ -27,6 +28,14 @@ type Check = { round_id: string; item_id: string; checked: boolean; note: string
 const dateFmt = new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short", year: "numeric" });
 
 const STYLES = `
+  .tk-sketch-edit { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 14px; }
+  .tk-sketch-edit select, .tk-sketch-edit button {
+    height: 36px; padding: 0 12px; border-radius: 8px; font-size: 13px; font-family: inherit; cursor: pointer;
+    color: #c9d6c3; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.18);
+  }
+  .tk-sketch-edit select option { color: #0D2B1E; }
+  .tk-sketch-edit button:hover:not(:disabled) { border-color: #5CB84A; color: #fff; }
+  .tk-sketch-edit button:disabled, .tk-sketch-edit select:disabled { opacity: 0.5; cursor: default; }
   .tk-page {
     position: relative;
     min-height: 100vh;
@@ -221,6 +230,8 @@ function TeknikPage() {
   });
   const [sectionKey, setSectionKey] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [sketchMode, setSketchMode] = useState<"photo" | "own" | "raw">("photo");
+  const sketchInput = useRef<HTMLInputElement | null>(null);
   const [newLabel, setNewLabel] = useState("");
   const attempted = useRef<string>("");
 
@@ -258,6 +269,44 @@ function TeknikPage() {
     if (properties.length === 0) return;
     if (!propertyId || !properties.some((p) => p.id === propertyId)) setPropertyId(properties[0].id);
   }, [propertyId, properties]);
+
+  // Fastighetens egen Teknik-bild ligger på en fast sökväg per fastighet; saknas den visas standardbilden.
+  const sketchPath = propertyId ? `teknik/${propertyId}/skiss.png` : null;
+  const sketchQ = useQuery({
+    queryKey: ["teknik-sketch", propertyId],
+    enabled: allowed && !!sketchPath,
+    staleTime: 50 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.storage.from("presentation-files").createSignedUrl(sketchPath!, 3600);
+      if (error || !data?.signedUrl) return null;
+      return data.signedUrl;
+    },
+  });
+  const setSketch = useMutation({
+    mutationFn: async (input: File) => {
+      if (!input.type.startsWith("image/")) throw new Error("Bara bilder tillåts.");
+      let file = input;
+      if (sketchMode === "photo") file = await photoToSketch(input);
+      else if (sketchMode === "own") file = await cleanSketch(input);
+      const { error } = await supabase.storage
+        .from("presentation-files")
+        .upload(sketchPath!, file, { upsert: true, contentType: file.type || "image/png" });
+      if (error) throw new Error("Uppladdningen misslyckades.");
+    },
+    onSuccess: () => {
+      toast.success("Bilden är sparad", { style: { background: "#3D8A30", color: "#fff" } });
+      void qc.invalidateQueries({ queryKey: ["teknik-sketch", propertyId] });
+    },
+    onError: (e: Error) => toast.error(e.message ?? "Kunde inte spara bilden"),
+  });
+  const resetSketch = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.storage.from("presentation-files").remove([sketchPath!]);
+      if (error) throw new Error("Kunde inte återställa bilden.");
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["teknik-sketch", propertyId] }),
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   useEffect(() => {
     if (!propertyId) return;
@@ -512,7 +561,33 @@ function TeknikPage() {
               })}
             </div>
             <div className="tk-side">
-              <img src={buildingSketch} alt="" className="tk-sketch" />
+              <img src={sketchQ.data ?? buildingSketch} alt="" className="tk-sketch" />
+              <div className="tk-sketch-edit">
+                <input
+                  ref={sketchInput}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (f && sketchPath) setSketch.mutate(f);
+                  }}
+                />
+                <select value={sketchMode} disabled={setSketch.isPending} onChange={(e) => setSketchMode(e.target.value as typeof sketchMode)} aria-label="Bildtyp">
+                  <option value="photo">Foto, gör om till grön skiss</option>
+                  <option value="own">Egen skiss, ta bort bakgrund</option>
+                  <option value="raw">Använd bilden som den är</option>
+                </select>
+                <button type="button" disabled={setSketch.isPending || !sketchPath} onClick={() => sketchInput.current?.click()}>
+                  {setSketch.isPending ? "Bearbetar… (kan ta en stund)" : "Byt bild"}
+                </button>
+                {sketchQ.data && (
+                  <button type="button" disabled={resetSketch.isPending} onClick={() => resetSketch.mutate()}>
+                    Standardbild
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
