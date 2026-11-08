@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useMyArenden, arendeHref, arendeKindLabel } from "@/hooks/useMyArenden";
+import { FloatingNav } from "@/components/FloatingNav";
 import { HOME_STYLES, TopBar, Panel, Row, useHomeUser, greeting, fmtDate, daysChip } from "@/components/HomeKit";
 import { Hero } from "@/components/HeroKit";
 
@@ -172,6 +173,7 @@ function MinaUppdragPage() {
           )}
         </div>
       </div>
+      <FloatingNav role={role} />
     </>
   );
 }

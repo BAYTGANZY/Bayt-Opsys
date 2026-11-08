@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { LIFECYCLE_OF } from "@/lib/issue-tokens";
 import { inspectionTypeLabel } from "@/lib/inspection-tokens";
 import { useHomeUser } from "@/components/HomeKit";
+import { FloatingNav } from "@/components/FloatingNav";
 
 const logo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
 
@@ -475,6 +476,7 @@ function KollPage() {
           </div>
         </nav>
       </div>
+      <FloatingNav role={role} />
     </>
   );
 }

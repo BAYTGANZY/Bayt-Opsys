@@ -8,6 +8,7 @@ import {
   deriveProjectStatus,
   derivePriority,
   LIFECYCLE_OF,
+  DERIVED_STATUS,
   type DerivedStatus,
 } from "@/lib/issue-tokens";
 import { inspectionTypeLabel } from "@/lib/inspection-tokens";
@@ -25,6 +26,8 @@ import {
 } from "@/components/HomeKit";
 import { Hero } from "@/components/HeroKit";
 import { HomeWideMenu } from "@/components/HomeWideMenu";
+import { FloatingNav } from "@/components/FloatingNav";
+import { StackedBars, DonutChart, DARK_CHART, type Bar, type Slice } from "@/components/MiniCharts";
 
 export const Route = createFileRoute("/styrelse")({
   ssr: false,
@@ -52,6 +55,7 @@ type Entry = {
   status: DerivedStatus;
   akut: boolean;
   updatedAt: string | null;
+  createdAt: string | null;
   endDate: string | null;
 };
 
@@ -104,6 +108,7 @@ function toEntries(kind: Kind, rows: Row_[]): Entry[] {
       status,
       akut,
       updatedAt: (row.updated_at as string | null) ?? (row.created_at as string | null) ?? null,
+      createdAt: (row.created_at as string | null) ?? null,
       endDate: (row.end_date as string | null) ?? null,
     };
   });
@@ -121,6 +126,15 @@ function useKind(kind: Kind, enabled: boolean) {
   });
 }
 
+const MONTHS_SV = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
+const STATUS_COLOR: Record<string, string> = {
+  forsenad: "#E5534B",
+  bradskande: "#E8C464",
+  pagaende: "#5CB84A",
+  ny: "#7BB8E8",
+  pausad: "#9AA7A0",
+};
+const STATUS_ORDER = ["forsenad", "bradskande", "pagaende", "ny", "pausad"];
 const isActive = (e: Entry) => e.lifecycle !== "avslutat";
 const isOverdue = (e: Entry) => isActive(e) && e.status.daysLeft != null && e.status.daysLeft < 0;
 const keyOf = (e: Entry) => `${e.kind}-${e.id}`;
@@ -180,6 +194,40 @@ function StyrelsePage() {
     .filter((e) => e.lifecycle === "avslutat" && e.updatedAt && new Date(e.updatedAt).getTime() >= cutoff)
     .sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
 
+  // Diagram: ärenden per månad (nya, senaste 12 månaderna) och läget just nu per härledd status.
+  const monthBars: Bar[] = useMemo(() => {
+    const now = new Date();
+    const slots = new Map<string, { label: string; done: number; open: number }>();
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      slots.set(`${d.getFullYear()}-${d.getMonth()}`, { label: MONTHS_SV[d.getMonth()], done: 0, open: 0 });
+    }
+    for (const e of scoped) {
+      if (!e.createdAt) continue;
+      const c = new Date(e.createdAt);
+      const slot = slots.get(`${c.getFullYear()}-${c.getMonth()}`);
+      if (!slot) continue;
+      if (e.lifecycle === "avslutat") slot.done++;
+      else slot.open++;
+    }
+    return [...slots.values()].map((m) => ({
+      label: m.label,
+      parts: [
+        { name: "Avslutade", value: m.done, color: "#5CB84A" },
+        { name: "Pågående", value: m.open, color: "#E8C464" },
+      ],
+    }));
+  }, [scoped]);
+  const statusSlices: Slice[] = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const e of active) counts.set(e.status.key, (counts.get(e.status.key) ?? 0) + 1);
+    return STATUS_ORDER.filter((k) => counts.has(k)).map((k) => ({
+      label: DERIVED_STATUS[k as keyof typeof DERIVED_STATUS].label,
+      value: counts.get(k) ?? 0,
+      color: STATUS_COLOR[k],
+    }));
+  }, [active]);
+
   const selectedProp = sel ? propMap.get(sel) ?? null : null;
   const firstName = role === "styrelse" ? name?.trim().split(/\s+/)[0] ?? "" : "";
 
@@ -211,7 +259,7 @@ function StyrelsePage() {
       <style>{HOME_STYLES}</style>
       <div className="hk-page">
         <div className="hk-wrap">
-          <HomeWideMenu role={role} name={name} roleLabel={role === "admin" ? "Förhandsvisning" : "Styrelse"} logoTo={role === "styrelse" ? "/styrelse" : "/dashboard"} />
+          <HomeWideMenu role={role} name={name} roleLabel={role === "admin" ? "Förhandsvisning" : "Styrelse"} logoTo={role === "styrelse" ? "/styrelse" : "/dashboard"} compact={role === "admin"} />
 
           {role === undefined && <div className="hk-empty">Laddar…</div>}
           {role !== undefined && !allowed && (
@@ -267,6 +315,28 @@ function StyrelsePage() {
                   </button>
                 </div>
               )}
+
+              <h2 className="hk-h2">Överblick</h2>
+              <div className="hk-cols">
+                <Panel title="Nya ärenden per månad">
+                  <StackedBars
+                    bars={monthBars}
+                    theme={DARK_CHART}
+                    format={(n) => (Number.isInteger(n) ? String(n) : "")}
+                    empty="Inga ärenden har kommit in de senaste 12 månaderna."
+                  />
+                </Panel>
+                <Panel title="Aktiva ärenden just nu">
+                  <DonutChart
+                    slices={statusSlices}
+                    total={String(active.length)}
+                    centerSub={active.length === 1 ? "aktivt ärende" : "aktiva ärenden"}
+                    format={(n) => String(n)}
+                    theme={DARK_CHART}
+                    empty="Inga aktiva ärenden. Allt är avklarat. 👍"
+                  />
+                </Panel>
+              </div>
 
               <h2 className="hk-h2">Läget just nu</h2>
               <div className="hk-cols">
@@ -394,6 +464,7 @@ function StyrelsePage() {
           )}
         </div>
       </div>
+      <FloatingNav role={role} />
     </>
   );
 }
