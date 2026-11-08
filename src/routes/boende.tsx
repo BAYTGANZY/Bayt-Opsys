@@ -1,16 +1,6 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import {
-  User,
-  AlertCircle,
-  ClipboardList,
-  FileText,
-  Mail,
-  Calendar,
-  UserCog,
-  ChevronRight,
-  LogOut,
-} from "lucide-react";
+import { AlertCircle, ClipboardList, ChevronRight, LogOut } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 
@@ -158,14 +148,12 @@ function BoendePage() {
             overflow: "hidden",
           }}
         >
-          <Row to="/boende/lagenhet" icon={<User size={20} color={C.primaryIcon} />} label="Min lägenhet" />
-          <Row to="/boende/felanmalan/ny" icon={<AlertCircle size={20} color={C.primaryIcon} />} label="Skicka felanmälan" />
-          <Row to="/boende/arenden" icon={<ClipboardList size={20} color={C.primaryIcon} />} label="Mina ärenden" />
-          <Row to="/boende/dokument" icon={<FileText size={20} color={C.primaryIcon} />} label="Dokument & information" />
-          <Row to="/boende/meddelanden" icon={<Mail size={20} color={C.primaryIcon} />} label="Meddelanden" />
-          <Row to="/boende/besok" icon={<Calendar size={20} color={C.primaryIcon} />} label="Bokade besök" />
-          <Row to="/boende/uppgifter" icon={<UserCog size={20} color={C.primaryIcon} />} label="Mina uppgifter" last />
+          <Row to="/felanmalan" icon={<AlertCircle size={20} color={C.primaryIcon} />} label="Skicka felanmälan" />
+          <Row to="/arendestatus" icon={<ClipboardList size={20} color={C.primaryIcon} />} label="Följ ditt ärende" last />
         </div>
+        <p style={{ fontSize: 13, color: C.secondary, margin: "14px 4px 0", lineHeight: 1.5 }}>
+          Boendeportalen byggs ut. Fler funktioner kommer, till exempel dina dokument och meddelanden.
+        </p>
       </main>
     </div>
   );

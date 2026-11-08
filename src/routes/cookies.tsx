@@ -9,7 +9,7 @@ export const Route = createFileRoute("/cookies")({
 
 function CookiesPage() {
   return (
-    <LegalPage title="Cookies och lagring i webbläsaren" updated="[FYLL I DATUM]">
+    <LegalPage title="Cookies och lagring i webbläsaren" updated="2026-11-08">
       <p>
         Plattformen sparar små mängder data i din webbläsare (cookies och lokal lagring). Vi använder bara sådant som
         behövs för att tjänsten ska fungera. Vi använder inga cookies för reklam eller spårning.
