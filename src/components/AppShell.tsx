@@ -57,10 +57,8 @@ const SECTIONS: NavSection[] = [
   {
     items: [
       { to: "/styrelse", label: "Översikt", icon: GridViewIcon },
-      { to: "/dag-rapport", label: "Dag Rapport", icon: CalendarCheckIn01Icon },
       { to: "/dashboard", label: "Start", icon: DashboardSquare01Icon },
-      { to: "/chatt", label: "Chatt", icon: Chatting01Icon },
-      { to: "/hemsidechatt", label: "Hemsidechatt", icon: HEMSIDA_NAV_ICON },
+      { to: "/dag-rapport", label: "Dag Rapport", icon: CalendarCheckIn01Icon },
     ],
   },
   {
@@ -69,26 +67,31 @@ const SECTIONS: NavSection[] = [
       { to: "/fastigheter", label: "Fastigheter", icon: Building02Icon },
       { to: "/apartments", label: "Lägenheter", icon: DoorOpenIcon },
       { to: "/objects", label: "Objekt", icon: Package01Icon },
-    ],
-  },
-  {
-    label: "Drift",
-    items: [
-      { to: "/issues", label: "Felanmälningar", icon: AlertCircleIcon },
-      { to: "/inspections", label: "Besiktningar", icon: ClipboardCheckIcon },
-      { to: "/projects", label: "Projekt", icon: Briefcase01Icon },
-      { to: "/underhallsplan", label: "Underhållsplan", icon: UNDERHALL_NAV_ICON },
-      { to: "/ekonomi", label: "Ekonomi & Avgift", icon: EKONOMI_NAV_ICON },
-      { to: "/ekonomi-oversikt", label: "Ekonomi – översikt", icon: EKONOMI_OVERSIKT_NAV_ICON },
-      { to: "/andrahand", label: "Andrahand", icon: ANDRAHAND_NAV_ICON },
-      { to: "/entreprenorer", label: "Entreprenörer", icon: ENTREPRENOR_NAV_ICON },
       { to: "/genomgang-av-fastighet", label: "Genomgång av fastighet", icon: EyeIcon },
       { to: "/teknik", label: "Teknik", icon: TEKNIK_NAV_ICON },
       { to: "/fastighetspresentation", label: "Fastighetspresentation", icon: PRESENTATION_NAV_ICON },
     ],
   },
   {
-    label: "Arkiv",
+    label: "Ärenden",
+    items: [
+      { to: "/issues", label: "Felanmälningar", icon: AlertCircleIcon },
+      { to: "/inspections", label: "Besiktningar", icon: ClipboardCheckIcon },
+      { to: "/projects", label: "Projekt", icon: Briefcase01Icon },
+      { to: "/underhallsplan", label: "Underhållsplan", icon: UNDERHALL_NAV_ICON },
+      { to: "/entreprenorer", label: "Entreprenörer", icon: ENTREPRENOR_NAV_ICON },
+    ],
+  },
+  {
+    label: "Ekonomi",
+    items: [
+      { to: "/ekonomi", label: "Ekonomi & Avgift", icon: EKONOMI_NAV_ICON },
+      { to: "/ekonomi-oversikt", label: "Ekonomi – översikt", icon: EKONOMI_OVERSIKT_NAV_ICON },
+      { to: "/andrahand", label: "Andrahand", icon: ANDRAHAND_NAV_ICON },
+    ],
+  },
+  {
+    label: "Register",
     items: [
       { to: "/dokument", label: "Dokument", icon: File02Icon },
       { to: "/contacts", label: "Kontakter", icon: KONTAKT_NAV_ICON },
@@ -96,7 +99,14 @@ const SECTIONS: NavSection[] = [
     ],
   },
   {
-    label: "System",
+    label: "Kommunikation",
+    items: [
+      { to: "/chatt", label: "Chatt", icon: Chatting01Icon },
+      { to: "/hemsidechatt", label: "Hemsidechatt", icon: HEMSIDA_NAV_ICON },
+    ],
+  },
+  {
+    label: "Inställningar",
     items: [{ to: "/installningar", label: "Inställningar", icon: Settings01Icon }],
   },
 ];
@@ -171,7 +181,7 @@ export function sectionsForRole(role: string | null | undefined): NavSection[] {
     (s) => s.items.length > 0,
   );
 }
-   const ENTREPRENOR_HIDDEN = new Set(["/fastigheter", "/apartments", "/objects", "/loggbok"]);
+   const ENTREPRENOR_HIDDEN = new Set(["/fastigheter", "/apartments", "/objects", "/dag-rapport"]);
    const ERRAND_KIND_FOR_ROUTE: Record<string, string> = {
      "/issues": "issue",
      "/inspections": "inspection",
