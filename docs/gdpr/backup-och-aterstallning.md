@@ -4,11 +4,11 @@ Fylls i av den som har tillgång till Supabase-projektet `tixxacthedwaoqtjokdr`.
 
 ## Att kontrollera i Supabase-konsolen
 
-- [ ] **Plan:** (Free / Pro / Team) — Project Settings → Billing. *Free har inga automatiska backuper.*
+- [x] **Plan:** Pro (organisationen `BaytFastighetOrg`, sett 2026-11-08). Pro har dagliga backuper med begränsad retention; kontrollera exakt antal dagar under Database → Backups.
 - [ ] **Dagliga backuper aktiva:** Database → Backups. Antal dagar som sparas: ___
 - [ ] **Point-in-time recovery (PITR):** på/av. Behövs om förlust av några timmars data är oacceptabelt.
-- [ ] **Region:** Project Settings → General → Region: ___ (EU önskas)
-- [ ] **Vem är ägare** av organisationen i Supabase (BAYT AB eller privat person)?
+- [x] **Region:** `eu-central-1`, Central EU (Frankfurt) — inom EU (sett 2026-11-08)
+- [ ] **Ägare:** en enda Owner, `bayt.dev@outlook.com`. Lägg till en andra.
 
 ## Det som backuper inte täcker
 

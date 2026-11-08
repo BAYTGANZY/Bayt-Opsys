@@ -13,6 +13,12 @@ BAYT är **personuppgiftsbiträde** åt varje förening (föreningen är personu
 | [backup-och-aterstallning.md](backup-och-aterstallning.md) | Checklista: vad som säkerhetskopieras, och test av återställning | BAYT (Supabase-inställningar) |
 | [agande-checklista.md](agande-checklista.md) | Vem äger kod, databas, domän och konton | BAYT |
 
+## Bekräftat 2026-11-08
+
+- GitHub-kontot ägs av BAYT AB. Supabase: organisation `BaytFastighetOrg`, plan **Pro**, region **EU (Frankfurt)**, en enda Owner (`bayt.dev@outlook.com`).
+- SMS via 46elks är planerat, inte i drift.
+- Supabase Security Advisor visar **1 kritisk** varning: *Security Definer View* på `public.public_properties` (vyn som lämnar ut fastighetsnamn till felanmälningsformuläret). Troligen avsiktligt, men bör granskas (och ev. göras `security_invoker`) innan fler föreningar kopplas på. Övriga varningar är prestandatips (*Auth RLS Initialization Plan*), inte säkerhet.
+
 ## Status i koden (verifierat mot repot)
 
 - **Isolering mellan föreningar** sker i vyerna (`styrelse_properties`, entreprenörens tilldelning) men **inte i databasen** för ärenden/besiktningar/projekt. Se `CLAUDE.md`, "Bara mina ärenden". Det är inte multi-tenancy i avtalsmening än.

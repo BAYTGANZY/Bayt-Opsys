@@ -4,8 +4,8 @@ Målet: BAYT AB ska äga allt som verksamheten vilar på, och ingen enskild pers
 
 | Tillgång | Ägs av idag (fyll i) | Ska ägas av | Åtgärd |
 |---|---|---|---|
-| GitHub-repot `BAYTGANZY/Bayt-Opsys` | ___ (användare eller organisation?) | BAYT AB (GitHub-organisation) | Skapa organisation, överför repot (Settings → Transfer), minst två ägare |
-| Supabase-organisation/projekt | ___ | BAYT AB | Lägg till BAYT AB:s e-post som Owner, minst två Owners |
+| GitHub-repot `BAYTGANZY/Bayt-Opsys` | **BAYT AB** (bekräftat 2026-11-08) | BAYT AB | Kontrollera att det är ett bolagskonto/en organisation och inte en persons inloggning; lägg till en andra ägare |
+| Supabase-organisation `BaytFastighetOrg`, projekt *BAYT Platform* (Pro, produktion) | Organisationen har **en** medlem: `bayt.dev@outlook.com` (Owner) | BAYT AB, minst två Owners | Bekräfta att `bayt.dev@outlook.com` är en bolagsbrevlåda; lägg till en andra Owner (Manage members), annars är en glömd inloggning ett enkelt-fel-läge |
 | Domän `bayt.se` / DNS | ___ | BAYT AB | Registrant = BAYT AB |
 | Anthropic-konto (AI-chatten) | ___ | BAYT AB | Betalning och ägare på bolagskonto |
 | E-post/SMTP-brevlåda `info@bayt.se` | ___ | BAYT AB | Admin-åtkomst hos minst två personer |
