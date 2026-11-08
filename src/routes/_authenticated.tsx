@@ -1,3 +1,4 @@
+import { BaytLoading } from "@/components/BaytMark";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -52,23 +53,7 @@ function AuthenticatedLayout() {
     if (!loading && !session) navigate({ to: "/login" });
   }, [loading, session, navigate]);
 
-  if (loading) {
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "#0D2B1E",
-          color: "#ffffff",
-          fontFamily: "Inter, system-ui, sans-serif",
-        }}
-      >
-        Laddar…
-      </div>
-    );
-  }
+  if (loading) return <BaytLoading />;
 
   return (
     <NotificationsProvider>

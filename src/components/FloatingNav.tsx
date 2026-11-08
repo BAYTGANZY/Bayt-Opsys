@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { homeForRole } from "@/lib/permissions";
+import { BRAND } from "@/lib/theme";
 
 /**
  * Fast navigering som följer med när man rullar: en "Start"-knapp tillbaka till rollens
@@ -131,15 +132,15 @@ const FN_STYLES = `
   .fn-root { position: fixed; right: 20px; z-index: 40; display: flex; align-items: center; gap: 10px; pointer-events: none; }
   .fn-root > * { pointer-events: auto; }
   .fn-start, .fn-arrow {
-    background: #0D2B1E; color: #fff; border: 1px solid rgba(255,255,255,0.22);
+    background: ${BRAND.dark}; color: #fff; border: 1px solid rgba(255,255,255,0.22);
     box-shadow: 0 8px 22px -8px rgba(0,0,0,0.55); cursor: pointer; font-family: inherit;
   }
   .fn-start { display: inline-flex; align-items: center; gap: 8px; height: 52px; padding: 0 20px; border-radius: 26px; font-size: 18px; font-weight: 600; text-decoration: none; }
-  .fn-start:hover, .fn-arrow:hover:not(:disabled) { background: #3D8A30; border-color: #5CB84A; }
+  .fn-start:hover, .fn-arrow:hover:not(:disabled) { background: ${BRAND.primary}; border-color: ${BRAND.accent}; }
   .fn-arrows { display: flex; flex-direction: column; gap: 8px; }
   .fn-arrow { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 0; }
   .fn-arrow:disabled { opacity: 0.35; cursor: default; }
-  .fn-start:focus-visible, .fn-arrow:focus-visible { outline: 3px solid #E8C464; outline-offset: 2px; }
+  .fn-start:focus-visible, .fn-arrow:focus-visible { outline: 3px solid ${BRAND.gold}; outline-offset: 2px; }
   @media (max-width: 768px) {
     .fn-root { right: 12px; }
     .fn-start { height: 48px; padding: 0 16px; font-size: 17px; }
