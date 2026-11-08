@@ -235,6 +235,19 @@ export function computeOverview(
   };
 }
 
+/** Kostnader per månad och kostnadsgrupp under ett år (index 0 = januari). Bara månader t.o.m. `upTo`. */
+export function monthlyCostByGroup(rows: Balance[], year: number, upTo: number): Array<Partial<Record<GroupKey, number>>> {
+  const out: Array<Partial<Record<GroupKey, number>>> = Array.from({ length: Math.max(0, upTo) }, () => ({}));
+  for (const r of rows) {
+    if (r.year !== year || r.month < 1 || r.month > upTo) continue;
+    const key = groupOf(r.account);
+    if (!key || GROUP_BY_KEY[key].kind !== "ut") continue;
+    const slot = out[r.month - 1];
+    slot[key] = (slot[key] ?? 0) + shown("ut", r.amount);
+  }
+  return out;
+}
+
 /** Månad för månad för ett konto, i år mot förra året. Index 0 = januari. */
 export function monthlySeries(rows: Balance[], account: string, year: number, kind: "in" | "ut" | "balance") {
   const out = (y: number) => {

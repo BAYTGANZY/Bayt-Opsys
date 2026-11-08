@@ -11,6 +11,7 @@ import {
   fmtPct,
   fmtStort,
   latestOf,
+  monthlyCostByGroup,
   monthlySeries,
   periodLabel,
   type Balance,
@@ -19,6 +20,7 @@ import {
   type GroupSummary,
   type Overview,
 } from "@/lib/ekonomi-oversikt";
+import { StackedBars, DonutChart, LIGHT_CHART, SERIES_COLORS, OTHER_COLOR, compactKr, fullKr } from "@/components/MiniCharts";
 
 const INK = "#0D2B1E";
 const GREEN = "#3D8A30";
@@ -159,7 +161,7 @@ export function EkonomiOversiktView({ propertyId }: { propertyId: string }) {
   );
 
   let body: ReactNode;
-  if (view.t === "home") body = <Home ov={ov} open={open} />;
+  if (view.t === "home") body = <Home ov={ov} rows={data.rows} open={open} />;
   else if (view.t === "group") {
     const g = ov.groups.find((x) => x.key === view.key)!;
     body = (
@@ -196,13 +198,28 @@ export function EkonomiOversiktView({ propertyId }: { propertyId: string }) {
   );
 }
 
-function Home({ ov, open }: { ov: Overview; open: (v: View) => void }) {
+function Home({ ov, rows, open }: { ov: Overview; rows: Balance[]; open: (v: View) => void }) {
   const res = ov.inNow - ov.utNow;
   const even = Math.abs(res) < 0.01 * Math.max(ov.utNow, 1);
   const cashRes = res + ov.nonCash;
   const ut = ov.groups.filter((g) => g.kind === "ut" && g.now > 0).sort((a, b) => b.now - a.now);
   const inArrow = arrow("in", ov.inNow, ov.inBefore, ov.hasBefore);
   const utArrow = arrow("ut", ov.utNow, ov.utBefore, ov.hasBefore);
+
+  // Helhetsbild: kostnader per månad (staplar) och fördelning (munk). De fem största
+  // posterna får egen färg, resten samlas under "Övrigt".
+  const topKeys = ut.slice(0, 5).map((g) => g.key);
+  const monthly = monthlyCostByGroup(rows, ov.year, ov.upTo);
+  const costBars = monthly.map((m, i) => {
+    const top = topKeys.map((k, j) => ({ name: GROUP_BY_KEY[k].label, value: m[k] ?? 0, color: SERIES_COLORS[j] }));
+    const rest = (Object.keys(m) as GroupKey[]).filter((k) => !topKeys.includes(k)).reduce((sum, k) => sum + (m[k] ?? 0), 0);
+    return { label: MONTHS_SHORT[i] ?? String(i + 1), parts: [...top, { name: "Övrigt", value: rest, color: OTHER_COLOR }] };
+  });
+  const restNow = ut.slice(5).reduce((sum, g) => sum + g.now, 0);
+  const costSlices = [
+    ...ut.slice(0, 5).map((g, j) => ({ label: g.label, value: g.now, color: SERIES_COLORS[j] })),
+    { label: "Övrigt", value: restNow, color: OTHER_COLOR },
+  ];
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
@@ -242,6 +259,21 @@ function Home({ ov, open }: { ov: Overview; open: (v: View) => void }) {
           <div style={{ color: GREEN, fontSize: 14, fontWeight: 600, marginTop: 8 }}>Se vart pengarna gått ›</div>
         </button>
       </div>
+
+      <section>
+        <h3 style={h3}>Helhetsbild</h3>
+        <p style={sub}>Så här har pengarna gått ut, månad för månad och uppdelat per sak.</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 14 }}>
+          <div style={{ ...card, padding: "14px 0 4px" }}>
+            <div style={{ padding: "0 20px", fontWeight: 600, fontSize: 17 }}>Pengar ut per månad</div>
+            <StackedBars bars={costBars} theme={LIGHT_CHART} format={compactKr} height={190} empty="Inga utgifter har bokförts ännu." />
+          </div>
+          <div style={{ ...card, padding: "14px 0 4px" }}>
+            <div style={{ padding: "0 20px", fontWeight: 600, fontSize: 17 }}>Vart pengarna går</div>
+            <DonutChart slices={costSlices} total={compactKr(ov.utNow)} centerSub="hittills i år" format={fullKr} showPercent theme={LIGHT_CHART} empty="Inga utgifter har bokförts ännu." />
+          </div>
+        </div>
+      </section>
 
       <section>
         <h3 style={h3}>Vart tar pengarna vägen?</h3>
