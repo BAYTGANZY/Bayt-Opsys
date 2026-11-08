@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { canEdit } from "@/lib/permissions";
 import { sanitizeStorageName, useSignedFileUrls } from "@/lib/storage";
+import { startPathFor } from "@/components/FloatingNav";
 import { removeBackground, featherEdges } from "@/lib/remove-background";
 import {
   deriveIssueStatus,
@@ -1512,6 +1513,9 @@ function PresentationPage() {
               )}
             </div>
           )}
+          <Link to={startPathFor(role) as never} className="fp-leave">
+            Start
+          </Link>
           <Link to="/start" className="fp-leave">
             Lämna presentationen
           </Link>
