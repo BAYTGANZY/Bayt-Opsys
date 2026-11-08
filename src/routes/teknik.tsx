@@ -1,3 +1,4 @@
+import { startPathFor } from "@/components/FloatingNav";
 import { createFileRoute, redirect, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -477,7 +478,7 @@ function TeknikPage() {
                 ))}
               </select>
             )}
-            <Link to="/start" className="tk-home">
+            <Link to={startPathFor(role) as never} className="tk-home">
               ← Start
             </Link>
           </div>
