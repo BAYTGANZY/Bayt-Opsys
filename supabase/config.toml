@@ -27,3 +27,8 @@ verify_jwt = true
 
 [functions.entreprenor-portal]
 verify_jwt = true
+
+# Anropas av 46elks (telefonnumret), som varken skickar JWT eller signerar sina anrop.
+# Anropen legitimeras med hemligheten PHONE_WEBHOOK_SECRET i URL:en (?k=...).
+[functions.phone-intake]
+verify_jwt = false
