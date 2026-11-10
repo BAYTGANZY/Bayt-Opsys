@@ -62,7 +62,7 @@ const ENTREPRENOR_ROUTES = [
  * the menu and the URL guard can't disagree.
  */
 export const PROPERTY_SECTIONS_FOR_ROLE: Record<string, ReadonlyArray<string>> = {
-  styrelse: ["apartments", "issues", "inspections", "projects", "logbook", "objects", "avslutat"],
+  styrelse: ["apartments", "issues", "inspections", "projects", "logbook", "objects", "avslutat", "ekonomi"],
   entreprenor: ["apartments", "issues", "inspections", "projects", "logbook", "objects", "avslutat"],
 };
 

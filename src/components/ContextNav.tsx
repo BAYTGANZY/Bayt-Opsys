@@ -18,6 +18,7 @@ const PROPERTY_SUB_NAV: { key: string; label: string; path: string }[] = [
   { key: "logbook", label: "Loggbok", path: "logbook" },
   { key: "actions", label: "Åtgärdslista", path: "actions" },
   { key: "objects", label: "Objekt", path: "objects" },
+  { key: "ekonomi", label: "Ekonomi", path: "ekonomi" },
   { key: "contacts", label: "Kontakter", path: "contacts" },
   // Sist med flit — arkivet över avslutade ärenden hör hemma efter allt aktivt.
   { key: "avslutat", label: "Avslutade", path: "avslutat" },

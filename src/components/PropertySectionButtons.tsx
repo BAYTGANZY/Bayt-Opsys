@@ -2,8 +2,9 @@ import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { StatusDot, OpenAgeDot } from "./StatusDot";
+import { useAuth } from "@/lib/auth";
 
-type SectionKey = "apartments" | "issues" | "inspections" | "projects" | "documents" | "logbook" | "objects";
+type SectionKey = "apartments" | "issues" | "inspections" | "projects" | "documents" | "logbook" | "objects" | "ekonomi";
 
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: "apartments", label: "Lägenheter" },
@@ -13,6 +14,7 @@ const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: "objects", label: "Objekt" },
   { key: "documents", label: "Dokument" },
   { key: "logbook", label: "Loggbok" },
+  { key: "ekonomi", label: "Ekonomi" },
 ];
 
 const DOT_SECTIONS = new Set<SectionKey>(["issues", "inspections", "projects"]);
@@ -137,7 +139,13 @@ export function PropertySectionButtons({
     enabled: onlyOppet,
   });
 
-  const visibleSections = sections ? SECTIONS.filter((s) => sections.includes(s.key)) : SECTIONS;
+  // Ekonomi är föreningens pengar: bara admin och styrelse. Samma regel som PROPERTY_SECTIONS_FOR_ROLE,
+  // där entreprenör inte har "ekonomi" — knappen ska inte lova en sida rutten sedan nekar.
+  const { profile } = useAuth();
+  const role = profile?.role;
+  const canSeeEkonomi = role === "admin" || role === "styrelse";
+  const base = sections ? SECTIONS.filter((s) => sections.includes(s.key)) : SECTIONS;
+  const visibleSections = base.filter((s) => s.key !== "ekonomi" || canSeeEkonomi);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", background: "#fff" }}>

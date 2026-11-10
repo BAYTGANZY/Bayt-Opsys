@@ -28,6 +28,7 @@ const TABS = [
   { key: "logbook", label: "Loggbok", to: "/properties/$id/logbook" },
   { key: "actions", label: "Åtgärdslista", to: "/properties/$id/actions" },
   { key: "objects", label: "Objekt", to: "/properties/$id/objects" },
+  { key: "ekonomi", label: "Ekonomi", to: "/properties/$id/ekonomi" },
   { key: "contacts", label: "Kontakter", to: "/properties/$id/contacts" },
   { key: "avslutat", label: "Avslutade", to: "/properties/$id/avslutat" },
 ] as const;
