@@ -24,6 +24,9 @@ export const EKONOMI_NAV_ICON: NavIcon = icon(
 /** Stapeldiagram: Ekonomi – översikt. */
 export const EKONOMI_OVERSIKT_NAV_ICON: NavIcon = icon("M4 20V11M10 20V4M16 20v-7M2.5 20h19");
 
+/** Mätare: Budgetuppföljning. */
+export const BUDGET_NAV_ICON: NavIcon = icon("M12 21a9 9 0 1 1 9-9M12 12l4.5-4.5M12 12h.01");
+
 /** Skiftnyckel: Underhållsplan. */
 export const UNDERHALL_NAV_ICON: NavIcon = icon(
   "M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.2-.6-.6-2.2 2.3-2.5z",

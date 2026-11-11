@@ -272,6 +272,14 @@ Admin-only everywhere, on both sides: every UI entry point renders `null` for ot
 - Queries that had to grow a column for this: `logbook_entries` gained `event_type` in `AllBuildingsLoggbok`, `useMergedPropertyTimeline` and lägenhetens `LogbookTab`; `created_by` was added to the logbook/inspections/projects reads in the first two. `TimelineEvent` now carries `event_type`/`actionKind`/`actorId`/`actorName`.
 - Empty state goes through `loggbokEmptyText(active, base)` — "Inga poster för det här valet" when filtered, the surface's own wording otherwise. A filtered-empty list must never read as an empty building.
 
+## Budgetuppföljning — `/ekonomi-budget` (och fliken Budget under fastighetens Ekonomi)
+Utfall hittills i år mot budget, per kostnads-/intäktsgrupp och konto. **Utfallet är det Ekonomi – översikt redan har** (`finance_balances`, samma SIE-inläsning); den nya delen är budgeten.
+- **Budgeten kommer ur samma SIE-fil** (`#PBUDGET`, tolkad i `src/lib/sie.ts` → `SieResult.budget`) och sparas i `finance_budgets` (`supabase-functions/ekonomi-budget.sql`, **körs för hand**; samma RLS som `finance_balances`: admin skriver, styrelse läser sin egen förening). Filer utan budget ger en tom uppföljning och inläsningsförhandsgranskningen säger det rött.
+- **Inläsningen är fortfarande bara admin** (klientens val 2026-11-11). Att styrelsen laddar upp själva kräver RLS-ändring och är inte gjort.
+- Budgettabellen kan saknas: `EkonomiBudgetView` tolkar "relation does not exist" som `missingTable` och visar en notis, och inläsningen sparar utfallet ändå och varnar om budgeten (precis som övriga handkörda tabeller).
+- Beräkningen bor i `src/lib/ekonomi-budget.ts` (`computeBudget`, `statusOf`) och använder `groupOf`/`shown` från `ekonomi-oversikt.ts` — **samma kontogrupper och tecken, annars säger sidorna emot varandra**. Status: ok / nära (≤5 % över) / över; avvikelser under 1 000 kr räknas som ok; för intäkter är *under* budget det dåliga.
+- Periodgränsen (`upTo`) är samma som i översikten (senaste färdigbokförda kostnadsmånaden), så budget hittills och utfall hittills avser samma månader.
+
 ## Known one-off diagnostic/migration SQL
 `supabase-functions/*.sql` are one-time migrations already run (or pending — check with the user before assuming). Not idempotent-safe to re-run blindly in all cases; read before reusing as a template.
 

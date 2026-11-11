@@ -2,7 +2,7 @@
  * SIE 4-läsare för Ekonomi – översikt.
  *
  * Läser bara det som översikten behöver: föreningens namn och organisationsnummer,
- * räkenskapsåren, kontolistan, ingående balans (#IB) och månadssaldon (#PSALDO).
+ * räkenskapsåren, kontolistan, ingående balans (#IB), månadssaldon (#PSALDO) och periodbudget (#PBUDGET).
  * Verifikationer (#VER/#TRANS) läses ALDRIG — de kan innehålla namn på leverantörer
  * och enskilda personer och hör inte hemma i en översikt.
  *
@@ -23,6 +23,8 @@ export type SieResult = {
   years: number[];
   accounts: Record<string, string>;
   rows: SieRow[];
+  /** Periodbudget (#PBUDGET), månad 1..12, samma tecken som i SIE. Tom om filen saknar budget. */
+  budget: SieRow[];
   /**
    * Senaste månad (YYYYMM) med bokförda KOSTNADER (4xxx–7xxx). Intäkterna (avgifterna)
    * är bokförda en månad före kostnaderna, så intäkter räknas till samma månad —
@@ -130,6 +132,7 @@ export function parseSie(bytes: Uint8Array): SieResult {
   const yearOfIndex = new Map<number, number>();
   const accounts: Record<string, string> = {};
   const rows: SieRow[] = [];
+  const budget: SieRow[] = [];
   const costByMonth = new Map<string, number>();
 
   for (const raw of text.split(/\r?\n/)) {
@@ -153,6 +156,17 @@ export function parseSie(bytes: Uint8Array): SieResult {
       if (year && account && /^[12]/.test(account) && Number.isFinite(amount)) {
         rows.push({ year, month: 0, account, amount });
       }
+    } else if (tag === "#PBUDGET") {
+      // #PBUDGET årsindex period konto {objekt} saldo — samma form som #PSALDO.
+      const year = yearOfIndex.get(Number(t[1]));
+      const period = t[2];
+      const account = t[3];
+      const amount = Number(t[5]);
+      if (!year || !account || !/^\d{6}$/.test(period ?? "")) continue;
+      if (t[4] !== "{}" || !Number.isFinite(amount)) continue;
+      const month = Number(period.slice(4));
+      if (month < 1 || month > 12) continue;
+      budget.push({ year, month, account, amount });
     } else if (tag === "#PSALDO") {
       // #PSALDO årsindex period konto {objekt} saldo — bara rader utan objekt.
       const year = yearOfIndex.get(Number(t[1]));
@@ -180,6 +194,7 @@ export function parseSie(bytes: Uint8Array): SieResult {
     years: [...yearOfIndex.values()].sort((a, b) => a - b),
     accounts,
     rows,
+    budget,
     latestPeriod: latest || null,
   };
 }
