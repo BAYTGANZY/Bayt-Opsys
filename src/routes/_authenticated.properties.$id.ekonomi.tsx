@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { EkonomiOversiktView } from "@/components/EkonomiOversiktView";
 import { EkonomiOversiktImport } from "@/components/EkonomiOversiktImport";
+import { EkonomiBudgetView } from "@/components/EkonomiBudgetView";
 import { ForvaltningLinks } from "@/components/ForvaltningLinks";
 
 export const Route = createFileRoute("/_authenticated/properties/$id/ekonomi")({
@@ -17,7 +18,7 @@ const MUTED = "#6B7280";
 const LINE = "#E3E7E2";
 const GREEN = "#3D8A30";
 
-type Tab = "oversikt" | "forvaltning";
+type Tab = "oversikt" | "budget" | "forvaltning";
 
 /** Föreningens ekonomi på fastighetens egen sida: översikten och förvaltningens länkkort.
  *  Bara admin och styrelse — rutten nekas för entreprenör av canAccess, och sidan kollar rollen själv. */
@@ -66,6 +67,7 @@ function PropertyEkonomiRoute() {
     <div style={{ maxWidth: 920, margin: "0 auto", padding: "8px 16px 64px", fontFamily: "Inter, sans-serif", color: INK }}>
       <div style={{ display: "flex", gap: 10, margin: "12px 0 22px", flexWrap: "wrap" }}>
         {tabBtn("oversikt", "Översikt")}
+        {tabBtn("budget", "Budget")}
         {tabBtn("forvaltning", "Förvaltning")}
       </div>
 
@@ -81,6 +83,8 @@ function PropertyEkonomiRoute() {
             </details>
           )}
         </>
+      ) : tab === "budget" ? (
+        <EkonomiBudgetView key={id} propertyId={id} />
       ) : (
         <ForvaltningLinks key={id} propertyId={id} />
       )}

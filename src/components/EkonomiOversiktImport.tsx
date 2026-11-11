@@ -124,6 +124,32 @@ export function EkonomiOversiktImport({ propertyId, propertyName }: { propertyId
         if (up.error) throw up.error;
       }
 
+      // 4b. Budget (#PBUDGET), om filen har någon. Tabellen kommer från en handkörd migration
+      //     (ekonomi-budget.sql): saknas den sparas siffrorna ändå och budgeten rapporteras som ej sparad.
+      let budgetNote: string | null = null;
+      const bmap = new Map<string, { property_id: string; year: number; month: number; account: string; amount: number }>();
+      for (const r of parsed.budget) bmap.set(`${r.year}|${r.month}|${r.account}`, { property_id: propertyId, year: r.year, month: r.month, account: r.account, amount: r.amount });
+      const brows = [...bmap.values()];
+      if (brows.length > 0) {
+        try {
+          const byears = [...new Set(brows.map((r) => r.year))];
+          const bdel = await supabase.from("finance_budgets").delete().eq("property_id", propertyId).in("year", byears);
+          if (bdel.error) throw bdel.error;
+          for (let i = 0; i < brows.length; i += CHUNK) {
+            const bi = await supabase.from("finance_budgets").upsert(brows.slice(i, i + CHUNK), { onConflict: "property_id,year,month,account" });
+            if (bi.error) throw bi.error;
+          }
+          const bchk = await supabase.from("finance_budgets").select("account", { count: "exact", head: true }).eq("property_id", propertyId).in("year", byears);
+          if (bchk.error) throw bchk.error;
+          if ((bchk.count ?? 0) !== brows.length) throw new Error(`Bara ${bchk.count ?? 0} av ${brows.length} budgetrader sparades.`);
+        } catch (be) {
+          const bm = (be as Error).message ?? "";
+          budgetNote = /relation .* does not exist|schema cache/i.test(bm)
+            ? "Budgeten sparades inte: tabellen saknas. Kör SQL-filen ekonomi-budget.sql en gång i Supabase och läs in filen igen."
+            : `Budgeten sparades inte: ${bm}`;
+        }
+      }
+
       // 5. Logg (visas som "uppdaterad" och används som skydd mot fel förening).
       const log = await supabase
         .from("finance_imports")
@@ -143,7 +169,9 @@ export function EkonomiOversiktImport({ propertyId, propertyName }: { propertyId
       if (!log.data || log.data.length === 0) throw new Error("Importloggen kunde inte sparas.");
 
       await qc.invalidateQueries({ queryKey: ["finance-oversikt"] });
+      await qc.invalidateQueries({ queryKey: ["finance-budget"] });
       toast.success("Siffrorna är uppdaterade", { style: { background: GREEN, color: "#fff" } });
+      if (budgetNote) toast.error(budgetNote);
       reset();
     } catch (e) {
       const msg = (e as Error).message ?? "Okänt fel";
@@ -173,6 +201,11 @@ export function EkonomiOversiktImport({ propertyId, propertyName }: { propertyId
           <div>Senaste färdigbokförda månad: {periodText(p.latestPeriod)}</div>
           <div>
             {Object.keys(p.accounts).length} konton, {p.rows.length} månadssaldon
+          </div>
+          <div style={{ color: p.budget.length > 0 ? INK : HOT }}>
+            {p.budget.length > 0
+              ? `Budget: ${p.budget.length} budgetrader för ${[...new Set(p.budget.map((b) => b.year))].join(" och ")}`
+              : "Budget: filen innehåller ingen budget, så budgetuppföljningen blir tom. Exportera filen igen med budgeten ifylld i bokföringen."}
           </div>
           <div style={{ marginTop: 8, color: INK }}>
             Siffrorna sparas för <strong>{propertyName}</strong>. Stämmer det inte, välj en annan fastighet ovan innan du sparar.

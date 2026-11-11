@@ -38,6 +38,7 @@ const STYRELSE_ROUTES = [
   "/dokument",
   "/underhallsplan",
   "/ekonomi-oversikt",
+  "/ekonomi-budget",
   "/objects",
   "/installningar",
   "/chatt",
