@@ -5,10 +5,12 @@ import { supabase } from "@/lib/supabase";
 import { parseSie } from "@/lib/sie";
 import { fmtKr, groupOf, GROUPS } from "@/lib/ekonomi-oversikt";
 import {
+  budgetColumns,
   entriesFromPdf,
   entriesFromSie,
   parseBudgetRows,
   pdfCandidates,
+  type BudgetColumn,
   toDbRows,
   type BudgetEntry,
   type BudgetSource,
@@ -67,7 +69,7 @@ async function pdfItems(buf: ArrayBuffer): Promise<string[]> {
   return out;
 }
 
-async function sheetEntries(buf: ArrayBuffer, fileName: string): Promise<{ entries: BudgetEntry[]; note: string }> {
+async function sheetEntries(buf: ArrayBuffer, fileName: string, year: number): Promise<{ entries: BudgetEntry[]; note: string; rows: any[][]; cols: BudgetColumn[]; col: number | null }> {
   const X = await loadXlsx();
   let wb: any;
   if (/\.csv$/i.test(fileName)) {
@@ -83,13 +85,23 @@ async function sheetEntries(buf: ArrayBuffer, fileName: string): Promise<{ entri
       .filter((r) => r.some((c) => c !== null && String(c).trim() !== ""));
     if (rows.length === 0) continue;
     try {
-      const r = parseBudgetRows(rows);
-      if (r.entries.length > 0) return r;
+      const r = parseBudgetRows(rows, { year });
+      if (r.entries.length > 0) {
+        const cols = budgetColumns(rows);
+        return { ...r, rows, cols, col: cols.length > 0 ? chosenCol(rows, cols, year) : null };
+      }
     } catch (e) {
       lastErr = e as Error;
     }
   }
   throw lastErr ?? new Error("Hittade inga konton med budget i filen. Raderna ska börja med ett fyrsiffrigt kontonummer.");
+}
+
+/** Samma val som parseBudgetRows gör själv: årets "Budget", helst inte "förslag". */
+function chosenCol(_rows: any[][], cols: BudgetColumn[], year: number): number {
+  const plain = cols.filter((c) => !/förslag|forslag/i.test(c.label));
+  const pool = plain.length > 0 ? plain : cols;
+  return (pool.find((c) => c.year === year) ?? pool[pool.length - 1]).index;
 }
 
 type Proposal = {
@@ -101,6 +113,9 @@ type Proposal = {
   years: number[];
   cands: PdfCandidate[];
   col: number;
+  rows?: any[][];
+  cols?: BudgetColumn[];
+  sheetCol?: number | null;
 };
 
 const sum = (entries: BudgetEntry[], kind: "in" | "ut") =>
@@ -134,8 +149,9 @@ export function EkonomiBudgetImport({ propertyId, defaultYear }: { propertyId: s
         next = { source: "sie", fileName: name, entries: entriesFromSie(res, year), note: "", year, years, cands: [], col: 0 };
         (next as any).res = res;
       } else if (/\.(xlsx|xls|csv)$/i.test(name)) {
-        const r = await sheetEntries(buf, name);
-        next = { source: "sheet", fileName: name, entries: r.entries, note: r.note, year: defaultYear, years: [], cands: [], col: 0 };
+        const r = await sheetEntries(buf, name, defaultYear);
+        const picked = r.cols.find((c) => c.index === r.col);
+        next = { source: "sheet", fileName: name, entries: r.entries, note: r.note, year: picked?.year ?? defaultYear, years: [], cands: [], col: 0, rows: r.rows, cols: r.cols, sheetCol: r.col };
       } else if (/\.pdf$/i.test(name)) {
         const items = await pdfItems(buf);
         const cands = pdfCandidates(items);
@@ -159,6 +175,12 @@ export function EkonomiBudgetImport({ propertyId, defaultYear }: { propertyId: s
     if (!p) return;
     if (p.source === "sie") setP({ ...p, year, entries: entriesFromSie((p as any).res, year) });
     else setP({ ...p, year });
+  }
+  function setSheetCol(index: number) {
+    if (!p?.rows) return;
+    const c = p.cols?.find((x) => x.index === index);
+    const r = parseBudgetRows(p.rows, { col: index });
+    setP({ ...p, sheetCol: index, entries: r.entries, note: r.note, year: c?.year ?? p.year });
   }
   function setCol(col: number) {
     if (!p) return;
@@ -229,6 +251,18 @@ export function EkonomiBudgetImport({ propertyId, defaultYear }: { propertyId: s
                 <input type="number" value={p.year} min={2000} max={2100} onChange={(e) => setYear(Number(e.target.value))} style={{ height: 38, width: 90, borderRadius: 8, border: `1px solid ${LINE}`, padding: "0 8px", fontSize: 16 }} />
               )}
             </label>
+            {p.source === "sheet" && (p.cols?.length ?? 0) > 1 && (
+              <label style={{ fontSize: 15 }}>
+                Budgetkolumn{" "}
+                <select value={p.sheetCol ?? undefined} onChange={(e) => setSheetCol(Number(e.target.value))} style={{ height: 38, borderRadius: 8, border: `1px solid ${LINE}`, padding: "0 8px", fontSize: 16 }}>
+                  {p.cols!.map((c) => (
+                    <option key={c.index} value={c.index}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {p.source === "pdf" && Math.max(...p.cands.map((c) => c.amounts.length)) > 1 && (
               <label style={{ fontSize: 15 }}>
                 Budget finns i{" "}
