@@ -265,6 +265,17 @@ export function EkonomiBudgetView({ propertyId }: { propertyId: string }) {
   const kvarUt = ov.utBudgetYear - ov.utActual;
   const costGroups = ov.groups.filter((g) => g.kind === "ut" && (g.actual > 0.5 || g.budgetYear > 0.5 || g.budgetYtd > 0.5));
   const inGroups = ov.groups.filter((g) => g.kind === "in" && (g.actual > 0.5 || g.budgetYear > 0.5 || g.budgetYtd > 0.5));
+  // Helårsprognos: utfallet hittills plus budgeten för resterande månader. Avvikelsen hittills antas alltså bestå, inget mer.
+  const prognosUt = ov.utActual + (ov.utBudgetYear - ov.utBudgetYtd);
+  const prognosDiff = prognosUt - ov.utBudgetYear;
+  const monthsLeft = 12 - ov.upTo;
+  // Poster att hålla koll på: kostnadskonton som ligger över budget hittills, störst avvikelse först.
+  const watch = costGroups
+    .flatMap((g) => g.accounts.map((a) => ({ ...a, group: g.label })))
+    .map((a) => ({ ...a, over: a.actual - a.budgetYtd, spent: a.budgetYear > 0 ? a.actual / a.budgetYear : a.actual > 0 ? Infinity : 0 }))
+    .filter((a) => statusOf("ut", a.actual, a.budgetYtd) !== "ok")
+    .sort((x, y) => y.over - x.over)
+    .slice(0, 8);
   const toggle = (k: string) => setOpenKey((cur) => (cur === k ? null : k));
 
   return (
@@ -282,6 +293,51 @@ export function EkonomiBudgetView({ propertyId }: { propertyId: string }) {
           årsbudgeten på {fmtStort(ov.utBudgetYear)} är {kvarUt >= 0 ? `${fmtStort(kvarUt)} kvar` : `${fmtStort(-kvarUt)} redan överskridet`}.
         </p>
       </div>
+
+      <div style={{ ...card, padding: "16px 18px" }}>
+        <div style={{ fontWeight: 600, fontSize: 18 }}>Så här ser året ut</div>
+        <p style={{ margin: "6px 0 0", fontSize: 16, lineHeight: 1.55 }}>
+          {monthsLeft <= 0
+            ? "Året är slut. "
+            : `Om de ${monthsLeft} återstående månaderna följer budget landar kostnaderna på `}
+          {monthsLeft > 0 && <strong>{fmtStort(prognosUt)}</strong>}
+          {monthsLeft > 0 &&
+            (Math.abs(prognosDiff) < 1000
+              ? ", precis på årsbudgeten."
+              : prognosDiff > 0
+                ? `, alltså ${fmtStort(prognosDiff)} över årsbudgeten på ${fmtStort(ov.utBudgetYear)}.`
+                : `, alltså ${fmtStort(-prognosDiff)} under årsbudgeten på ${fmtStort(ov.utBudgetYear)}.`)}
+        </p>
+        {monthsLeft > 0 && ov.utBudgetYear > ov.utBudgetYtd && (
+          <p style={{ margin: "6px 0 0", color: MUTED, fontSize: 14.5, lineHeight: 1.5 }}>
+            Det finns {fmtStort(ov.utBudgetYear - ov.utBudgetYtd)} budgeterat för resten av året. Prognosen räknar inte med att dyra poster kommer tidigare eller senare än budgeterat.
+          </p>
+        )}
+      </div>
+
+      {watch.length > 0 && (
+        <div style={{ ...card, padding: "16px 18px" }}>
+          <div style={{ fontWeight: 600, fontSize: 18 }}>Håll koll på</div>
+          <p style={{ margin: "4px 0 10px", color: MUTED, fontSize: 14.5 }}>Poster som ligger över budget hittills, störst avvikelse först.</p>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {watch.map((a) => {
+              const st = statusOf("ut", a.actual, a.budgetYtd);
+              const done = a.budgetYear <= 0 ? "Ingen budget för posten" : a.actual > a.budgetYear ? "Hela årsbudgeten är redan överskriden" : `${Math.round(a.spent * 100)} % av årsbudgeten är använd`;
+              return (
+                <div key={a.account} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "9px 0", borderTop: `1px solid ${LINE}` }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 16 }}>
+                      {a.account} {a.name}
+                    </div>
+                    <div style={{ color: MUTED, fontSize: 14 }}>{done}</div>
+                  </div>
+                  <div style={{ textAlign: "right", whiteSpace: "nowrap", color: STATUS[st].color, fontWeight: 600 }}>{fmtStort(a.over)} över</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
         <Kpi title="Kostnader hittills" actual={ov.utActual} budget={ov.utBudgetYtd} kind="ut" />
