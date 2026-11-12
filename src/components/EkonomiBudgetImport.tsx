@@ -41,7 +41,7 @@ const btn = (primary: boolean, disabled?: boolean) => ({
 });
 
 // ------------------------------------------------------------ bibliotek (CDN, som övriga importer)
-function loadXlsx(): Promise<any> {
+export function loadXlsx(): Promise<any> {
   const w = window as any;
   if (w.XLSX) return Promise.resolve(w.XLSX);
   return new Promise((resolve, reject) => {
@@ -54,7 +54,7 @@ function loadXlsx(): Promise<any> {
 }
 
 /** PDF:ens textbitar i läsordning. Varje cell i en tabell är normalt en egen bit. */
-async function pdfItems(buf: ArrayBuffer): Promise<string[]> {
+export async function pdfItems(buf: ArrayBuffer): Promise<string[]> {
   const base = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/";
   const pdfjs: any = await import(/* @vite-ignore */ base + "pdf.min.mjs");
   const wres = await fetch(base + "pdf.worker.min.mjs");
