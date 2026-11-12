@@ -9,6 +9,7 @@ import {
   entriesFromPdf,
   entriesFromSie,
   parseBudgetRows,
+  pickColumn,
   pdfCandidates,
   type BudgetColumn,
   toDbRows,
@@ -69,7 +70,8 @@ async function pdfItems(buf: ArrayBuffer): Promise<string[]> {
   return out;
 }
 
-async function sheetEntries(buf: ArrayBuffer, fileName: string, year: number): Promise<{ entries: BudgetEntry[]; note: string; rows: any[][]; cols: BudgetColumn[]; col: number | null }> {
+/** Alla blad i en Excel/CSV-fil som tabeller (rader av celler), tomma rader borta. */
+export async function readSheets(buf: ArrayBuffer, fileName: string): Promise<any[][][]> {
   const X = await loadXlsx();
   let wb: any;
   if (/\.csv$/i.test(fileName)) {
@@ -77,13 +79,20 @@ async function sheetEntries(buf: ArrayBuffer, fileName: string, year: number): P
     const fs = text.split(";").length > text.split(",").length ? ";" : ",";
     wb = X.read(text, { type: "string", FS: fs, cellDates: true });
   } else wb = X.read(buf, { type: "array", cellDates: true });
-  let lastErr: Error | null = null;
+  const out: any[][][] = [];
   for (const name of wb.SheetNames as string[]) {
     let rows: any[][] = X.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null });
     rows = rows
       .map((r) => (r.length === 1 && typeof r[0] === "string" && r[0].includes(";") ? r[0].split(";") : r))
       .filter((r) => r.some((c) => c !== null && String(c).trim() !== ""));
-    if (rows.length === 0) continue;
+    if (rows.length > 0) out.push(rows);
+  }
+  return out;
+}
+
+async function sheetEntries(buf: ArrayBuffer, fileName: string, year: number): Promise<{ entries: BudgetEntry[]; note: string; rows: any[][]; cols: BudgetColumn[]; col: number | null }> {
+  let lastErr: Error | null = null;
+  for (const rows of await readSheets(buf, fileName)) {
     try {
       const r = parseBudgetRows(rows, { year });
       if (r.entries.length > 0) {
@@ -99,9 +108,7 @@ async function sheetEntries(buf: ArrayBuffer, fileName: string, year: number): P
 
 /** Samma val som parseBudgetRows gör själv: årets "Budget", helst inte "förslag". */
 function chosenCol(_rows: any[][], cols: BudgetColumn[], year: number): number {
-  const plain = cols.filter((c) => !/förslag|forslag/i.test(c.label));
-  const pool = plain.length > 0 ? plain : cols;
-  return (pool.find((c) => c.year === year) ?? pool[pool.length - 1]).index;
+  return pickColumn(cols, year)!.index;
 }
 
 type Proposal = {

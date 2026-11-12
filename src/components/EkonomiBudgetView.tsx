@@ -5,6 +5,7 @@ import { MONTHS_SHORT, fmtKr, fmtStort, latestOf, periodLabel, type Balance } fr
 import { computeBudget, statusOf, type BudgetGroup, type BudgetOverview, type Status } from "@/lib/ekonomi-budget";
 import { useFinanceData } from "@/components/EkonomiOversiktView";
 import { EkonomiBudgetImport } from "@/components/EkonomiBudgetImport";
+import { EkonomiUtfallImport } from "@/components/EkonomiUtfallImport";
 import { useAuth } from "@/lib/auth";
 import { compactKr } from "@/components/MiniCharts";
 
@@ -204,8 +205,11 @@ function GroupRow({ g, open, toggle }: { g: BudgetGroup; open: boolean; toggle: 
 function AdminImport({ propertyId, year, open }: { propertyId: string; year: number; open?: boolean }) {
   return (
     <details open={open} style={{ marginTop: 6 }}>
-      <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: 16, color: MUTED }}>Admin: läs in budget</summary>
-      <div style={{ marginTop: 12 }}>
+      <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: 16, color: MUTED }}>Admin: läs in utfall och budget</summary>
+      <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ fontWeight: 600, fontSize: 16 }}>Utfall (vad som har förbrukats)</div>
+        <EkonomiUtfallImport propertyId={propertyId} defaultYear={year} />
+        <div style={{ fontWeight: 600, fontSize: 16 }}>Budget</div>
         <EkonomiBudgetImport propertyId={propertyId} defaultYear={year} />
       </div>
     </details>

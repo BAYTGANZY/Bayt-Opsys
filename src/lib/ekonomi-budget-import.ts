@@ -82,30 +82,43 @@ const ACC_HEAD = /^(konto|kontonr|kontonummer|account)$/;
 const NAME_HEAD = /^(benämning|benamning)$/;
 
 /** Hittar rubrikraden: en med Konto, eller en med Benämning bredvid en kolumn med "budget" (konton står då i benämningen). */
-function findHeader(rows: unknown[][]): number {
+function findHeader(rows: unknown[][], keyword = "budget"): number {
   for (let i = 0; i < Math.min(rows.length, 15); i++) if (rows[i].some((c) => ACC_HEAD.test(norm(c)))) return i;
   for (let i = 0; i < Math.min(rows.length, 15); i++) {
     const hd = rows[i].map(norm);
-    if (hd.some((c) => NAME_HEAD.test(c)) && hd.some((c) => c.includes("budget"))) return i;
+    if (hd.some((c) => NAME_HEAD.test(c)) && hd.some((c) => c.includes(keyword))) return i;
   }
   return -1;
 }
 
 /** Alla kolumner som ser ut som budget (t.ex. "Budget 2026", "Budgetförslag 2027", "Budget 2027"). */
-export function budgetColumns(rows: unknown[][]): BudgetColumn[] {
-  const h = findHeader(rows);
+export function budgetColumns(rows: unknown[][], keyword = "budget"): BudgetColumn[] {
+  const h = findHeader(rows, keyword);
   if (h < 0) return [];
   return rows[h]
     .map((c, index) => ({ index, label: String(c ?? "").trim() }))
-    .filter((c) => c.label.toLowerCase().includes("budget"))
+    .filter((c) => c.label.toLowerCase().includes(keyword))
     .map((c) => ({ ...c, year: Number(c.label.match(/20\d\d/)?.[0]) || null }));
 }
 
-export function parseBudgetRows(rows: unknown[][], opts: { col?: number; year?: number } = {}): { entries: BudgetEntry[]; note: string } {
+/** Standardval bland kolumnerna: för utfall helst "ack." (hittills i år), annars rätt år, helst inte "förslag". */
+export function pickColumn(cols: BudgetColumn[], year: number | undefined, keyword = "budget"): BudgetColumn | undefined {
+  const plain = cols.filter((c) => !/förslag|forslag/i.test(c.label));
+  let pool = plain.length > 0 ? plain : cols;
+  if (keyword === "utfall") {
+    const ack = pool.filter((c) => /ack/i.test(c.label));
+    if (ack.length > 0) pool = ack;
+  }
+  return pool.find((c) => c.year === year) ?? pool[pool.length - 1];
+}
+
+export function parseBudgetRows(rows: unknown[][], opts: { col?: number; year?: number; keyword?: string } = {}): { entries: BudgetEntry[]; note: string } {
   const map = new Map<string, BudgetEntry>();
   let note = "";
 
-  const h = findHeader(rows);
+  const keyword = opts.keyword ?? "budget";
+  const h = findHeader(rows, keyword);
+  if (h < 0 && keyword !== "budget") throw new Error("Hittade ingen rubrikrad med en kolumn för utfall. Rubriken ska innehålla ordet Utfall, till exempel \"Utfall ack. 2026\".");
 
   let cAcc = -1;
   let cName = -1;
@@ -121,15 +134,10 @@ export function parseBudgetRows(rows: unknown[][], opts: { col?: number; year?: 
       if (mi >= 0) cMonth[mi] = i;
       else if (/^(1[0-2]|[1-9])$/.test(x)) cMonth[Number(x) - 1] = i;
     });
-    const bc = budgetColumns(rows).filter((c) => c.index !== cAcc);
+    const bc = budgetColumns(rows, keyword).filter((c) => c.index !== cAcc);
     if (opts.col !== undefined && bc.some((c) => c.index === opts.col)) cYear = opts.col;
-    else if (bc.length > 0) {
-      const plain = bc.filter((c) => !/förslag|forslag/i.test(c.label));
-      const pool = plain.length > 0 ? plain : bc;
-      const pick = pool.find((c) => c.year === opts.year) ?? pool[pool.length - 1];
-      cYear = pick.index;
-    }
-    if (cYear < 0) for (const key of ["helår", "helar", "total", "summa"]) {
+    else if (bc.length > 0) cYear = pickColumn(bc, opts.year, keyword)!.index;
+    if (cYear < 0 && keyword === "budget") for (const key of ["helår", "helar", "total", "summa"]) {
       const i = head.findIndex((x, idx) => idx !== cAcc && x.includes(key));
       if (i >= 0) {
         cYear = i;
@@ -137,7 +145,8 @@ export function parseBudgetRows(rows: unknown[][], opts: { col?: number; year?: 
       }
     }
   }
-  const hasMonths = cMonth.filter((i) => i >= 0).length >= 6;
+  const hasMonths = keyword === "budget" && cMonth.filter((i) => i >= 0).length >= 6;
+  if (h >= 0 && keyword !== "budget" && cYear < 0) throw new Error("Hittade kontokolumnen men ingen kolumn med utfall. Rubriken ska innehålla ordet Utfall.");
   if (h >= 0 && !hasMonths && cYear < 0) throw new Error("Hittade kontokolumnen men ingen kolumn med budget. Rubriken ska innehålla ordet Budget, eller månadsnamn (jan–dec).");
 
   const body = h >= 0 ? rows.slice(h + 1) : rows;
@@ -242,4 +251,11 @@ export function toDbRows(propertyId: string, year: number, entries: BudgetEntry[
       if (Math.abs(v) >= 0.005) rows.push({ property_id: propertyId, year, month: i + 1, account: e.account, amount: Math.round(v * 100) / 100 });
     });
   return rows;
+}
+
+/** Utfall hittills: summan per konto (SIE-tecken). Sparas som ett enda belopp i den månad uppgifterna gäller till. */
+export function totalsOf(entries: BudgetEntry[]): Array<{ account: string; name: string; total: number }> {
+  return entries
+    .map((e) => ({ account: e.account, name: e.name, total: Math.round(e.months.reduce((a, b) => a + b, 0) * 100) / 100 }))
+    .filter((e) => Math.abs(e.total) >= 0.005);
 }
