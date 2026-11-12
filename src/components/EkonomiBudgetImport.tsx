@@ -5,10 +5,13 @@ import { supabase } from "@/lib/supabase";
 import { parseSie } from "@/lib/sie";
 import { fmtKr, groupOf, GROUPS } from "@/lib/ekonomi-oversikt";
 import {
+  budgetColumns,
   entriesFromPdf,
   entriesFromSie,
   parseBudgetRows,
+  pickColumn,
   pdfCandidates,
+  type BudgetColumn,
   toDbRows,
   type BudgetEntry,
   type BudgetSource,
@@ -38,7 +41,7 @@ const btn = (primary: boolean, disabled?: boolean) => ({
 });
 
 // ------------------------------------------------------------ bibliotek (CDN, som övriga importer)
-function loadXlsx(): Promise<any> {
+export function loadXlsx(): Promise<any> {
   const w = window as any;
   if (w.XLSX) return Promise.resolve(w.XLSX);
   return new Promise((resolve, reject) => {
@@ -51,7 +54,7 @@ function loadXlsx(): Promise<any> {
 }
 
 /** PDF:ens textbitar i läsordning. Varje cell i en tabell är normalt en egen bit. */
-async function pdfItems(buf: ArrayBuffer): Promise<string[]> {
+export async function pdfItems(buf: ArrayBuffer): Promise<string[]> {
   const base = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/";
   const pdfjs: any = await import(/* @vite-ignore */ base + "pdf.min.mjs");
   const wres = await fetch(base + "pdf.worker.min.mjs");
@@ -67,7 +70,8 @@ async function pdfItems(buf: ArrayBuffer): Promise<string[]> {
   return out;
 }
 
-async function sheetEntries(buf: ArrayBuffer, fileName: string): Promise<{ entries: BudgetEntry[]; note: string }> {
+/** Alla blad i en Excel/CSV-fil som tabeller (rader av celler), tomma rader borta. */
+export async function readSheets(buf: ArrayBuffer, fileName: string): Promise<any[][][]> {
   const X = await loadXlsx();
   let wb: any;
   if (/\.csv$/i.test(fileName)) {
@@ -75,21 +79,36 @@ async function sheetEntries(buf: ArrayBuffer, fileName: string): Promise<{ entri
     const fs = text.split(";").length > text.split(",").length ? ";" : ",";
     wb = X.read(text, { type: "string", FS: fs, cellDates: true });
   } else wb = X.read(buf, { type: "array", cellDates: true });
-  let lastErr: Error | null = null;
+  const out: any[][][] = [];
   for (const name of wb.SheetNames as string[]) {
     let rows: any[][] = X.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null });
     rows = rows
       .map((r) => (r.length === 1 && typeof r[0] === "string" && r[0].includes(";") ? r[0].split(";") : r))
       .filter((r) => r.some((c) => c !== null && String(c).trim() !== ""));
-    if (rows.length === 0) continue;
+    if (rows.length > 0) out.push(rows);
+  }
+  return out;
+}
+
+async function sheetEntries(buf: ArrayBuffer, fileName: string, year: number): Promise<{ entries: BudgetEntry[]; note: string; rows: any[][]; cols: BudgetColumn[]; col: number | null }> {
+  let lastErr: Error | null = null;
+  for (const rows of await readSheets(buf, fileName)) {
     try {
-      const r = parseBudgetRows(rows);
-      if (r.entries.length > 0) return r;
+      const r = parseBudgetRows(rows, { year });
+      if (r.entries.length > 0) {
+        const cols = budgetColumns(rows);
+        return { ...r, rows, cols, col: cols.length > 0 ? chosenCol(rows, cols, year) : null };
+      }
     } catch (e) {
       lastErr = e as Error;
     }
   }
   throw lastErr ?? new Error("Hittade inga konton med budget i filen. Raderna ska börja med ett fyrsiffrigt kontonummer.");
+}
+
+/** Samma val som parseBudgetRows gör själv: årets "Budget", helst inte "förslag". */
+function chosenCol(_rows: any[][], cols: BudgetColumn[], year: number): number {
+  return pickColumn(cols, year)!.index;
 }
 
 type Proposal = {
@@ -101,6 +120,9 @@ type Proposal = {
   years: number[];
   cands: PdfCandidate[];
   col: number;
+  rows?: any[][];
+  cols?: BudgetColumn[];
+  sheetCol?: number | null;
 };
 
 const sum = (entries: BudgetEntry[], kind: "in" | "ut") =>
@@ -134,8 +156,9 @@ export function EkonomiBudgetImport({ propertyId, defaultYear }: { propertyId: s
         next = { source: "sie", fileName: name, entries: entriesFromSie(res, year), note: "", year, years, cands: [], col: 0 };
         (next as any).res = res;
       } else if (/\.(xlsx|xls|csv)$/i.test(name)) {
-        const r = await sheetEntries(buf, name);
-        next = { source: "sheet", fileName: name, entries: r.entries, note: r.note, year: defaultYear, years: [], cands: [], col: 0 };
+        const r = await sheetEntries(buf, name, defaultYear);
+        const picked = r.cols.find((c) => c.index === r.col);
+        next = { source: "sheet", fileName: name, entries: r.entries, note: r.note, year: picked?.year ?? defaultYear, years: [], cands: [], col: 0, rows: r.rows, cols: r.cols, sheetCol: r.col };
       } else if (/\.pdf$/i.test(name)) {
         const items = await pdfItems(buf);
         const cands = pdfCandidates(items);
@@ -159,6 +182,12 @@ export function EkonomiBudgetImport({ propertyId, defaultYear }: { propertyId: s
     if (!p) return;
     if (p.source === "sie") setP({ ...p, year, entries: entriesFromSie((p as any).res, year) });
     else setP({ ...p, year });
+  }
+  function setSheetCol(index: number) {
+    if (!p?.rows) return;
+    const c = p.cols?.find((x) => x.index === index);
+    const r = parseBudgetRows(p.rows, { col: index });
+    setP({ ...p, sheetCol: index, entries: r.entries, note: r.note, year: c?.year ?? p.year });
   }
   function setCol(col: number) {
     if (!p) return;
@@ -229,6 +258,18 @@ export function EkonomiBudgetImport({ propertyId, defaultYear }: { propertyId: s
                 <input type="number" value={p.year} min={2000} max={2100} onChange={(e) => setYear(Number(e.target.value))} style={{ height: 38, width: 90, borderRadius: 8, border: `1px solid ${LINE}`, padding: "0 8px", fontSize: 16 }} />
               )}
             </label>
+            {p.source === "sheet" && (p.cols?.length ?? 0) > 1 && (
+              <label style={{ fontSize: 15 }}>
+                Budgetkolumn{" "}
+                <select value={p.sheetCol ?? undefined} onChange={(e) => setSheetCol(Number(e.target.value))} style={{ height: 38, borderRadius: 8, border: `1px solid ${LINE}`, padding: "0 8px", fontSize: 16 }}>
+                  {p.cols!.map((c) => (
+                    <option key={c.index} value={c.index}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {p.source === "pdf" && Math.max(...p.cands.map((c) => c.amounts.length)) > 1 && (
               <label style={{ fontSize: 15 }}>
                 Budget finns i{" "}
