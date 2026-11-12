@@ -4,6 +4,8 @@ import { supabase } from "@/lib/supabase";
 import { MONTHS_SHORT, fmtKr, fmtStort, latestOf, periodLabel, type Balance } from "@/lib/ekonomi-oversikt";
 import { computeBudget, statusOf, type BudgetGroup, type BudgetOverview, type Status } from "@/lib/ekonomi-budget";
 import { useFinanceData } from "@/components/EkonomiOversiktView";
+import { EkonomiBudgetImport } from "@/components/EkonomiBudgetImport";
+import { useAuth } from "@/lib/auth";
 import { compactKr } from "@/components/MiniCharts";
 
 const INK = "#0D2B1E";
@@ -199,10 +201,23 @@ function GroupRow({ g, open, toggle }: { g: BudgetGroup; open: boolean; toggle: 
   );
 }
 
+function AdminImport({ propertyId, year, open }: { propertyId: string; year: number; open?: boolean }) {
+  return (
+    <details open={open} style={{ marginTop: 6 }}>
+      <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: 16, color: MUTED }}>Admin: läs in budget</summary>
+      <div style={{ marginTop: 12 }}>
+        <EkonomiBudgetImport propertyId={propertyId} defaultYear={year} />
+      </div>
+    </details>
+  );
+}
+
 export function EkonomiBudgetView({ propertyId }: { propertyId: string }) {
   const fin = useFinanceData(propertyId);
   const bud = useBudgetRows(propertyId);
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === "admin";
 
   const data = fin.data;
   const period = useMemo(() => {
@@ -237,9 +252,9 @@ export function EkonomiBudgetView({ propertyId }: { propertyId: string }) {
       <div style={{ ...card, padding: 24 }}>
         <p style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Ingen budget är inläst för {period.year}.</p>
         <p style={{ margin: "8px 0 0", color: MUTED, lineHeight: 1.55 }}>
-          Budgeten läses ur samma fil som siffrorna (SIE-filen från bokföringen), men bara om budgeten är ifylld där. Kontakta BAYT så hjälper vi till att
-          få in den.
+          Budgeten kan läsas in från en egen fil (Excel, CSV, PDF eller SIE){isAdmin ? "." : ". Kontakta BAYT så hjälper vi till att få in den."}
         </p>
+        {isAdmin && <AdminImport propertyId={propertyId} year={period.year} open />}
       </div>
     );
   }
@@ -316,6 +331,7 @@ export function EkonomiBudgetView({ propertyId }: { propertyId: string }) {
         Källa: föreningens bokföring och budget. Siffrorna gäller {periodLabel(ov.upTo)} {ov.year}.{updated ? ` Uppdaterad ${updated}.` : ""} Avvikelser under 1 000 kr
         räknas som enligt budget. Det här är en förenklad uppföljning och ersätter inte årsredovisningen.
       </p>
+      {isAdmin && <AdminImport propertyId={propertyId} year={ov.year} />}
     </div>
   );
 }

@@ -293,3 +293,7 @@ Recurring bug: forms are CSS grids of `auto`/`1fr` tracks holding `<select>`s wh
 - Always run `npx tsc --noEmit` and `npm run build` after edits — the old Lovable pipeline never typechecked, so latent errors exist in older files.
 - Browser-verify with the Claude_Browser MCP tools where possible (public routes are easy; authenticated routes need real login credentials this agent doesn't have — ask the user to check visually, or diagnose via direct `curl` against Edge Functions instead of guessing).
 - When an Edge Function errors, `curl` it directly with the anon key first — far faster than reading code and guessing.
+
+### Budgetfil (admin) — `EkonomiBudgetImport`
+Budgeten kan läsas in från en egen fil, inte bara ur SIE: **SIE** (`#PBUDGET`), **Excel/CSV** (kolumn Konto + antingen tolv månadskolumner eller en årskolumn) och **PDF** (text ur pdf.js, användaren väljer vilken belopps-kolumn som är budget; flaggas "kontrollera siffrorna"). Parsningen bor i `src/lib/ekonomi-budget-import.ts` (ren TS), gränssnittet i `EkonomiBudgetImport.tsx`, renderat för admin i `EkonomiBudgetView` (även i tomläget). Belopp normaliseras till SIE-tecken (intäkter negativa) via `sieSign`; ett årsbelopp fördelas lika över tolv månader. Sparandet ersätter hela årets budget för föreningen och verifierar radantalet.
+
