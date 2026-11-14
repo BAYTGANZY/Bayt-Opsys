@@ -249,6 +249,54 @@ async function staffRecipients(db: Db, propertyId: string): Promise<string[]> {
   return [...new Set(emails.map((e) => e.toLowerCase()))];
 }
 
+/** Underlag för intyget. Koden skapas första gången och sparas; saknas kolumnen (SQL ej körd) utelämnas intyget. */
+async function buildCertificate(db: Db, app: Record<string, unknown>, propertyName: string) {
+  try {
+    let code = normCode(app.verify_code);
+    if (code.length !== 12) {
+      if (!("verify_code" in app)) return null; // kolumnen finns inte
+      for (let i = 0; i < 3 && code.length !== 12; i++) {
+        const c = newVerifyCode();
+        const u = await db.from("sublet_applications").update({ verify_code: c }).eq("id", app.id as string).is("verify_code", null).select("verify_code");
+        if (u.error) { console.error(`verify_code: ${u.error.message}`); if (i === 2) return null; continue; }
+        if (u.data && u.data.length > 0) code = c;
+        else { // någon annan hann före
+          const again = await db.from("sublet_applications").select("verify_code").eq("id", app.id as string).maybeSingle();
+          code = normCode((again.data as { verify_code?: string } | null)?.verify_code);
+        }
+      }
+      if (code.length !== 12) return null;
+    }
+    const lh = await db.from("property_letterhead").select("*").eq("property_id", app.property_id as string).maybeSingle();
+    return {
+      code: showCode(code),
+      letterhead: lh.error ? null : lh.data ?? null,
+      app: {
+        reference: app.reference, apartment_number: app.apartment_number, trappa: app.trappa ?? null,
+        applicant_name: app.applicant_name, applicant_email: app.applicant_email, applicant_phone: app.applicant_phone ?? null,
+        tenant_name: app.tenant_name, tenant_contact: app.tenant_contact ?? null,
+        start_date: app.start_date, end_date: app.end_date, reason: app.reason, reason_text: app.reason_text ?? null,
+        status: app.status, decision_note: app.decision_note ?? null,
+        decided_by_name: app.decided_by_name ?? null, decided_at: app.decided_at ?? null, created_at: app.created_at,
+      },
+      property_name: propertyName,
+    };
+  } catch (e) {
+    console.error(`buildCertificate: ${e instanceof Error ? e.message : e}`);
+    return null;
+  }
+}
+
+/** Verifieringskod för intyget: 12 tecken utan förväxlingsbara (0/O, 1/I/L), visas som XXXX-XXXX-XXXX. */
+const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+function newVerifyCode(): string {
+  const b = new Uint8Array(12);
+  crypto.getRandomValues(b);
+  return Array.from(b, (x) => CODE_ALPHABET[x % CODE_ALPHABET.length]).join("");
+}
+const normCode = (v: unknown) => String(v ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+const showCode = (c: string) => c.replace(/(.{4})(?=.)/g, "$1-");
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -260,13 +308,34 @@ Deno.serve(async (req) => {
     if (!body || typeof body !== "object") return json({ error: "Ogiltig förfrågan." }, 400);
     const action = String(body.action ?? "submit");
 
+    // ---- Publik kontroll av ett intyg (myndighet) ----------------------------
+    if (action === "verify") {
+      const code = normCode(body.code);
+      if (code.length !== 12) return json({ valid: false }, 404);
+      const r = await db.from("sublet_applications").select("*").eq("verify_code", code).maybeSingle();
+      const a = r.data as Record<string, unknown> | null;
+      if (!a || a.status !== "godkand") return json({ valid: false }, 404);
+      const pr = await db.from("properties").select("name").eq("id", a.property_id as string).maybeSingle();
+      const today = new Date().toISOString().slice(0, 10);
+      return json({
+        valid: true,
+        reference: a.reference,
+        property_name: String((pr.data as { name?: string } | null)?.name ?? ""),
+        apartment_number: a.apartment_number, trappa: a.trappa,
+        applicant_name: a.applicant_name, tenant_name: a.tenant_name,
+        start_date: a.start_date, end_date: a.end_date,
+        decided_at: a.decided_at ?? null, decided_by_name: a.decided_by_name ?? null,
+        expired: String(a.end_date ?? "") < today,
+      }, 200);
+    }
+
     // ---- Hämta en ansökan via sin länk (komplettera-sidan) ------------------
     if (action === "lookup" || action === "supplement") {
       const token = String(body.token ?? "");
       if (!/^[0-9a-f-]{36}$/i.test(token)) return json({ error: "Länken är ogiltig." }, 404);
       const found = await db
         .from("sublet_applications")
-        .select("id, reference, status, decision_note, apartment_number, trappa, applicant_name, applicant_email, tenant_name, start_date, end_date, property_id, created_at, decided_at")
+        .select("*")
         .eq("token", token)
         .maybeSingle();
       const app = found.data as Record<string, unknown> | null;
@@ -281,6 +350,7 @@ Deno.serve(async (req) => {
           created_at: app.created_at, decided_at: app.decided_at ?? null,
           property_name: propertyName, apartment_number: app.apartment_number, trappa: app.trappa,
           applicant_name: app.applicant_name, start_date: app.start_date, end_date: app.end_date,
+          certificate: app.status === "godkand" ? await buildCertificate(db, app, propertyName) : null,
         }, 200);
       }
 
