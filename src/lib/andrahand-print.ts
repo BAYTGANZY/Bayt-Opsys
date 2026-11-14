@@ -37,7 +37,11 @@ const esc = (s: string | null | undefined) =>
 const date = (iso: string | null) =>
   iso ? new Date(iso.length <= 10 ? `${iso}T00:00:00` : iso).toLocaleDateString("sv-SE", { day: "numeric", month: "long", year: "numeric" }) : "—";
 
-export function printSubletApplication(a: PrintableApp, propertyName: string, lh?: Letterhead | null): boolean {
+/** Gäller godkända ansökningar: skriver ut ett digitalt undertecknat intyg med verifieringskod och QR. */
+export type VerifyInfo = { code: string; url: string };
+
+export function printSubletApplication(a: PrintableApp, propertyName: string, lh?: Letterhead | null, verify?: VerifyInfo | null): boolean {
+  const certified = !!verify && a.status === "godkand";
   const decided = a.status === "godkand" || a.status === "nekad";
   const verdict = a.status === "godkand" ? "GODKÄND" : a.status === "nekad" ? "NEKAD" : null;
   const row = (k: string, v: string) => `<tr><th>${esc(k)}</th><td>${v}</td></tr>`;
@@ -47,7 +51,7 @@ export function printSubletApplication(a: PrintableApp, propertyName: string, lh
   const logo = lh?.logo_data && lh.logo_data.startsWith("data:image/") ? lh.logo_data : null;
   const head = `<div class="lh">${logo ? `<img src="${logo}" alt="">` : ""}<div><div class="lh-name">${esc(orgName)}</div>${lh?.org_number ? `<div>Org.nr ${esc(lh.org_number)}</div>` : ""}${contact.map((c) => `<div>${esc(c)}</div>`).join("")}</div></div>`;
 
-  const html = `<!doctype html><html lang="sv"><head><meta charset="utf-8"><title>Andrahandsuthyrning ${esc(a.reference)}</title>
+  const html = `<!doctype html><html lang="sv"><head><meta charset="utf-8"><title>${certified ? "Intyg om godkänd andrahandsuthyrning" : "Andrahandsuthyrning"} ${esc(a.reference)}</title>
 <style>
   @page { size: A4; margin: 18mm; }
   * { box-sizing: border-box; }
@@ -64,6 +68,11 @@ export function printSubletApplication(a: PrintableApp, propertyName: string, lh
   .verdict { margin-top: 6px; padding: 10px 14px; border: 2px solid ${a.status === "godkand" ? "#3D8A30" : "#C2334D"}; border-radius: 8px; font-weight: 700; font-size: 16px; color: ${a.status === "godkand" ? "#3D8A30" : "#C2334D"}; }
   .sign { display: flex; gap: 36px; margin-top: 54px; }
   .sign div { flex: 1; border-top: 1px solid #111; padding-top: 4px; font-size: 12px; color: #444; }
+  .dsig { display: flex; gap: 18px; align-items: center; margin-top: 26px; padding: 14px 16px; border: 1px solid #3D8A30; border-radius: 8px; background: #F5FAF3; }
+  .dsig .qr { width: 104px; height: 104px; flex: none; }
+  .dsig .qr svg { width: 100%; height: 100%; }
+  .dsig .t { font-size: 12.5px; }
+  .dsig .code { font: 700 17px "Courier New", monospace; letter-spacing: .06em; margin: 2px 0; }
   .foot { margin-top: 30px; font-size: 11px; color: #777; }
   .bar { position: fixed; top: 10px; right: 10px; }
   .bar button { font: 600 14px Inter, Arial; padding: 8px 16px; border-radius: 8px; border: 0; background: #3D8A30; color: #fff; cursor: pointer; }
@@ -71,7 +80,7 @@ export function printSubletApplication(a: PrintableApp, propertyName: string, lh
 </style></head><body>
 <div class="bar"><button onclick="window.print()">Skriv ut</button></div>
 ${head}
-<h1>Andrahandsuthyrning</h1>
+<h1>${certified ? "Intyg om godkänd andrahandsuthyrning" : "Andrahandsuthyrning"}</h1>
 <div class="sub">${esc(propertyName)} · Ärende ${esc(a.reference)} · inkom ${date(a.created_at)}</div>
 
 <h2>Lägenheten</h2>
@@ -94,13 +103,23 @@ ${
     : `<p style="color:#555">Inget beslut är fattat ännu. Utskriften är en kopia av ansökan.</p>`
 }
 
-<div class="sign">
+${
+  certified
+    ? `<div class="dsig"><div class="qr" id="qr"></div><div class="t">
+<b>Digitalt undertecknat</b> av ${esc(a.decided_by_name ?? "styrelsen")}, styrelsen i ${esc(orgName)}, ${date(a.decided_at)}.<br>
+Intyget är ett elektroniskt beslut som kan kontrolleras av mottagaren:<br>
+Gå till <b>${esc(verify!.url.replace(/\?.*$/, "").replace(/^https?:\/\//, ""))}</b> och ange verifieringskoden, eller skanna QR-koden.
+<div class="code">${esc(verify!.code)}</div></div></div>`
+    : `<div class="sign">
   <div>Ort och datum</div>
   <div>Underskrift, styrelsen${a.decided_by_name ? ` (${esc(a.decided_by_name)})` : ""}</div>
 </div>
-${decided ? "" : `<div class="sign"><div>Underskrift, medlem</div><div>Underskrift, hyresgäst</div></div>`}
+${decided ? "" : `<div class="sign"><div>Underskrift, medlem</div><div>Underskrift, hyresgäst</div></div>`}`
+}
 
 <div class="foot">Utskriven ${date(new Date().toISOString())}. Referens ${esc(a.reference)}.</div>
+${certified ? `<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>try{var q=qrcode(0,"M");q.addData(${JSON.stringify(verify!.url)});q.make();document.getElementById("qr").innerHTML=q.createSvgTag({cellSize:4,margin:0,scalable:true});}catch(e){}</script>` : ""}
 </body></html>`;
 
   const w = window.open("", "_blank");

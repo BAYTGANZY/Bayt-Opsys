@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { FileDropzone } from "@/components/FileDropzone";
 import { LOGO_ON_DARK } from "@/lib/logo";
+import { printSubletApplication, type Letterhead, type PrintableApp } from "@/lib/andrahand-print";
 import { normalizeApartmentNumber, normalizeTrappa, TRAPPA_PLACEHOLDER } from "@/lib/apartment-tokens";
 
 /**
@@ -314,7 +315,7 @@ function NyAnsokan({ presetProperty }: { presetProperty: string }) {
 }
 
 // --------------------------------------------------------------------------- komplettering
-type Lookup = { reference: string; status: string; note: string | null; created_at?: string | null; decided_at?: string | null; property_name: string; apartment_number: string; trappa: string | null; applicant_name: string; start_date: string; end_date: string };
+type Lookup = { reference: string; status: string; note: string | null; created_at?: string | null; decided_at?: string | null; property_name: string; apartment_number: string; trappa: string | null; applicant_name: string; start_date: string; end_date: string; certificate?: { code: string; letterhead: Letterhead | null; app: PrintableApp; property_name: string } | null };
 
 const sv = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString("sv-SE", { day: "numeric", month: "long", year: "numeric" }) : "");
 
@@ -360,6 +361,24 @@ function StatusView({ info }: { info: Lookup }) {
               {info.status === "nekad" ? "Motivering från styrelsen" : "Meddelande från styrelsen"}
             </div>
             {info.note}
+          </div>
+        )}
+        {info.status === "godkand" && info.certificate && (
+          <div style={{ display: "grid", gap: 8 }}>
+            <button
+              type="button"
+              style={btnStyle()}
+              onClick={() => {
+                const c = info.certificate!;
+                const url = `${window.location.origin}/verifiera?kod=${encodeURIComponent(c.code)}`;
+                if (!printSubletApplication(c.app, c.property_name, c.letterhead, { code: c.code, url })) {
+                  window.alert("Din webbläsare blockerade fönstret. Tillåt popup-fönster och försök igen.");
+                }
+              }}
+            >
+              Skriv ut intyg / spara som PDF
+            </button>
+            <div style={{ fontSize: 13, color: C.secondary }}>Intyget är digitalt undertecknat av styrelsen och har en kod som en myndighet kan kontrollera.</div>
           </div>
         )}
         <div style={{ fontSize: 13.5, color: C.secondary }}>Sidan uppdateras när styrelsen har fattat beslut. Du får också ett mejl vid varje steg.</div>

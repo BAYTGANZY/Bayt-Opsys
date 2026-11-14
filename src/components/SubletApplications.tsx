@@ -34,6 +34,7 @@ type App = {
   decided_at: string | null;
   supplement_note: string | null;
   created_at: string;
+  token?: string;
 };
 type AppFile = { id: string; application_id: string; file_path: string; file_name: string; added_by: string };
 type Decision = "godkand" | "nekad" | "komplettering";
@@ -217,7 +218,15 @@ function AppCard({ a, files, propertyName, onDecided }: { a: App; files: AppFile
           style={{ ...btn("plain"), height: 30, fontSize: 13, marginLeft: "auto" }}
           onClick={async () => {
             const lh = await fetchLetterhead(a.property_id);
-            if (!printSubletApplication(a, propertyName, lh)) toast.error("Webbläsaren blockerade utskriftsfönstret. Tillåt popup-fönster och försök igen.");
+            // Godkänd ansökan skrivs ut som digitalt intyg med verifieringskod; misslyckas hämtningen skrivs vanlig utskrift.
+            let verify: { code: string; url: string } | null = null;
+            if (a.status === "godkand" && a.token) {
+              const r = await supabase.functions.invoke("submit-andrahand", { body: { action: "lookup", token: a.token } });
+              const code = (r.data as { certificate?: { code?: string } | null } | null)?.certificate?.code;
+              if (code) verify = { code, url: `${window.location.origin}/verifiera?kod=${encodeURIComponent(code)}` };
+              else toast.warning("Intyget saknar verifieringskod (databasen är inte uppdaterad). Skriver ut utan.");
+            }
+            if (!printSubletApplication(a, propertyName, lh, verify)) toast.error("Webbläsaren blockerade utskriftsfönstret. Tillåt popup-fönster och försök igen.");
           }}
         >
           Skriv ut
