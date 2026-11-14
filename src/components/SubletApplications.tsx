@@ -34,6 +34,7 @@ type App = {
   decided_at: string | null;
   supplement_note: string | null;
   created_at: string;
+  updated_at?: string | null;
   token?: string;
 };
 type AppFile = { id: string; application_id: string; file_path: string; file_name: string; added_by: string };
@@ -47,6 +48,32 @@ const STATUS: Record<App["status"], { label: string; color: string; bg: string }
 };
 
 const fmt = (iso: string | null) => (iso ? new Date(iso.length <= 10 ? `${iso}T00:00:00` : iso).toLocaleDateString("sv-SE", { day: "numeric", month: "short", year: "numeric" }) : "—");
+
+const daysSince = (iso: string) => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));
+
+/** Hur länge en ansökan väntat på styrelsen: gul efter 3 dygn, röd efter 7. */
+function waitBadge(a: App): { text: string; color: string; bg: string } | null {
+  if (a.status !== "ny") return null;
+  const d = daysSince(a.updated_at ?? a.created_at);
+  const text = d === 0 ? "Inkom idag" : d === 1 ? "Väntat 1 dag" : `Väntat ${d} dagar`;
+  if (d >= 7) return { text, color: "#8B1A2B", bg: "#FDE2E7" };
+  if (d >= 3) return { text, color: "#B45309", bg: "#FFF4E5" };
+  return { text, color: MUTED, bg: "#F3F4F6" };
+}
+
+/** Andra ansökningar för samma lägenhet vars period överlappar — så styrelsen ser dubbletter innan de godkänner. */
+function overlaps(a: App, all: App[]): App[] {
+  if (a.status === "nekad") return [];
+  return all.filter(
+    (b) =>
+      b.id !== a.id &&
+      b.status !== "nekad" &&
+      b.apartment_number === a.apartment_number &&
+      (b.trappa ?? "") === (a.trappa ?? "") &&
+      b.start_date <= a.end_date &&
+      a.start_date <= b.end_date,
+  );
+}
 
 async function errorMessage(err: unknown, fallback: string): Promise<string> {
   try {
@@ -102,7 +129,14 @@ export function SubletApplications({ propertyId, propertyName, onDecided }: { pr
   const apps = q.data?.apps ?? [];
   const open = apps.filter((a) => a.status === "ny" || a.status === "komplettering");
   const done = apps.filter((a) => a.status === "godkand" || a.status === "nekad");
-  const shown = tab === "open" ? open : done;
+  const [search, setSearch] = useState("");
+  const needle = search.trim().toLowerCase();
+  const matches = (a: App) =>
+    !needle || [a.reference, a.applicant_name, a.applicant_email, a.tenant_name, a.apartment_number, a.trappa ?? ""].some((x) => String(x).toLowerCase().includes(needle));
+  // Att hantera: äldst först — den som väntat längst ska synas överst. Besvarade: nyast först.
+  const openSorted = [...open].sort((x, y) => x.created_at.localeCompare(y.created_at));
+  const shown = (tab === "open" ? openSorted : done).filter(matches);
+  const longWaiting = open.filter((a) => a.status === "ny" && daysSince(a.updated_at ?? a.created_at) >= 7).length;
   const missing = !!q.error && /does not exist|schema cache|42P01|PGRST205/i.test((q.error as Error).message);
 
   const copy = async () => {
@@ -144,6 +178,20 @@ export function SubletApplications({ propertyId, propertyName, onDecided }: { pr
               </button>
             ))}
           </div>
+          {longWaiting > 0 && tab === "open" && (
+            <div style={{ background: "#FDE2E7", border: "1px solid #F1C0C0", color: "#8B1A2B", borderRadius: 10, padding: "8px 12px", fontSize: 14, fontWeight: 600 }}>
+              {longWaiting === 1 ? "1 ansökan har väntat" : `${longWaiting} ansökningar har väntat`} i en vecka eller mer på beslut.
+            </div>
+          )}
+          {apps.length > 3 && (
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Sök på namn, lägenhet eller ärendenummer"
+              aria-label="Sök ansökningar"
+              style={{ height: 38, padding: "0 12px", borderRadius: 8, border: `1px solid ${LINE}`, fontSize: 14, fontFamily: "inherit", maxWidth: 420, width: "100%", boxSizing: "border-box" }}
+            />
+          )}
           {q.isLoading && <div style={{ color: MUTED }}>Hämtar …</div>}
           {!q.isLoading && shown.length === 0 && (
             <div style={{ color: MUTED, fontSize: 15 }}>{tab === "open" ? "Inga ansökningar väntar på beslut." : "Inga besvarade ansökningar ännu."}</div>
@@ -153,6 +201,7 @@ export function SubletApplications({ propertyId, propertyName, onDecided }: { pr
               <AppCard
                 key={a.id}
                 a={a}
+                clashes={overlaps(a, apps)}
                 propertyName={propertyName}
                 files={(q.data?.files ?? []).filter((f) => f.application_id === a.id)}
                 onDecided={() => {
@@ -168,7 +217,8 @@ export function SubletApplications({ propertyId, propertyName, onDecided }: { pr
   );
 }
 
-function AppCard({ a, files, propertyName, onDecided }: { a: App; files: AppFile[]; propertyName: string; onDecided: () => void }) {
+function AppCard({ a, files, clashes, propertyName, onDecided }: { a: App; files: AppFile[]; clashes: App[]; propertyName: string; onDecided: () => void }) {
+  const wait = waitBadge(a);
   const [note, setNote] = useState("");
   const [choice, setChoice] = useState<Decision | null>(null);
   const st = STATUS[a.status];
@@ -209,6 +259,7 @@ function AppCard({ a, files, propertyName, onDecided }: { a: App; files: AppFile
           {a.trappa ? `, trappa ${a.trappa}` : ""}
         </span>
         <span style={{ background: st.bg, color: st.color, fontSize: 12, fontWeight: 700, borderRadius: 999, padding: "2px 10px" }}>{st.label}</span>
+        {wait && <span style={{ background: wait.bg, color: wait.color, fontSize: 12, fontWeight: 700, borderRadius: 999, padding: "2px 10px" }}>{wait.text}</span>}
         <span style={{ color: MUTED, fontSize: 13 }}>
           {a.reference} · inkom {fmt(a.created_at)}
         </span>
@@ -232,6 +283,11 @@ function AppCard({ a, files, propertyName, onDecided }: { a: App; files: AppFile
           Skriv ut
         </button>
       </div>
+      {clashes.length > 0 && (
+        <div style={{ background: "#FFF4E5", border: "1px solid #F6D9A8", color: "#B45309", borderRadius: 8, padding: "6px 10px", fontSize: 13.5, fontWeight: 600 }}>
+          Obs: samma lägenhet har en annan ansökan med överlappande period ({clashes.map((c) => `${c.reference}, ${fmt(c.start_date)}–${fmt(c.end_date)}`).join("; ")}).
+        </div>
+      )}
       <div style={{ fontSize: 14.5, color: "#374151", lineHeight: 1.7 }}>
         Sökande: <strong>{a.applicant_name}</strong> · {a.applicant_email}
         {a.applicant_phone ? ` · ${a.applicant_phone}` : ""}
