@@ -201,7 +201,25 @@ function AndrahandPage() {
   const enriched = useMemo(() => subs.map((s) => ({ s, flags: flagsFor(s), ended: (daysUntil(s.end_date) ?? 1) < 0 })), [subs]);
   const active = enriched.filter((x) => !x.ended);
   const ended = enriched.filter((x) => x.ended);
-  const shown = filter === "alla" ? enriched : filter === "aktiva" ? active : ended;
+  const [search, setSearch] = useState("");
+  const needle = search.trim().toLowerCase();
+  const shown = (filter === "alla" ? enriched : filter === "aktiva" ? active : ended).filter(
+    (x) => !needle || [x.s.tenant_name, x.s.member_name ?? "", aptLabel(x.s.apartment_id) ?? "", x.s.reason ?? ""].some((v) => v.toLowerCase().includes(needle)),
+  );
+
+  /** Registret som kalkylblad (CSV med semikolon och BOM så att svenska Excel öppnar å/ä/ö rätt). */
+  const exportCsv = () => {
+    const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const head = ["Lägenhet", "Medlem", "Hyresgäst", "Start", "Slut", "Skäl", "Försäkring", "Avgift per år", "Status"];
+    const rows = enriched.map(({ s, flags }) => [aptLabel(s.apartment_id) ?? "", s.member_name ?? "", s.tenant_name, s.start_date, s.end_date ?? "", s.reason ?? "", s.insurance_ok ? "Ja" : "Nej", s.fee_per_year ?? "", flags.map((f) => f.text).join(" / ")]);
+    const csv = "\ufeff" + [head, ...rows].map((r) => r.map(q).join(";")).join("\r\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `andrahand-${propertyName || "register"}-${new Date().toISOString().slice(0, 10)}.csv`.replace(/\s+/g, "-");
+    a.click();
+    URL.revokeObjectURL(url);
+  };
   const expiring = active.filter((x) => { const d = daysUntil(x.s.end_date); return d != null && d <= 90; }).length;
   const fees = active.reduce((sum, x) => sum + (x.s.fee_per_year ?? 0), 0);
 
@@ -273,7 +291,13 @@ function AndrahandPage() {
             </button>
           ))}
         </div>
-        <button type="button" className="fp-btn fp-primary" onClick={() => setEditing("new")}>+ Ny uthyrning</button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          {enriched.length > 3 && (
+            <input className="fp-input" style={{ width: 220 }} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Sök hyresgäst eller lägenhet" aria-label="Sök i registret" />
+          )}
+          {enriched.length > 0 && <button type="button" className="fp-btn" onClick={exportCsv}>Exportera (Excel)</button>}
+          <button type="button" className="fp-btn fp-primary" onClick={() => setEditing("new")}>+ Ny uthyrning</button>
+        </div>
       </div>
 
       {subsQ.isLoading && <div style={{ color: MUTED }}>Hämtar…</div>}
