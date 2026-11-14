@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Notification03Icon, Alert02Icon, Chatting01Icon } from "@hugeicons/core-free-icons";
 import { useAkutIssues } from "@/components/AkutWatcher";
+import { useSubletNotifications } from "@/hooks/useSubletNotifications";
 import { useArendeNotifications, type ArendeNotification } from "@/hooks/useArendeNotifications";
 import {
   formatNotificationTime,
@@ -87,6 +88,7 @@ export function NotificationBell({ isMobile }: { isMobile: boolean }) {
   const { items, unreadCount, isUnread, markConversationRead, markAllRead } = useNotifications();
   const akut = useAkutIssues();
   const arende = useArendeNotifications();
+  const sublet = useSubletNotifications();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -106,7 +108,7 @@ export function NotificationBell({ isMobile }: { isMobile: boolean }) {
     };
   }, [open]);
 
-  const badge = unreadCount + arende.unreadCount + akut.length;
+  const badge = unreadCount + arende.unreadCount + akut.length + sublet.length;
   const hasAkut = akut.length > 0;
 
   const openConversation = (n: ChatNotification) => {
@@ -273,6 +275,43 @@ export function NotificationBell({ isMobile }: { isMobile: boolean }) {
               </button>
             ))}
 
+            {sublet.map((n) => (
+              <button
+                key={n.id}
+                type="button"
+                className="bayt-notif-row"
+                style={{ borderLeft: `3px solid ${C.green}`, background: "#F4F8F3" }}
+                onClick={() => {
+                  setOpen(false);
+                  navigate({ to: "/andrahand" });
+                }}
+              >
+                <span
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: "50%",
+                    background: "#E8F3E5",
+                    color: "#3D8A30",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <HugeiconsIcon icon={Notification03Icon} size={18} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 13.5, fontWeight: 700, color: C.text }}>
+                    Ansökan om andrahandsuthyrning väntar på beslut
+                  </span>
+                  <span className="bayt-notif-preview" style={{ color: C.text }}>
+                    {n.apartment} · {n.applicant} · {formatNotificationTime(n.createdAt)}
+                  </span>
+                </span>
+              </button>
+            ))}
+
             {arende.items.map((a) => (
               <button
                 key={a.id}
@@ -389,7 +428,7 @@ export function NotificationBell({ isMobile }: { isMobile: boolean }) {
               );
             })}
 
-            {akut.length === 0 && items.length === 0 && arende.items.length === 0 && (
+            {akut.length === 0 && sublet.length === 0 && items.length === 0 && arende.items.length === 0 && (
               <div style={{ padding: "36px 20px", textAlign: "center" }}>
                 <HugeiconsIcon icon={Notification03Icon} size={24} color={C.muted} />
                 <div style={{ marginTop: 8, fontSize: 13, color: C.secondary }}>Inga notiser</div>

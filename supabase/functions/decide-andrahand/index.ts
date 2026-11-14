@@ -287,8 +287,10 @@ Deno.serve(async (req) => {
     }
 
     const period = `${fmtDate(app.start_date)} – ${fmtDate(app.end_date)}`;
+    const statusLabel = decision === "godkand" ? "Godkänd" : decision === "nekad" ? "Nekad" : "Väntar på din komplettering";
+    const statusUrl = `${APP_URL}/ansok-andrahand?token=${app.token}`;
     const rows: Row[] = [
-      ["Ärendenummer", String(app.reference)], ["Förening", propertyName],
+      ["Status", statusLabel], ["Ärendenummer", String(app.reference)], ["Förening", propertyName],
       ["Lägenhet", `${app.apartment_number}${app.trappa ? `, trappa ${app.trappa}` : ""}`], ["Period", period],
     ];
     const mail: Mail =
@@ -297,6 +299,7 @@ Deno.serve(async (req) => {
             to: String(app.applicant_email), subject: `${SUBJECT.godkand} (${app.reference})`,
             intro: `Hej ${app.applicant_name}! Styrelsen i ${propertyName} har godkänt din ansökan om att hyra ut din lägenhet i andra hand.`,
             rows, note: note ? { label: "Meddelande från styrelsen", text: note } : null,
+            cta: { label: "Se din ansökan", url: statusUrl },
             outro: "Spara det här mejlet och ange ärendenumret om du behöver kontakta styrelsen.",
           }
         : decision === "nekad"
@@ -304,6 +307,7 @@ Deno.serve(async (req) => {
               to: String(app.applicant_email), subject: `${SUBJECT.nekad} (${app.reference})`,
               intro: `Hej ${app.applicant_name}! Styrelsen i ${propertyName} har inte godkänt din ansökan om andrahandsuthyrning.`,
               rows, note: { label: "Motivering från styrelsen", text: note },
+              cta: { label: "Se din ansökan", url: statusUrl },
               // Granskas av föreningens jurist: bostadsrättslagen ger medlemmen möjlighet att
               // begära hyresnämndens prövning om styrelsen nekar. Texten ska inte lova utgång.
               outro: "Om du inte är överens med beslutet kan du kontakta styrelsen eller läsa om möjligheten att få uthyrningen prövad hos hyresnämnden.",
@@ -312,7 +316,7 @@ Deno.serve(async (req) => {
               to: String(app.applicant_email), subject: `${SUBJECT.komplettering} (${app.reference})`,
               intro: `Hej ${app.applicant_name}! Styrelsen i ${propertyName} behöver en komplettering innan den kan besluta om din ansökan om andrahandsuthyrning.`,
               rows, note: { label: "Det här behöver kompletteras", text: note },
-              cta: { label: "Komplettera ansökan", url: `${APP_URL}/ansok-andrahand?token=${app.token}` },
+              cta: { label: "Komplettera ansökan", url: statusUrl },
               outro: "Länken är personlig. Dela den inte med någon.",
             };
     const sent = await sendMails([mail]);

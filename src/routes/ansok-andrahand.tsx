@@ -314,7 +314,59 @@ function NyAnsokan({ presetProperty }: { presetProperty: string }) {
 }
 
 // --------------------------------------------------------------------------- komplettering
-type Lookup = { reference: string; status: string; note: string | null; property_name: string; apartment_number: string; trappa: string | null; applicant_name: string; start_date: string; end_date: string };
+type Lookup = { reference: string; status: string; note: string | null; created_at?: string | null; decided_at?: string | null; property_name: string; apartment_number: string; trappa: string | null; applicant_name: string; start_date: string; end_date: string };
+
+const sv = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString("sv-SE", { day: "numeric", month: "long", year: "numeric" }) : "");
+
+/** Följ ansökan: samma tanke som /arendestatus för en felanmälan — var är ärendet just nu? */
+function StatusView({ info }: { info: Lookup }) {
+  const decided = info.status === "godkand" || info.status === "nekad";
+  const steps = [
+    { label: "Mottagen", detail: sv(info.created_at), state: "done" as const },
+    { label: "Styrelsen behandlar ansökan", detail: decided ? "" : "Pågår just nu", state: decided ? ("done" as const) : ("now" as const) },
+    {
+      label: info.status === "godkand" ? "Godkänd" : info.status === "nekad" ? "Nekad" : "Beslut",
+      detail: decided ? sv(info.decided_at) : "Du får mejl när styrelsen har beslutat",
+      state: decided ? ("done" as const) : ("todo" as const),
+    },
+  ];
+  const tone = info.status === "godkand" ? C.primary : info.status === "nekad" ? "#C2334D" : C.secondary;
+  return (
+    <Shell>
+      <div style={{ textAlign: "center", color: "#fff" }}>
+        <h1 style={{ fontFamily: "Outfit, sans-serif", fontSize: "clamp(24px, 6vw, 30px)", fontWeight: 700, margin: 0 }}>Din ansökan</h1>
+        <p style={{ margin: "8px auto 0", maxWidth: 480, fontSize: 15, lineHeight: 1.55, color: "#c9d8c3" }}>
+          {info.property_name}, lägenhet {info.apartment_number}
+          {info.trappa ? `, trappa ${info.trappa}` : ""} · {info.reference}
+        </p>
+      </div>
+      <div style={{ ...cardStyle, gap: 20 }}>
+        <div style={{ display: "grid", gap: 14 }}>
+          {steps.map((st, i) => (
+            <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+              <span style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, marginTop: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: "#fff", background: st.state === "todo" ? "#D1D5DB" : st.state === "now" ? "#B7791F" : tone }}>
+                {st.state === "done" ? "✓" : i + 1}
+              </span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 15.5, fontWeight: 600, color: st.state === "todo" ? C.secondary : C.text }}>{st.label}</div>
+                {st.detail && <div style={{ fontSize: 13.5, color: C.secondary }}>{st.detail}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+        {decided && info.note && (
+          <div style={{ background: "#F3F9F1", border: "1px solid #CFE7C6", borderRadius: 8, padding: "10px 14px", fontSize: 14.5, color: C.text, lineHeight: 1.55 }}>
+            <div style={{ fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase", color: C.secondary, marginBottom: 4 }}>
+              {info.status === "nekad" ? "Motivering från styrelsen" : "Meddelande från styrelsen"}
+            </div>
+            {info.note}
+          </div>
+        )}
+        <div style={{ fontSize: 13.5, color: C.secondary }}>Sidan uppdateras när styrelsen har fattat beslut. Du får också ett mejl vid varje steg.</div>
+      </div>
+    </Shell>
+  );
+}
 
 function Komplettera({ token }: { token: string }) {
   const [info, setInfo] = useState<Lookup | null>(null);
@@ -360,13 +412,7 @@ function Komplettera({ token }: { token: string }) {
   if (done) return <Done title="Tack, kompletteringen är skickad">Styrelsen har fått den och återkommer med beslut via e-post.</Done>;
   if (loadError) return <Done title="Det gick inte att öppna länken">{loadError}</Done>;
   if (!info) return <Done title="Hämtar ansökan …">Ett ögonblick.</Done>;
-  if (info.status !== "komplettering") {
-    return (
-      <Done title="Ingen komplettering behövs just nu">
-        Ansökan {info.reference} {info.status === "godkand" ? "är godkänd" : info.status === "nekad" ? "har besvarats" : "väntar på styrelsens beslut"}.
-      </Done>
-    );
-  }
+  if (info.status !== "komplettering") return <StatusView info={info} />;
 
   return (
     <Shell>
