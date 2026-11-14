@@ -28,4 +28,4 @@ jobs:
       - name: Kontrollera nyckeln
         run: test -n "$SUPABASE_ACCESS_TOKEN" || { echo "Hemligheten SUPABASE_ACCESS_TOKEN saknas i GitHub."; exit 1; }
       - name: Lägg ut funktionerna
-        run: npx --yes supabase@latest functions deploy ${{ inputs.functions }} --project-ref tixxacthedwaoqtjokdr --use-api
+        run: npx --yes supabase@latest functions deploy ${{ inputs.functions }} --project-ref tixxacthedwaoqtjokdr --use-api --yes
