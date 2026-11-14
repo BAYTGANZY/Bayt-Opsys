@@ -266,7 +266,7 @@ Deno.serve(async (req) => {
       if (!/^[0-9a-f-]{36}$/i.test(token)) return json({ error: "Länken är ogiltig." }, 404);
       const found = await db
         .from("sublet_applications")
-        .select("id, reference, status, decision_note, apartment_number, trappa, applicant_name, applicant_email, tenant_name, start_date, end_date, property_id")
+        .select("id, reference, status, decision_note, apartment_number, trappa, applicant_name, applicant_email, tenant_name, start_date, end_date, property_id, created_at, decided_at")
         .eq("token", token)
         .maybeSingle();
       const app = found.data as Record<string, unknown> | null;
@@ -277,7 +277,8 @@ Deno.serve(async (req) => {
       if (action === "lookup") {
         return json({
           success: true,
-          reference: app.reference, status: app.status, note: app.status === "komplettering" ? app.decision_note : null,
+          reference: app.reference, status: app.status, note: app.decision_note ?? null,
+          created_at: app.created_at, decided_at: app.decided_at ?? null,
           property_name: propertyName, apartment_number: app.apartment_number, trappa: app.trappa,
           applicant_name: app.applicant_name, start_date: app.start_date, end_date: app.end_date,
         }, 200);
@@ -365,9 +366,10 @@ Deno.serve(async (req) => {
       {
         to: applicantEmail,
         subject: `Vi har tagit emot din ansökan om andrahandsuthyrning (${app.reference})`,
-        intro: `Hej ${applicantName}! Vi har tagit emot din ansökan om andrahandsuthyrning och skickat den vidare till styrelsen i ${property.name}. Du får svar via e-post så snart styrelsen har fattat beslut.`,
-        rows: [["Ärendenummer", app.reference], ["Förening", property.name], ["Lägenhet", apt], ["Period", period], ["Hyresgäst", tenantName], ["Bifogade filer", String(saved)]],
-        outro: "Spara det här mejlet och ange ärendenumret om du kontaktar styrelsen.",
+        intro: `Hej ${applicantName}! Vi har tagit emot din ansökan om andrahandsuthyrning och skickat den vidare till styrelsen i ${property.name}. Du får ett nytt mejl varje gång något händer med ansökan, och kan när som helst följa status via knappen nedan.`,
+        rows: [["Status", "Mottagen — väntar på styrelsens beslut"], ["Ärendenummer", app.reference], ["Förening", property.name], ["Lägenhet", apt], ["Period", period], ["Hyresgäst", tenantName], ["Bifogade filer", String(saved)]],
+        cta: { label: "Följ din ansökan", url: `${APP_URL}/ansok-andrahand?token=${app.token}` },
+        outro: "Länken är personlig. Dela den inte med någon. Spara mejlet och ange ärendenumret om du kontaktar styrelsen.",
       },
     ];
     if (staff.length > 0) {
