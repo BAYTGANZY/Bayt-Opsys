@@ -309,4 +309,5 @@ Klientkrav 2026-11-14: medlemmar ansöker via en länk på föreningens hemsida,
 - **Mejl:** styrelsens adresser = `profiles.email` för styrelseinloggningar kopplade till föreningen, annars alla admin. `encodeMailSubject` är en byte-identisk kopia i **fem** funktioner nu (notify-progress, entreprenor-portal, notify-entreprenor, submit-andrahand, decide-andrahand). Avslagsmejlet nämner hyresnämnden i allmänna ordalag — ska granskas av föreningens jurist.
 - **Andrahand-sidan är öppen för styrelse** (`STYRELSE_ROUTES`), begränsad till deras egna föreningar via `useVisibleProperties`. Styrelse kan lägga in/ändra uthyrningar och bilagor men inte radera (knapparna dolda **och** ingen DELETE-policy), och ser inte misstankelistan (admin).
 - Funktionerna deployas med `npx supabase functions deploy submit-andrahand decide-andrahand --use-api`; `verify_jwt = true` står i `config.toml` för båda.
-- **Inte byggt än:** utskrivbart intyg med verifieringskod.
+- **Utskrift (2026-11-14):** knappen "Skriv ut" på varje ansökningskort öppnar en A4-vy (`src/lib/andrahand-print.ts`, rent HTML i eget fönster, inget sparas) med uppgifter, beslut, vem som beslutade och rader för underskrift. Fungerar på både obesvarade och beslutade ansökningar.
+- **Inte byggt än:** verifieringskod/QR på utskriften och en publik sida där myndighet kan kontrollera intyget.

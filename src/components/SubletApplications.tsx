@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { printSubletApplication } from "@/lib/andrahand-print";
 
 const INK = "#0D2B1E";
 const GREEN = "#3D8A30";
@@ -148,6 +149,7 @@ export function SubletApplications({ propertyId, propertyName, onDecided }: { pr
               <AppCard
                 key={a.id}
                 a={a}
+                propertyName={propertyName}
                 files={(q.data?.files ?? []).filter((f) => f.application_id === a.id)}
                 onDecided={() => {
                   void qc.invalidateQueries({ queryKey: ["sublet-apps", propertyId] });
@@ -162,7 +164,7 @@ export function SubletApplications({ propertyId, propertyName, onDecided }: { pr
   );
 }
 
-function AppCard({ a, files, onDecided }: { a: App; files: AppFile[]; onDecided: () => void }) {
+function AppCard({ a, files, propertyName, onDecided }: { a: App; files: AppFile[]; propertyName: string; onDecided: () => void }) {
   const [note, setNote] = useState("");
   const [choice, setChoice] = useState<Decision | null>(null);
   const st = STATUS[a.status];
@@ -206,6 +208,14 @@ function AppCard({ a, files, onDecided }: { a: App; files: AppFile[]; onDecided:
         <span style={{ color: MUTED, fontSize: 13 }}>
           {a.reference} · inkom {fmt(a.created_at)}
         </span>
+        <button
+          type="button"
+          className="no-print"
+          style={{ ...btn("plain"), height: 30, fontSize: 13, marginLeft: "auto" }}
+          onClick={() => { if (!printSubletApplication(a, propertyName)) toast.error("Webbläsaren blockerade utskriftsfönstret. Tillåt popup-fönster och försök igen."); }}
+        >
+          Skriv ut
+        </button>
       </div>
       <div style={{ fontSize: 14.5, color: "#374151", lineHeight: 1.7 }}>
         Sökande: <strong>{a.applicant_name}</strong> · {a.applicant_email}
