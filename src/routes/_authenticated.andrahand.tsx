@@ -147,13 +147,14 @@ function AndrahandPage() {
     queryKey: ["sub-apts", propertyId],
     enabled: canUse && !!propertyId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("apartments").select("id, apartment_number").eq("property_id", propertyId).order("apartment_number");
+      const { data, error } = await supabase.from("apartments").select("id, apartment_number, trappa").eq("property_id", propertyId).order("trappa").order("apartment_number");
       if (error) throw error;
       return (data ?? []) as Apt[];
     },
   });
   const apts = aptsQ.data ?? [];
-  const aptLabel = (id: string | null) => apts.find((a) => a.id === id)?.apartment_number;
+  const aptText = (a?: Apt) => (a ? `${a.apartment_number}${a.trappa ? ` · Trappa ${a.trappa}` : ""}` : undefined);
+  const aptLabel = (id: string | null) => aptText(apts.find((a) => a.id === id));
 
   const subsQ = useQuery({
     queryKey: ["subs", propertyId],
@@ -495,7 +496,7 @@ function SubForm({ propertyId, apts, initial, onDone, onCancel }: { propertyId: 
           <select className="fp-select" value={f.apartment_id} onChange={set("apartment_id")}>
             <option value="">Välj lägenhet</option>
             {apts.map((a) => (
-              <option key={a.id} value={a.id}>Lgh {a.apartment_number}</option>
+              <option key={a.id} value={a.id}>Lgh {aptText(a)}</option>
             ))}
           </select>
         </div>
