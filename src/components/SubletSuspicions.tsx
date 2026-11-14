@@ -9,7 +9,7 @@ const MUTED = "#6B7280";
 const LINE = "#E3E7E2";
 const GOLD = "#E8C464";
 
-export type Apt = { id: string; apartment_number: string };
+export type Apt = { id: string; apartment_number: string; trappa?: string | null };
 export type SuspicionKind = "avvikelse" | "inneboende" | "ej_kontrollerad";
 export type Suspicion = {
   id: string;
