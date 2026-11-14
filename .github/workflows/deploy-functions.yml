@@ -1,0 +1,31 @@
+name: Deploy Edge Functions
+
+# Läggs ut för hand: GitHub → Actions → "Deploy Edge Functions" → Run workflow.
+# Kräver hemligheten SUPABASE_ACCESS_TOKEN (Supabase → Account → Access Tokens).
+# verify_jwt per funktion hämtas ur supabase/config.toml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      functions:
+        description: "Funktioner som ska läggas ut (mellanslag mellan namnen)"
+        default: "submit-andrahand decide-andrahand"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Kontrollera nyckeln
+        run: test -n "$SUPABASE_ACCESS_TOKEN" || { echo "Hemligheten SUPABASE_ACCESS_TOKEN saknas i GitHub."; exit 1; }
+      - name: Lägg ut funktionerna
+        run: npx --yes supabase@latest functions deploy ${{ inputs.functions }} --project-ref tixxacthedwaoqtjokdr --use-api
