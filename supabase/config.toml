@@ -32,3 +32,11 @@ verify_jwt = true
 # Anropen legitimeras med hemligheten PHONE_WEBHOOK_SECRET i URL:en (?k=...).
 [functions.phone-intake]
 verify_jwt = false
+
+# Publik ansökan om andrahandsuthyrning (anon-nyckel räcker, precis som submit-felanmalan).
+[functions.submit-andrahand]
+verify_jwt = true
+
+# Anropas av inloggad admin/styrelse; rollen och föreningen kontrolleras inuti funktionen.
+[functions.decide-andrahand]
+verify_jwt = true
