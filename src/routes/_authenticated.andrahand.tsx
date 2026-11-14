@@ -8,6 +8,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { COLORS } from "@/components/property-tabs";
 import { sanitizeStorageName } from "@/lib/storage";
 import { SubletSuspicions, useSuspicions, type Apt } from "@/components/SubletSuspicions";
+import { SubletApplications } from "@/components/SubletApplications";
+import { useVisibleProperties } from "@/hooks/useVisibleProperties";
 
 export const Route = createFileRoute("/_authenticated/andrahand")({
   head: () => ({ meta: [{ title: "Andrahand — BAYT" }] }),
@@ -102,6 +104,9 @@ function AndrahandPage() {
   const isMobile = useIsMobile();
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin";
+  // Styrelsen arbetar i registret för sin egen förening men raderar inget och ser inte misstankelistan.
+  const canUse = isAdmin || profile?.role === "styrelse";
+  const { allowedIds } = useVisibleProperties();
   const qc = useQueryClient();
   const [propertyId, setPropertyId] = useState<string>(() => {
     try {
@@ -114,15 +119,15 @@ function AndrahandPage() {
   const [editing, setEditing] = useState<Sub | "new" | null>(null);
 
   const propsQ = useQuery({
-    queryKey: ["sub-properties"],
-    enabled: isAdmin,
+    queryKey: ["sub-properties", profile?.role],
+    enabled: canUse,
     queryFn: async () => {
       const { data, error } = await supabase.from("properties").select("id, name").order("name");
       if (error) throw error;
       return (data ?? []) as Array<{ id: string; name: string }>;
     },
   });
-  const properties = propsQ.data ?? [];
+  const properties = (propsQ.data ?? []).filter((p) => !allowedIds || allowedIds.has(p.id));
   const propertyName = properties.find((p) => p.id === propertyId)?.name ?? "";
 
   useEffect(() => {
@@ -140,7 +145,7 @@ function AndrahandPage() {
 
   const aptsQ = useQuery({
     queryKey: ["sub-apts", propertyId],
-    enabled: isAdmin && !!propertyId,
+    enabled: canUse && !!propertyId,
     queryFn: async () => {
       const { data, error } = await supabase.from("apartments").select("id, apartment_number").eq("property_id", propertyId).order("apartment_number");
       if (error) throw error;
@@ -152,7 +157,7 @@ function AndrahandPage() {
 
   const subsQ = useQuery({
     queryKey: ["subs", propertyId],
-    enabled: isAdmin && !!propertyId,
+    enabled: canUse && !!propertyId,
     queryFn: async () => {
       const { data, error } = await supabase.from("sublettings").select("*").eq("property_id", propertyId).order("end_date", { ascending: true, nullsFirst: false });
       if (error) throw error;
@@ -163,7 +168,7 @@ function AndrahandPage() {
 
   const docsQ = useQuery({
     queryKey: ["sub-docs", propertyId],
-    enabled: isAdmin && !!propertyId,
+    enabled: canUse && !!propertyId,
     queryFn: async () => {
       const { data, error } = await supabase.from("sublet_documents").select("*").eq("property_id", propertyId).order("created_at", { ascending: false });
       if (error) throw error;
@@ -199,7 +204,7 @@ function AndrahandPage() {
   const expiring = active.filter((x) => { const d = daysUntil(x.s.end_date); return d != null && d <= 90; }).length;
   const fees = active.reduce((sum, x) => sum + (x.s.fee_per_year ?? 0), 0);
 
-  if (profile && !isAdmin) {
+  if (profile && !canUse) {
     return <div style={{ padding: 32, color: COLORS.secondary }}>Du har inte behörighet till den här sidan.</div>;
   }
 
@@ -235,10 +240,12 @@ function AndrahandPage() {
         </div>
       </div>
 
+      {propertyId && <SubletApplications propertyId={propertyId} propertyName={propertyName} onDecided={refresh} />}
+
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
         {stat("Aktiva uthyrningar", String(active.length))}
         {stat("Löper ut inom 90 dagar", String(expiring), expiring > 0)}
-        {stat("Öppna misstankar", String(openSus.length), openSus.length > 0)}
+        {isAdmin && stat("Öppna misstankar", String(openSus.length), openSus.length > 0)}
         {stat("Avgifter per år", `${Math.round(fees).toLocaleString("sv-SE")} kr`)}
       </div>
 
@@ -282,15 +289,18 @@ function AndrahandPage() {
             docs={docs.filter((d) => d.sublet_id === s.id)}
             propertyId={propertyId}
             onEdit={() => { setEditing(s); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+            canDelete={isAdmin}
             onDelete={() => { if (window.confirm("Ta bort uthyrningen och dess bilagor? Det går inte att ångra.")) removeSub.mutate(s); }}
             onDocsChanged={refresh}
           />
         ))}
       </div>
 
-      <div style={{ background: "#fff", border: `1px solid ${LINE}`, borderRadius: 16, padding: "18px 20px" }}>
-        <SubletSuspicions propertyId={propertyId} apts={apts} />
-      </div>
+      {isAdmin && (
+        <div style={{ background: "#fff", border: `1px solid ${LINE}`, borderRadius: 16, padding: "18px 20px" }}>
+          <SubletSuspicions propertyId={propertyId} apts={apts} />
+        </div>
+      )}
 
       <div style={{ fontSize: 12.5, color: MUTED, lineHeight: 1.6 }}>
         Registret är ett stöd för styrelsens uppföljning. Villkor för andrahandsuthyrning (samtycke, skäl, hyresnämndens prövning, avgiftens storlek) styrs av bostadsrättslagen och föreningens stadgar. Hyresavtal ska följa en av jurist granskad mall.
@@ -300,7 +310,7 @@ function AndrahandPage() {
 }
 
 function CaseCard({
-  s, flags, aptNo, docs, propertyId, onEdit, onDelete, onDocsChanged,
+  s, flags, aptNo, docs, propertyId, onEdit, onDelete, canDelete, onDocsChanged,
 }: {
   s: Sub;
   flags: Flag[];
@@ -309,6 +319,7 @@ function CaseCard({
   propertyId: string;
   onEdit: () => void;
   onDelete: () => void;
+  canDelete: boolean;
   onDocsChanged: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -338,15 +349,15 @@ function CaseCard({
         <div className="no-print" style={{ display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap" }}>
           <button type="button" className="fp-btn" style={{ height: 34 }} onClick={() => setOpen((v) => !v)}>{open ? "Dölj bilagor" : `Bilagor (${docs.length})`}</button>
           <button type="button" className="fp-btn" style={{ height: 34 }} onClick={onEdit}>Redigera</button>
-          <button type="button" className="fp-btn fp-danger" style={{ height: 34 }} onClick={onDelete}>Ta bort</button>
+          {canDelete && <button type="button" className="fp-btn fp-danger" style={{ height: 34 }} onClick={onDelete}>Ta bort</button>}
         </div>
       </div>
-      {open && <DocsPanel sublet={s} docs={docs} propertyId={propertyId} onChanged={onDocsChanged} />}
+      {open && <DocsPanel sublet={s} docs={docs} propertyId={propertyId} onChanged={onDocsChanged} canDelete={canDelete} />}
     </div>
   );
 }
 
-function DocsPanel({ sublet, docs, propertyId, onChanged }: { sublet: Sub; docs: SubDoc[]; propertyId: string; onChanged: () => void }) {
+function DocsPanel({ sublet, docs, propertyId, onChanged, canDelete }: { sublet: Sub; docs: SubDoc[]; propertyId: string; onChanged: () => void; canDelete: boolean }) {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [kind, setKind] = useState("avtal");
   const [file, setFile] = useState<File | null>(null);
@@ -401,7 +412,7 @@ function DocsPanel({ sublet, docs, propertyId, onChanged }: { sublet: Sub; docs:
           </div>
           <div style={{ display: "flex", gap: 6 }}>
             <button type="button" className="fp-btn" style={{ height: 30 }} onClick={() => void openFile(d)}>Öppna</button>
-            <button type="button" className="fp-btn fp-danger" style={{ height: 30 }} onClick={() => { if (window.confirm(`Ta bort "${d.file_name}"?`)) remove.mutate(d); }}>Ta bort</button>
+            {canDelete && <button type="button" className="fp-btn fp-danger" style={{ height: 30 }} onClick={() => { if (window.confirm(`Ta bort "${d.file_name}"?`)) remove.mutate(d); }}>Ta bort</button>}
           </div>
         </div>
       ))}
