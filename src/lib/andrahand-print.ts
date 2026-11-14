@@ -21,15 +21,31 @@ export type PrintableApp = {
   created_at: string;
 };
 
+export type Letterhead = {
+  property_id: string;
+  org_name?: string | null;
+  org_number?: string | null;
+  address?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  logo_data?: string | null;
+};
+
 const esc = (s: string | null | undefined) =>
   (s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const date = (iso: string | null) =>
   iso ? new Date(iso.length <= 10 ? `${iso}T00:00:00` : iso).toLocaleDateString("sv-SE", { day: "numeric", month: "long", year: "numeric" }) : "—";
 
-export function printSubletApplication(a: PrintableApp, propertyName: string): boolean {
+export function printSubletApplication(a: PrintableApp, propertyName: string, lh?: Letterhead | null): boolean {
   const decided = a.status === "godkand" || a.status === "nekad";
   const verdict = a.status === "godkand" ? "GODKÄND" : a.status === "nekad" ? "NEKAD" : null;
   const row = (k: string, v: string) => `<tr><th>${esc(k)}</th><td>${v}</td></tr>`;
+
+  const contact = [lh?.address, lh?.phone, lh?.email, lh?.website].filter((x): x is string => !!x && !!x.trim());
+  const orgName = lh?.org_name?.trim() || propertyName;
+  const logo = lh?.logo_data && lh.logo_data.startsWith("data:image/") ? lh.logo_data : null;
+  const head = `<div class="lh">${logo ? `<img src="${logo}" alt="">` : ""}<div><div class="lh-name">${esc(orgName)}</div>${lh?.org_number ? `<div>Org.nr ${esc(lh.org_number)}</div>` : ""}${contact.map((c) => `<div>${esc(c)}</div>`).join("")}</div></div>`;
 
   const html = `<!doctype html><html lang="sv"><head><meta charset="utf-8"><title>Andrahandsuthyrning ${esc(a.reference)}</title>
 <style>
@@ -37,6 +53,9 @@ export function printSubletApplication(a: PrintableApp, propertyName: string): b
   * { box-sizing: border-box; }
   body { font: 13.5px/1.55 Inter, Arial, sans-serif; color: #111; margin: 0; }
   h1 { font: 700 22px Outfit, Arial, sans-serif; margin: 0 0 2px; color: #0D2B1E; }
+  .lh { display: flex; gap: 16px; align-items: center; border-bottom: 2px solid #0D2B1E; padding-bottom: 12px; margin-bottom: 18px; font-size: 12px; color: #444; }
+  .lh img { max-height: 64px; max-width: 170px; object-fit: contain; }
+  .lh-name { font: 700 15px Outfit, Arial, sans-serif; color: #111; }
   .sub { color: #555; margin-bottom: 18px; }
   h2 { font: 700 13px Outfit, Arial, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #0D2B1E; margin: 22px 0 6px; border-bottom: 1px solid #ccc; padding-bottom: 3px; }
   table { width: 100%; border-collapse: collapse; }
@@ -51,6 +70,7 @@ export function printSubletApplication(a: PrintableApp, propertyName: string): b
   @media print { .bar { display: none; } }
 </style></head><body>
 <div class="bar"><button onclick="window.print()">Skriv ut</button></div>
+${head}
 <h1>Andrahandsuthyrning</h1>
 <div class="sub">${esc(propertyName)} · Ärende ${esc(a.reference)} · inkom ${date(a.created_at)}</div>
 
@@ -80,7 +100,7 @@ ${
 </div>
 ${decided ? "" : `<div class="sign"><div>Underskrift, medlem</div><div>Underskrift, hyresgäst</div></div>`}
 
-<div class="foot">Utskriven ${date(new Date().toISOString())} ur BAYT. Referens ${esc(a.reference)}.</div>
+<div class="foot">Utskriven ${date(new Date().toISOString())}. Referens ${esc(a.reference)}.</div>
 </body></html>`;
 
   const w = window.open("", "_blank");

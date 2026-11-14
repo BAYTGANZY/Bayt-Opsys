@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { SubletLetterhead, fetchLetterhead } from "@/components/SubletLetterhead";
 import { printSubletApplication } from "@/lib/andrahand-print";
 
 const INK = "#0D2B1E";
@@ -126,6 +127,8 @@ export function SubletApplications({ propertyId, propertyName, onDecided }: { pr
         </button>
       </div>
 
+      <SubletLetterhead propertyId={propertyId} propertyName={propertyName} />
+
       {missing && (
         <div style={{ color: HOT, fontSize: 14 }}>Tabellen för ansökningar saknas. Kör SQL-filen andrahand-ansokan.sql en gång i Supabase.</div>
       )}
@@ -212,7 +215,10 @@ function AppCard({ a, files, propertyName, onDecided }: { a: App; files: AppFile
           type="button"
           className="no-print"
           style={{ ...btn("plain"), height: 30, fontSize: 13, marginLeft: "auto" }}
-          onClick={() => { if (!printSubletApplication(a, propertyName)) toast.error("Webbläsaren blockerade utskriftsfönstret. Tillåt popup-fönster och försök igen."); }}
+          onClick={async () => {
+            const lh = await fetchLetterhead(a.property_id);
+            if (!printSubletApplication(a, propertyName, lh)) toast.error("Webbläsaren blockerade utskriftsfönstret. Tillåt popup-fönster och försök igen.");
+          }}
         >
           Skriv ut
         </button>
