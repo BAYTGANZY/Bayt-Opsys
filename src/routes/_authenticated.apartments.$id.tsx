@@ -23,6 +23,7 @@ import {
 import { LoggbokFilterBar, loggbokEmptyText, useLoggbokFilter } from "@/components/LoggbokFilterBar";
 import { actionKindOf, actionKindLabel } from "@/lib/logbook";
 import { ApartmentAuditTimeline } from "@/components/ApartmentAuditTimeline";
+import { ApartmentNotes } from "@/components/ApartmentNotes";
 import { ApartmentSublet } from "@/components/ApartmentSublet";
 import { useRecordScopeGuard } from "@/hooks/useRecordScopeGuard";
 import { useMyArendeScope, useMyContactId } from "@/hooks/useMyContactId";
@@ -683,6 +684,8 @@ function InfoTab({ apt, isMobile }: { apt: Apartment; isMobile: boolean }) {
         <div style={{ fontSize: 13, color: C.secondary, marginBottom: 16 }}>Hiss, förråd eller annat objekt kopplat till lägenheten</div>
         <LinkedObjects apartmentId={apt.id} propertyId={apt.property_id} readOnly={readOnly} />
       </div>
+
+      <ApartmentNotes apartmentId={apt.id} propertyId={apt.property_id} />
 
       {/* Historik sits OUTSIDE the <form> on purpose: its filter chips are
           buttons, and a stray button inside a form submits it. */}

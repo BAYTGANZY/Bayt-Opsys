@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { Screensaver } from "@/components/Screensaver";
 import { sectionsForRole, type NavItem } from "@/components/AppShell";
 import { useFavorites } from "@/hooks/useFavorites";
+import { usePageGrants } from "@/hooks/usePageGrants";
 
 const whiteLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
 
@@ -38,7 +39,10 @@ export function HomeWideMenu({
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { routes, toggle, isFavorite } = useFavorites();
-  const sections = sectionsForRole(role);
+  // Samma sidor som vänstermenyn: en sida admin stängt av för kontot får inte synas här heller,
+  // annars är länken klickbar men skickas tillbaka (så såg "Andrahand klickar inte" ut).
+  const { grants } = usePageGrants();
+  const sections = sectionsForRole(role, grants);
   const allowed = sections.flatMap((s) => s.items);
   const favItems = routes.map((r) => allowed.find((i) => i.to === r)).filter((i): i is NavItem => !!i);
 
@@ -137,7 +141,7 @@ export function HomeWideMenu({
         </div>
       </div>
 
-      {role === "admin" && (
+      {(role === "admin" || role === "styrelse") && (
         <nav className="wm-bottom" aria-label="Snabbmeny">
           <span className="wm-bottom-spacer" />
           <Link to={"/dashboard" as never} className="wm-bottom-center">

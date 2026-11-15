@@ -810,6 +810,9 @@ function ConversationView({
       upsertMessage(prev, data as Message),
     );
     queryClient.invalidateQueries({ queryKey: ["chat-conversations", selfId] });
+    // Mejla de andra i samtalet (de som inte redan har något oläst). Misslyckas det är meddelandet
+    // ändå skickat — aviseringen är en bonus och får aldrig störa chatten.
+    void supabase.functions.invoke("notify-chat", { body: { message_id: (data as Message).id } }).catch(() => undefined);
   };
 
   // Admin deletes leave nothing behind; everyone else leaves a tombstone.

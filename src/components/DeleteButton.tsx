@@ -25,11 +25,13 @@ const CASCADE_CHILDREN: Record<string, ReadonlyArray<[table: string, column: str
     ["property_objects", "property_id", "objekt"],
     ["documents", "property_id", "dokument"],
     ["logbook_entries", "property_id", "loggboksposter"],
+    ["apartment_notes", "property_id", "anteckningar"],
   ],
   apartments: [
     ["issues", "apartment_id", "felanmälningar"],
     ["inspections", "apartment_id", "besiktningar"],
     ["logbook_entries", "apartment_id", "loggboksposter"],
+    ["apartment_notes", "apartment_id", "anteckningar"],
   ],
 };
 

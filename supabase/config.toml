@@ -40,3 +40,7 @@ verify_jwt = true
 # Anropas av inloggad admin/styrelse; rollen och föreningen kontrolleras inuti funktionen.
 [functions.decide-andrahand]
 verify_jwt = true
+
+# Anropas av avsändaren i chatten direkt efter att meddelandet sparats; avsändaren kontrolleras inuti funktionen.
+[functions.notify-chat]
+verify_jwt = true

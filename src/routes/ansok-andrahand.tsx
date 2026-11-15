@@ -151,6 +151,10 @@ function NyAnsokan({ presetProperty }: { presetProperty: string }) {
   const [consent, setConsent] = useState(false);
   const [website, setWebsite] = useState(""); // honeypot
   const f = useFiles();
+  // Legitimation för båda parter är obligatorisk — styrelsen måste kunna förvissa sig om att det är rätt personer.
+  const idApplicant = useFiles();
+  const idTenant = useFiles();
+  const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ reference: string } | null>(null);
@@ -168,7 +172,8 @@ function NyAnsokan({ presetProperty }: { presetProperty: string }) {
     if (presetProperty && properties.length > 0 && !preset) setPropertyId("");
   }, [presetProperty, properties, preset]);
 
-  async function submit(e: React.FormEvent) {
+  /** Granskar formuläret. Är allt ifyllt öppnas bekräftelsen — först där skickas ansökan. */
+  function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (!propertyId) return setError("Välj förening.");
@@ -179,16 +184,33 @@ function NyAnsokan({ presetProperty }: { presetProperty: string }) {
     if (!tenantName.trim()) return setError("Ange vem som ska hyra lägenheten.");
     if (!start || !end) return setError("Ange start- och slutdatum.");
     if (end < start) return setError("Slutdatum kan inte ligga före startdatum.");
+    if (idApplicant.files.length === 0) return setError("Bifoga en kopia av din legitimation (ID-handling).");
+    if (idTenant.files.length === 0) return setError("Bifoga en kopia av hyresgästens legitimation (ID-handling).");
+    if (f.files.length + idApplicant.files.length + idTenant.files.length > MAX_FILES) return setError(`Du kan bifoga högst ${MAX_FILES} filer sammanlagt.`);
+    if ([...f.files, ...idApplicant.files, ...idTenant.files].reduce((n, x) => n + x.size, 0) > MAX_TOTAL) return setError("Filerna är för stora tillsammans (högst 20 MB).");
     if (!consent) return setError("Du behöver godkänna hanteringen av uppgifterna.");
+    setConfirming(true);
+  }
+
+  async function send() {
+    setConfirming(false);
+    setError(null);
     setSaving(true);
     try {
+      const named = async (list: File[], prefix: string) =>
+        Promise.all(list.map(async (x) => ({ name: `${prefix} - ${x.name}`, type: x.type, base64: await fileToBase64(x) })));
+      const files = [
+        ...(await named(idApplicant.files, "Legitimation sökande")),
+        ...(await named(idTenant.files, "Legitimation hyresgäst")),
+        ...(await f.payload()),
+      ];
       const { data, error: fnError } = await supabase.functions.invoke("submit-andrahand", {
         body: {
           action: "submit", website, property_id: propertyId,
           apartment_number: normalizeApartmentNumber(apartmentNumber), trappa: normalizeTrappa(trappa),
           applicant_name: name.trim(), applicant_email: email.trim(), applicant_phone: phone.trim(),
           tenant_name: tenantName.trim(), tenant_contact: tenantContact.trim(),
-          start_date: start, end_date: end, reason, reason_text: reasonText.trim(), files: await f.payload(),
+          start_date: start, end_date: end, reason, reason_text: reasonText.trim(), files,
         },
       });
       if (fnError) throw fnError;
@@ -285,6 +307,19 @@ function NyAnsokan({ presetProperty }: { presetProperty: string }) {
           <textarea style={textareaStyle} value={reasonText} onChange={(e) => setReasonText(e.target.value)} />
         </Field>
 
+        <h2 style={{ ...h2Style, marginTop: 6 }}>Legitimation</h2>
+        <div style={{ background: "#FFF7E6", border: "1px solid #F1D9A0", borderRadius: 8, padding: "10px 14px", fontSize: 14, color: "#7A4B00", lineHeight: 1.55 }}>
+          <strong>Obligatoriskt:</strong> en kopia av legitimation (ID-handling) för både dig och hyresgästen. Utan båda kommer ansökan att avslås.
+        </div>
+        <Field label="Din legitimation">
+          <FileDropzone files={idApplicant.files} onAdd={idApplicant.add} onRemove={idApplicant.remove} accept={ACCEPT} label="Lägg till din legitimation" />
+        </Field>
+        {idApplicant.fileError && <div style={{ color: C.error, fontSize: 14 }}>{idApplicant.fileError}</div>}
+        <Field label="Hyresgästens legitimation">
+          <FileDropzone files={idTenant.files} onAdd={idTenant.add} onRemove={idTenant.remove} accept={ACCEPT} label="Lägg till hyresgästens legitimation" />
+        </Field>
+        {idTenant.fileError && <div style={{ color: C.error, fontSize: 14 }}>{idTenant.fileError}</div>}
+
         <h2 style={{ ...h2Style, marginTop: 6 }}>Underlag</h2>
         <p style={{ margin: 0, fontSize: 14, color: C.secondary, lineHeight: 1.55 }}>
           Bifoga det som styrker skälet, till exempel intyg från arbetsgivare eller skola, eller ett utkast till hyresavtal. PDF, bild eller Word, högst {MAX_FILES} filer och 20 MB.
@@ -310,6 +345,23 @@ function NyAnsokan({ presetProperty }: { presetProperty: string }) {
           {saving ? "Skickar …" : "Skicka ansökan"}
         </button>
       </form>
+
+      {confirming && (
+        <div role="dialog" aria-modal="true" aria-labelledby="idq" style={{ position: "fixed", inset: 0, background: "rgba(8,20,15,0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, zIndex: 50 }}>
+          <div style={{ ...cardStyle, maxWidth: 460, gap: 14 }}>
+            <h2 id="idq" style={h2Style}>Innan du skickar</h2>
+            <p style={{ margin: 0, fontSize: 15, lineHeight: 1.6, color: C.text }}>
+              Ansökan måste innehålla <strong>legitimation (ID-handling) för både dig och hyresgästen</strong>. Saknas någon av dem kommer ansökan att avslås.
+            </p>
+            <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14.5, lineHeight: 1.7, color: C.secondary }}>
+              <li>Din legitimation: {idApplicant.files.length} {idApplicant.files.length === 1 ? "fil" : "filer"} bifogad</li>
+              <li>Hyresgästens legitimation: {idTenant.files.length} {idTenant.files.length === 1 ? "fil" : "filer"} bifogad</li>
+            </ul>
+            <button type="button" style={btnStyle()} onClick={() => void send()}>Ja, båda är bifogade — skicka</button>
+            <button type="button" style={{ ...btnStyle(), background: "#fff", color: C.text, border: `1px solid ${C.border}` }} onClick={() => setConfirming(false)}>Tillbaka</button>
+          </div>
+        </div>
+      )}
     </Shell>
   );
 }
