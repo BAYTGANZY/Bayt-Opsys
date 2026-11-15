@@ -253,7 +253,7 @@ export const HOME_STYLES = `
     .hk-wrap > :last-child:not(.hk-top) { margin-bottom: auto; }
   }
 
-  .hk-top { display: flex; align-items: center; gap: 18px; padding: 22px 0 14px; position: relative; z-index: 50; }
+  .hk-top { display: flex; align-items: center; gap: 18px; padding: 22px 0 14px; position: relative; z-index: 400; }
   .hk-logolink { display: inline-flex; flex-shrink: 0; text-decoration: none; }
   .hk-logo { height: 40px; width: auto; display: block; flex-shrink: 0; }
   .hk-navwrap { display: flex; align-items: center; gap: 2px; flex: 1; min-width: 0; }
