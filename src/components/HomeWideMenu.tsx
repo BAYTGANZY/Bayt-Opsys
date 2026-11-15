@@ -182,7 +182,7 @@ export function HomeWideMenu({
 
 const WIDE_MENU_STYLES = `
   .hk-top.wm-root { display: block; padding: 0; gap: 0; }
-  .wm-top { display: flex; align-items: center; gap: 18px; padding: 22px 0 12px; position: relative; z-index: 50; }
+  .wm-top { display: flex; align-items: center; gap: 18px; padding: 22px 0 12px; position: relative; z-index: 400; }
   .wm-logolink { display: inline-flex; flex-shrink: 0; text-decoration: none; }
   .wm-logo { height: 40px; width: auto; display: block; }
   .wm-nav { display: flex; align-items: center; gap: 2px; flex: 1; min-width: 0; flex-wrap: wrap; }
