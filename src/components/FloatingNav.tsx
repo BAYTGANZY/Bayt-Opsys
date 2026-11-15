@@ -17,7 +17,7 @@ import { BRAND } from "@/lib/theme";
 
 /** Startsida per roll: admin → Start (/dashboard), övriga → sin egen hemsida. */
 export function startPathFor(role: string | null | undefined): string {
-  return role === "admin" ? "/dashboard" : homeForRole(role);
+  return role === "admin" || role === "styrelse" ? "/dashboard" : homeForRole(role);
 }
 
 function useIsMobile() {
@@ -94,7 +94,7 @@ export function FloatingNav({
 
   const start = startPathFor(role);
   // Mobil: AppShell har alltid mittenknapp i bottenmenyn, och admin har den på Översikt.
-  const mobileHasBottomBar = inShell || role === "admin";
+  const mobileHasBottomBar = inShell || role === "admin" || role === "styrelse";
   const showStart = !!role && pathname !== start && !(isMobile && mobileHasBottomBar);
   const scrollable = m.max > 80;
   const canUp = m.top > 40;

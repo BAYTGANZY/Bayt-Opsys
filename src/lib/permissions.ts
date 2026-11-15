@@ -26,6 +26,7 @@ export type Role = "admin" | "styrelse" | "entreprenor";
 // cards link into `/properties/$id/<section>` for every per-building sub-page.
 const STYRELSE_ROUTES = [
   "/styrelse",
+  "/dashboard",
   "/koll",
   "/dag-rapport",
   "/fastigheter",

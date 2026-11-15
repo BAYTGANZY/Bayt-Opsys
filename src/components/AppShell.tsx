@@ -399,11 +399,11 @@ export function AppShell() {
   const initial = getInitial(profile?.full_name);
   // Loggan leder till rollens startsida: entreprenör → Snabbåtkomst, övriga → Översikt.
   // Loggan: på Start (/dashboard) går den till Översikt (/styrelse), och överallt annars till Start.
-  // Styrelse har ingen Start-sida, de landar på Översikt; entreprenör på Mina uppdrag.
+  // Styrelse har samma par som admin: Start (/dashboard) och Översikt (/styrelse); entreprenör landar på Mina uppdrag.
   const homeTo =
     profile?.role === "entreprenor"
       ? "/mina-uppdrag"
-      : profile?.role === "admin" && pathname !== "/dashboard"
+      : (profile?.role === "admin" || profile?.role === "styrelse") && pathname !== "/dashboard"
         ? "/dashboard"
         : "/styrelse";
   const { grants: pageGrants } = usePageGrants();
@@ -430,7 +430,7 @@ export function AppShell() {
   const centerNav: NavItem =
     profile?.role === "entreprenor"
       ? { to: "/mina-uppdrag", label: "Start", icon: GridViewIcon }
-      : profile?.role === "admin" && pathname !== "/dashboard"
+      : (profile?.role === "admin" || profile?.role === "styrelse") && pathname !== "/dashboard"
         ? { to: "/dashboard", label: "Start", icon: GridViewIcon }
         : { to: "/styrelse", label: "Översikt", icon: GridViewIcon };
   const bottomNav: NavItem[] = [

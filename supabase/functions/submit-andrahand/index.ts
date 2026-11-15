@@ -405,6 +405,13 @@ Deno.serve(async (req) => {
     if (!isIsoDate(startDate) || !isIsoDate(endDate)) return json({ error: "Ange start- och slutdatum." }, 400);
     if (String(endDate) < String(startDate)) return json({ error: "Slutdatum kan inte ligga före startdatum." }, 400);
 
+    // Legitimation för både sökande och hyresgäst är obligatorisk — klienten namnger filerna med dessa prefix.
+    const fileNames = Array.isArray(body.files) ? (body.files as FileIn[]).map((f) => String(f?.name ?? "")) : [];
+    const hasId = (prefix: string) => fileNames.some((n) => n.startsWith(prefix));
+    if (!hasId("Legitimation sökande") || !hasId("Legitimation hyresgäst")) {
+      return json({ error: "Legitimation (ID-handling) för både dig och hyresgästen måste bifogas, annars kan ansökan inte behandlas." }, 400);
+    }
+
     const prop = await db.from("properties").select("id, name").eq("id", propertyId).maybeSingle();
     const property = prop.data as { id: string; name: string } | null;
     if (!property) return json({ error: "Föreningen hittades inte." }, 404);
