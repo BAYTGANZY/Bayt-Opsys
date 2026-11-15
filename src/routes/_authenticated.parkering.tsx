@@ -85,6 +85,7 @@ function ParkeringPage() {
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState("");
   const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const propsQ = useQuery({
     queryKey: ["parkering-properties", profile?.role],
@@ -105,7 +106,7 @@ function ParkeringPage() {
     refetchOnWindowFocus: true,
     refetchInterval: 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase.from("parking_queue").select("*").eq("property_id", activeProperty).order("queued_at", { ascending: true });
+      const { data, error } = await supabase.from("parking_queue").select("*").eq("property_id", activeProperty).order("queued_at", { ascending: true }).order("reference", { ascending: true });
       if (error) throw error;
       return (data ?? []) as Entry[];
     },
@@ -145,6 +146,40 @@ function ParkeringPage() {
     },
     onSuccess: refresh,
     onError: (e: Error) => toast.error(e.message),
+  });
+
+  /**
+   * Flytta en plats i kön. Köplatsen är queued_at, så att flytta är att ge raden en tid mellan grannarna
+   * (mitt emellan de två raderna där den ska hamna, eller en minut utanför kanten). Är grannarna för tätt
+   * (samma millisekund) byter raderna tid med varandra i stället.
+   */
+  const move = useMutation({
+    mutationFn: async ({ e, dir }: { e: Entry; dir: -1 | 1 }) => {
+      const i = active.findIndex((x) => x.id === e.id);
+      const near = active[i + dir];
+      if (!near) return;
+      const far = active[i + 2 * dir];
+      const t = (x: Entry) => new Date(x.queued_at).getTime();
+      const write = async (id: string, ms: number) => {
+        const { data, error } = await supabase
+          .from("parking_queue")
+          .update({ queued_at: new Date(ms).toISOString(), handled_by_name: profile?.full_name ?? null, handled_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+          .eq("id", id)
+          .select("id");
+        if (error) throw error;
+        if (!data || data.length === 0) throw new Error("Ändringen sparades inte (saknar behörighet).");
+      };
+      const gap = far ? Math.abs(t(near) - t(far)) : Infinity;
+      if (gap > 2) {
+        await write(e.id, far ? Math.round((t(near) + t(far)) / 2) : t(near) + dir * 60_000);
+      } else {
+        const mine = t(e);
+        await write(e.id, t(near));
+        await write(near.id, mine);
+      }
+    },
+    onSuccess: refresh,
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const offer = async (e: Entry) => {
@@ -204,6 +239,10 @@ function ParkeringPage() {
   const row = (e: Entry) => {
     const st = STATUS_STYLE[e.status];
     const pos = positionOf.get(e.id);
+    if (editingId === e.id) {
+      return <EntryForm key={e.id} propertyId={e.property_id} kind={e.kind} initial={e} onDone={() => { setEditingId(null); refresh(); }} onCancel={() => setEditingId(null)} />;
+    }
+    const idx = active.findIndex((x) => x.id === e.id);
     return (
       <div key={e.id} style={{ background: "#fff", border: `1px solid ${LINE}`, borderRadius: 14, padding: "14px 16px", display: "grid", gap: 8 }}>
         <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
@@ -229,6 +268,9 @@ function ParkeringPage() {
             {e.handled_by_name && e.handled_at && <div style={{ fontSize: 12, color: MUTED, marginTop: 4 }}>Senast ändrad av {e.handled_by_name}, {fmtDate(e.handled_at)}</div>}
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {idx >= 0 && !needle && <button type="button" className="pk-btn" title="Flytta upp i kön" aria-label="Flytta upp i kön" disabled={idx === 0 || move.isPending} onClick={() => move.mutate({ e, dir: -1 })}>↑</button>}
+            {idx >= 0 && !needle && <button type="button" className="pk-btn" title="Flytta ned i kön" aria-label="Flytta ned i kön" disabled={idx === active.length - 1 || move.isPending} onClick={() => move.mutate({ e, dir: 1 })}>↓</button>}
+            <button type="button" className="pk-btn" onClick={() => { setAdding(false); setEditingId(e.id); }}>Ändra</button>
             {e.status === "vantar" && <button type="button" className="pk-btn" disabled={update.isPending} onClick={() => offer(e)}>Erbjud plats</button>}
             {(e.status === "vantar" || e.status === "erbjuden") && <button type="button" className="pk-btn" disabled={update.isPending} onClick={() => assign(e)}>Tilldela</button>}
             {e.status === "erbjuden" && <button type="button" className="pk-btn" disabled={update.isPending} onClick={() => update.mutate({ id: e.id, patch: { status: "vantar", spot_label: null } })}>Tillbaka i kön</button>}
@@ -287,12 +329,12 @@ function ParkeringPage() {
           {all.length > 3 && <input className="pk-input" style={{ width: 220 }} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Sök namn, lägenhet eller reg.nr" aria-label="Sök i kön" />}
           <button type="button" className="pk-btn" onClick={copyLink} disabled={!activeProperty}>Kopiera länk till anmälan</button>
           {all.length > 0 && <button type="button" className="pk-btn" onClick={exportCsv}>Exportera (Excel)</button>}
-          <button type="button" className="pk-btn pk-primary" onClick={() => setAdding((v) => !v)} disabled={!activeProperty || missingTable}>+ Lägg till i kön</button>
+          <button type="button" className="pk-btn pk-primary" onClick={() => { setEditingId(null); setAdding((v) => !v); }} disabled={!activeProperty || missingTable}>+ Lägg till i kön</button>
         </div>
       </div>
 
       {adding && activeProperty && (
-        <AddForm propertyId={activeProperty} kind={kind} onDone={() => { setAdding(false); refresh(); }} onCancel={() => setAdding(false)} />
+        <EntryForm propertyId={activeProperty} kind={kind} onDone={() => { setAdding(false); refresh(); }} onCancel={() => setAdding(false)} />
       )}
 
       {q.isLoading && <div style={{ color: MUTED }}>Hämtar…</div>}
@@ -317,16 +359,20 @@ function ParkeringPage() {
   );
 }
 
-function AddForm({ propertyId, kind, onDone, onCancel }: { propertyId: string; kind: Entry["kind"]; onDone: () => void; onCancel: () => void }) {
+const todayStr = () => new Date().toISOString().slice(0, 10);
+
+/** Lägg till eller ändra en rad. Datumet "Står i kö sedan" styr köplatsen — används för dem som anmält sig före webbformuläret fanns. */
+function EntryForm({ propertyId, kind, initial, onDone, onCancel }: { propertyId: string; kind: Entry["kind"]; initial?: Entry; onDone: () => void; onCancel: () => void }) {
   const { profile } = useAuth();
-  const [k, setK] = useState<Entry["kind"]>(kind);
-  const [apt, setApt] = useState("");
-  const [trappa, setTrappa] = useState("");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [reg, setReg] = useState("");
-  const [note, setNote] = useState("");
+  const [k, setK] = useState<Entry["kind"]>(initial?.kind ?? kind);
+  const [apt, setApt] = useState(initial?.apartment_number ?? "");
+  const [trappa, setTrappa] = useState(initial?.trappa ?? "");
+  const [name, setName] = useState(initial?.name ?? "");
+  const [email, setEmail] = useState(initial?.email ?? "");
+  const [phone, setPhone] = useState(initial?.phone ?? "");
+  const [reg, setReg] = useState(initial?.vehicle_reg ?? "");
+  const [note, setNote] = useState(initial?.note ?? "");
+  const [since, setSince] = useState(initial ? initial.queued_at.slice(0, 10) : todayStr());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -337,25 +383,29 @@ function AddForm({ propertyId, kind, onDone, onCancel }: { propertyId: string; k
     if (!trappa) return setError("Ange trappa (siffror).");
     if (!name.trim()) return setError("Ange namn.");
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) return setError("Ange en giltig e-postadress.");
+    if (!since) return setError("Ange datum för när personen ställde sig i kö.");
+    const fields = {
+      kind: k, apartment_number: apt, trappa, name: name.trim(), email: email.trim().toLowerCase(),
+      phone: phone.trim() || null, vehicle_reg: reg.trim().toUpperCase() || null, note: note.trim() || null,
+    };
+    // Datumet ändras bara om det faktiskt valts om — annars behåller raden sin exakta tid (och sin plats).
+    const dateChanged = initial ? since !== initial.queued_at.slice(0, 10) : since !== todayStr();
+    const queued = dateChanged ? { queued_at: new Date(`${since}T12:00:00`).toISOString() } : {};
+    const who = { handled_by_name: profile?.full_name ?? null, handled_at: new Date().toISOString(), updated_at: new Date().toISOString() };
     setSaving(true);
-    const { data, error: err } = await supabase
-      .from("parking_queue")
-      .insert({
-        property_id: propertyId, kind: k, apartment_number: apt, trappa, name: name.trim(), email: email.trim().toLowerCase(),
-        phone: phone.trim() || null, vehicle_reg: reg.trim().toUpperCase() || null, note: note.trim() || null,
-        source: "styrelse", handled_by_name: profile?.full_name ?? null, handled_at: new Date().toISOString(),
-      })
-      .select("id");
+    const res = initial
+      ? await supabase.from("parking_queue").update({ ...fields, ...queued, ...who }).eq("id", initial.id).select("id")
+      : await supabase.from("parking_queue").insert({ property_id: propertyId, ...fields, ...queued, source: "styrelse", ...who }).select("id");
     setSaving(false);
-    if (err) return setError(err.code === "23505" ? "Den e-postadressen står redan i kön för den här typen." : err.message);
-    if (!data || data.length === 0) return setError("Raden sparades inte (saknar behörighet).");
-    toast.success("Tillagd i kön");
+    if (res.error) return setError(res.error.code === "23505" ? "Den e-postadressen står redan i kön för den här typen." : res.error.message);
+    if (!res.data || res.data.length === 0) return setError("Raden sparades inte (saknar behörighet).");
+    toast.success(initial ? "Ändringen sparades" : "Tillagd i kön");
     onDone();
   };
 
   return (
-    <form onSubmit={save} style={{ background: "#fff", border: `1px solid ${LINE}`, borderRadius: 14, padding: 16, display: "grid", gap: 12 }} noValidate>
-      <strong style={{ color: INK }}>Lägg till i kön</strong>
+    <form onSubmit={save} style={{ background: "#fff", border: `1px solid ${initial ? GREEN : LINE}`, borderRadius: 14, padding: 16, display: "grid", gap: 12 }} noValidate>
+      <strong style={{ color: INK }}>{initial ? `Ändra ${initial.name}` : "Lägg till i kön"}</strong>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10 }}>
         <select className="pk-input" value={k} onChange={(e) => setK(e.target.value as Entry["kind"])} aria-label="Typ">
           {KINDS.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}
@@ -366,11 +416,16 @@ function AddForm({ propertyId, kind, onDone, onCancel }: { propertyId: string; k
         <input className="pk-input" type="email" placeholder="E-post" value={email} onChange={(e) => setEmail(e.target.value)} />
         <input className="pk-input" type="tel" placeholder="Telefon (valfritt)" value={phone} onChange={(e) => setPhone(e.target.value)} />
         <input className="pk-input" placeholder="Reg.nr (valfritt)" value={reg} onChange={(e) => setReg(e.target.value)} />
+        <label style={{ display: "grid", gap: 3, fontSize: 12, color: MUTED }}>
+          Står i kö sedan
+          <input className="pk-input" type="date" max={todayStr()} value={since} onChange={(e) => setSince(e.target.value)} />
+        </label>
       </div>
       <input className="pk-input" placeholder="Anteckning (valfritt)" value={note} onChange={(e) => setNote(e.target.value)} />
+      <div style={{ fontSize: 12.5, color: MUTED }}>Datumet avgör köplatsen: den som stått längst står först. Du kan också flytta en plats med pilarna i listan.</div>
       {error && <div style={{ color: "#B91C1C", fontSize: 14 }}>{error}</div>}
       <div style={{ display: "flex", gap: 8 }}>
-        <button type="submit" className="pk-btn pk-primary" disabled={saving}>{saving ? "Sparar…" : "Lägg till"}</button>
+        <button type="submit" className="pk-btn pk-primary" disabled={saving}>{saving ? "Sparar…" : initial ? "Spara" : "Lägg till"}</button>
         <button type="button" className="pk-btn" onClick={onCancel}>Avbryt</button>
       </div>
     </form>
