@@ -68,6 +68,7 @@ const SECTIONS: NavSection[] = [
       { to: "/fastigheter", label: "Fastigheter", icon: Building02Icon },
       { to: "/apartments", label: "Lägenheter", icon: DoorOpenIcon },
       { to: "/objects", label: "Objekt", icon: Package01Icon },
+      { to: "/parkering", label: "Parkeringskö", icon: PARKERING_NAV_ICON },
       { to: "/genomgang-av-fastighet", label: "Genomgång av fastighet", icon: EyeIcon },
       { to: "/teknik", label: "Teknik", icon: TEKNIK_NAV_ICON },
       { to: "/fastighetspresentation", label: "Fastighetspresentation", icon: PRESENTATION_NAV_ICON },
@@ -90,7 +91,6 @@ const SECTIONS: NavSection[] = [
       { to: "/ekonomi-oversikt", label: "Ekonomi – översikt", icon: EKONOMI_OVERSIKT_NAV_ICON },
       { to: "/ekonomi-budget", label: "Budgetuppföljning", icon: BUDGET_NAV_ICON },
       { to: "/andrahand", label: "Andrahand", icon: ANDRAHAND_NAV_ICON },
-      { to: "/parkering", label: "Parkeringskö", icon: PARKERING_NAV_ICON },
     ],
   },
   {
