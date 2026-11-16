@@ -288,6 +288,21 @@ function Status({ token }: { token: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  const respond = async (answer: "accept" | "decline") => {
+    setBusy(true);
+    setError(null);
+    try {
+      const { data: d, error: err } = await supabase.functions.invoke("submit-parkering", { body: { action: "respond", token, answer } });
+      if (err) throw err;
+      if (!d?.success) throw new Error(d?.error ?? "Något gick fel.");
+      await load();
+    } catch (err) {
+      setError(await errorMessage(err, "Något gick fel. Försök igen."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const leave = async () => {
     setBusy(true);
     setError(null);
@@ -327,7 +342,13 @@ function Status({ token }: { token: string }) {
           <div style={{ fontSize: 15, color: C.text }}>Plats: <strong>{data.spot_label}</strong></div>
         )}
         {data.status === "erbjuden" && (
-          <div style={{ fontSize: 14.5, color: C.secondary, lineHeight: 1.55 }}>Styrelsen har erbjudit dig en plats. Svara på mejlet eller kontakta styrelsen.</div>
+          <div style={{ display: "grid", gap: 10 }}>
+            <div style={{ fontSize: 14.5, color: C.secondary, lineHeight: 1.55 }}>Styrelsen har erbjudit dig en plats. Tackar du nej står du kvar i kön på din plats.</div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button type="button" onClick={() => respond("accept")} disabled={busy} style={{ ...btnStyle(busy), height: 44, flex: "1 1 140px" }}>Tacka ja</button>
+              <button type="button" onClick={() => respond("decline")} disabled={busy} style={{ height: 44, flex: "1 1 140px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#fff", color: C.text, fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Tacka nej</button>
+            </div>
+          </div>
         )}
         <div style={{ display: "grid", gap: 6, fontSize: 14.5, color: C.secondary }}>
           <div>Förening: <strong style={{ color: C.text }}>{data.property_name}</strong></div>
