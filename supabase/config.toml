@@ -44,3 +44,7 @@ verify_jwt = true
 # Anropas av avsändaren i chatten direkt efter att meddelandet sparats; avsändaren kontrolleras inuti funktionen.
 [functions.notify-chat]
 verify_jwt = true
+
+# Publik kölista för parkering (ställ dig i kö, följ plats, lämna kön); anon-nyckel räcker.
+[functions.submit-parkering]
+verify_jwt = true

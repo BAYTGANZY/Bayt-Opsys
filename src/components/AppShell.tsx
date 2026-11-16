@@ -37,7 +37,7 @@ import { useMyArenden } from "@/hooks/useMyArenden";
 import { TEKNIK_NAV_ICON } from "@/lib/teknik-config";
 import {
   EKONOMI_NAV_ICON, EKONOMI_OVERSIKT_NAV_ICON, BUDGET_NAV_ICON, UNDERHALL_NAV_ICON, HEMSIDA_NAV_ICON,
-  ANDRAHAND_NAV_ICON, ENTREPRENOR_NAV_ICON, KONTAKT_NAV_ICON,
+  ANDRAHAND_NAV_ICON, PARKERING_NAV_ICON, ENTREPRENOR_NAV_ICON, KONTAKT_NAV_ICON,
 } from "@/lib/nav-icons";
 import { PRESENTATION_NAV_ICON } from "@/lib/presentation-config";
 import { useWebchatBadge } from "@/hooks/useWebchatBadge";
@@ -90,6 +90,7 @@ const SECTIONS: NavSection[] = [
       { to: "/ekonomi-oversikt", label: "Ekonomi – översikt", icon: EKONOMI_OVERSIKT_NAV_ICON },
       { to: "/ekonomi-budget", label: "Budgetuppföljning", icon: BUDGET_NAV_ICON },
       { to: "/andrahand", label: "Andrahand", icon: ANDRAHAND_NAV_ICON },
+      { to: "/parkering", label: "Parkeringskö", icon: PARKERING_NAV_ICON },
     ],
   },
   {
