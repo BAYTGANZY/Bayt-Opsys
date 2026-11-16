@@ -293,6 +293,7 @@ Deno.serve(async (req) => {
     if (!name) return json({ error: "Ange ditt namn." }, 400);
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: "Ange en giltig e-postadress." }, 400);
 
+    const kindText = KIND_LABEL[kind];
     const prop = await db.from("properties").select("id, name").eq("id", propertyId).maybeSingle();
     const property = prop.data as { id: string; name: string } | null;
     if (!property) return json({ error: "Föreningen hittades inte." }, 404);
@@ -312,6 +313,23 @@ Deno.serve(async (req) => {
       }, 200);
     }
 
+    // Samma lägenhet kan inte stå i kön, eller redan ha en plats, två gånger per typ — oavsett vem i hushållet som anmäler.
+    // Svaret nämner aldrig vem som står i kön och lämnar ingen länk: det är en annan persons uppgifter.
+    const sameApt = await db
+      .from("parking_queue")
+      .select("status")
+      .eq("property_id", propertyId).eq("kind", kind).eq("apartment_number", apartmentNumber).eq("trappa", trappa)
+      .in("status", ["vantar", "erbjuden", "tilldelad"]);
+    const hit = (sameApt.data ?? []) as Array<{ status: string }>;
+    if (hit.length > 0) {
+      const has = hit.some((h) => h.status === "tilldelad");
+      return json({
+        error: has
+          ? `Lägenhet ${apartmentNumber} (trappa ${trappa}) har redan en ${kindText.toLowerCase()}. Kontakta styrelsen om du vill byta eller ha fler.`
+          : `Lägenhet ${apartmentNumber} (trappa ${trappa}) står redan i kön för ${kindText.toLowerCase()}. Kontakta styrelsen om du vill ändra anmälan.`,
+      }, 409);
+    }
+
     // Enkel broms mot spam: högst fem nya köplatser per adress och dygn.
     const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
     const recent = await db.from("parking_queue").select("id", { count: "exact", head: true }).ilike("email", email.replace(/[\\%_]/g, "\\$&")).gte("queued_at", since);
@@ -328,7 +346,6 @@ Deno.serve(async (req) => {
     if (ins.error || !ins.data) throw new Error(ins.error?.message ?? "Anmälan kunde inte sparas.");
     const row = ins.data as Record<string, unknown>;
     const position = await positionOf(db, row as { property_id: string; kind: string; queued_at: string; status: string });
-    const kindText = KIND_LABEL[kind];
     const apt = `${apartmentNumber}, trappa ${trappa}`;
 
     const staff = await staffRecipients(db, propertyId);

@@ -240,7 +240,7 @@ function ParkeringPage() {
     const st = STATUS_STYLE[e.status];
     const pos = positionOf.get(e.id);
     if (editingId === e.id) {
-      return <EntryForm key={e.id} propertyId={e.property_id} kind={e.kind} initial={e} onDone={() => { setEditingId(null); refresh(); }} onCancel={() => setEditingId(null)} />;
+      return <EntryForm key={e.id} propertyId={e.property_id} kind={e.kind} initial={e} existing={all} onDone={() => { setEditingId(null); refresh(); }} onCancel={() => setEditingId(null)} />;
     }
     const idx = active.findIndex((x) => x.id === e.id);
     return (
@@ -334,7 +334,7 @@ function ParkeringPage() {
       </div>
 
       {adding && activeProperty && (
-        <EntryForm propertyId={activeProperty} kind={kind} onDone={() => { setAdding(false); refresh(); }} onCancel={() => setAdding(false)} />
+        <EntryForm propertyId={activeProperty} kind={kind} existing={all} onDone={() => { setAdding(false); refresh(); }} onCancel={() => setAdding(false)} />
       )}
 
       {q.isLoading && <div style={{ color: MUTED }}>Hämtar…</div>}
@@ -362,7 +362,7 @@ function ParkeringPage() {
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 /** Lägg till eller ändra en rad. Datumet "Står i kö sedan" styr köplatsen — används för dem som anmält sig före webbformuläret fanns. */
-function EntryForm({ propertyId, kind, initial, onDone, onCancel }: { propertyId: string; kind: Entry["kind"]; initial?: Entry; onDone: () => void; onCancel: () => void }) {
+function EntryForm({ propertyId, kind, initial, existing, onDone, onCancel }: { propertyId: string; kind: Entry["kind"]; initial?: Entry; existing: Entry[]; onDone: () => void; onCancel: () => void }) {
   const { profile } = useAuth();
   const [k, setK] = useState<Entry["kind"]>(initial?.kind ?? kind);
   const [apt, setApt] = useState(initial?.apartment_number ?? "");
@@ -384,6 +384,13 @@ function EntryForm({ propertyId, kind, initial, onDone, onCancel }: { propertyId
     if (!name.trim()) return setError("Ange namn.");
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) return setError("Ange en giltig e-postadress.");
     if (!since) return setError("Ange datum för när personen ställde sig i kö.");
+    // Samma lägenhet kan inte stå i kön, eller redan ha en plats, två gånger per typ (samma regel som på hemsidan).
+    const clash = existing.find((x) => x.id !== initial?.id && x.kind === k && x.apartment_number === apt && (x.trappa ?? "") === trappa && x.status !== "struken");
+    if (clash) {
+      return setError(clash.status === "tilldelad"
+        ? `Lägenhet ${apt} (trappa ${trappa}) har redan en tilldelad plats (${clash.name}).`
+        : `Lägenhet ${apt} (trappa ${trappa}) står redan i kön (${clash.name}). Ändra den raden i stället.`);
+    }
     const fields = {
       kind: k, apartment_number: apt, trappa, name: name.trim(), email: email.trim().toLowerCase(),
       phone: phone.trim() || null, vehicle_reg: reg.trim().toUpperCase() || null, note: note.trim() || null,
