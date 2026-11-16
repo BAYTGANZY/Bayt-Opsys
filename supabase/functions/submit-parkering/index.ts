@@ -231,8 +231,42 @@ Deno.serve(async (req) => {
     if (!body || typeof body !== "object") return json({ error: "Ogiltig förfrågan." }, 400);
     const action = String(body.action ?? "submit");
 
+    // ---- Styrelsen erbjuder en plats: mejla sökanden (kräver inloggad admin/styrelse) ----
+    if (action === "offer") {
+      const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+      const { data: userData } = await db.auth.getUser(jwt);
+      const userId = userData?.user?.id;
+      if (!userId) return json({ error: "Du måste vara inloggad." }, 401);
+      const me = await db.from("profiles").select("role").eq("id", userId).maybeSingle();
+      const role = (me.data as { role?: string } | null)?.role;
+      if (role !== "admin" && role !== "styrelse") return json({ error: "Du har inte behörighet." }, 403);
+      const id = String(body.id ?? "");
+      const found = await db.from("parking_queue").select("*").eq("id", id).maybeSingle();
+      const row = found.data as Record<string, unknown> | null;
+      if (!row) return json({ error: "Raden hittades inte." }, 404);
+      if (role === "styrelse") {
+        const link = await db.from("styrelse_properties").select("property_id").eq("profile_id", userId).eq("property_id", row.property_id as string);
+        if (!link.data || link.data.length === 0) return json({ error: "Du har inte behörighet för den här föreningen." }, 403);
+      }
+      if (row.status !== "erbjuden") return json({ error: "Platsen är inte erbjuden." }, 409);
+      const prop = await db.from("properties").select("name").eq("id", row.property_id as string).maybeSingle();
+      const propertyName = String((prop.data as { name?: string } | null)?.name ?? "");
+      const kindText = String(KIND_LABEL[String(row.kind)] ?? "parkering").toLowerCase();
+      const spot = row.spot_label ? String(row.spot_label) : "";
+      const ok = await sendMails([{
+        to: String(row.email),
+        subject: `Du har fått ett erbjudande om ${kindText}: ${propertyName}`,
+        intro: `Hej ${row.name}! Styrelsen i ${propertyName} erbjuder dig nu en plats${spot ? ` (${spot})` : ""}. Öppna länken och svara om du tackar ja eller nej.`,
+        rows: [["Förening", propertyName], ["Plats", spot || "Meddelas av styrelsen"], ["Referens", String(row.reference)]],
+        cta: { label: "Svara på erbjudandet", url: `${APP_URL}/parkering-ko?token=${row.token}` },
+        outro: "Tackar du nej står du kvar i kön med din plats. Hör inget från dig kan styrelsen erbjuda platsen vidare.",
+      }]);
+      if (!ok[0]) return json({ error: "Erbjudandet sparades men mejlet kunde inte skickas." }, 502);
+      return json({ success: true }, 200);
+    }
+
     // ---- Följ eller lämna kön via den personliga länken -----------------------
-    if (action === "lookup" || action === "leave") {
+    if (action === "lookup" || action === "leave" || action === "respond") {
       const token = String(body.token ?? "");
       if (!/^[0-9a-f-]{36}$/i.test(token)) return json({ error: "Länken är ogiltig." }, 404);
       const found = await db.from("parking_queue").select("*").eq("token", token).maybeSingle();
@@ -240,6 +274,27 @@ Deno.serve(async (req) => {
       if (!row) return json({ error: "Länken är ogiltig." }, 404);
       const prop = await db.from("properties").select("name").eq("id", row.property_id as string).maybeSingle();
       const propertyName = String((prop.data as { name?: string } | null)?.name ?? "");
+
+      if (action === "respond") {
+        if (row.status !== "erbjuden") return json({ error: "Det finns inget erbjudande att svara på." }, 409);
+        const accept = String(body.answer) === "accept";
+        const patch = accept ? { status: "tilldelad" } : { status: "vantar", spot_label: null };
+        const upd = await db.from("parking_queue").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", row.id as string).select("id");
+        if (upd.error || !upd.data || upd.data.length === 0) throw new Error(upd.error?.message ?? "Kunde inte spara svaret.");
+        const staff = await staffRecipients(db, row.property_id as string);
+        if (staff.length) {
+          await sendMails([{
+            to: staff,
+            subject: `${accept ? "Tackat ja" : "Tackat nej"} till parkeringserbjudande: ${row.reference} — ${propertyName}`,
+            intro: accept
+              ? `${row.name} har tackat ja till den erbjudna platsen${row.spot_label ? ` (${row.spot_label})` : ""}. Raden är markerad som tilldelad.`
+              : `${row.name} har tackat nej till den erbjudna platsen${row.spot_label ? ` (${row.spot_label})` : ""} och står kvar i kön på sin plats.`,
+            rows: [["Referens", String(row.reference)], ["Förening", propertyName], ["Lägenhet", `${row.apartment_number}${row.trappa ? `, trappa ${row.trappa}` : ""}`]],
+            cta: { label: "Öppna kölistan", url: `${APP_URL}/parkering` },
+          }]);
+        }
+        return json({ success: true }, 200);
+      }
 
       if (action === "leave") {
         if (row.status === "struken") return json({ success: true }, 200);

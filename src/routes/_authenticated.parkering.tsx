@@ -185,7 +185,14 @@ function ParkeringPage() {
   const offer = async (e: Entry) => {
     const spot = window.prompt(`Vilken plats erbjuds ${e.name}? (t.ex. P-plats 14, garage 3)`, e.spot_label ?? "");
     if (spot === null) return;
-    update.mutate({ id: e.id, patch: { status: "erbjuden", spot_label: spot.trim() || null } });
+    try {
+      await update.mutateAsync({ id: e.id, patch: { status: "erbjuden", spot_label: spot.trim() || null } });
+    } catch {
+      return;
+    }
+    const { data: d, error: err } = await supabase.functions.invoke("submit-parkering", { body: { action: "offer", id: e.id } });
+    if (err || !d?.success) toast.error(d?.error ?? "Platsen erbjöds, men mejlet till personen kunde inte skickas. Kontakta hen själv.");
+    else toast.success(`Erbjudandet mejlades till ${e.email}`);
   };
   const assign = async (e: Entry) => {
     const spot = window.prompt(`Vilken plats har ${e.name} fått? (t.ex. P-plats 14, garage 3)`, e.spot_label ?? "");
@@ -353,7 +360,7 @@ function ParkeringPage() {
       )}
 
       <div style={{ fontSize: 12.5, color: MUTED, lineHeight: 1.6 }}>
-        Länken "Kopiera länk till anmälan" lägger du på föreningens hemsida. Den som anmäler sig får ett bekräftelsemejl med en personlig länk där hen kan följa sin plats eller lämna kön. Styrelsen får ett mejl vid varje ny anmälan. "Erbjud plats" och "Tilldela" mejlar inte automatiskt, kontakta personen via uppgifterna ovan.
+        Länken "Kopiera länk till anmälan" lägger du på föreningens hemsida. Den som anmäler sig får ett bekräftelsemejl med en personlig länk där hen kan följa sin plats eller lämna kön. Styrelsen får ett mejl vid varje ny anmälan. "Erbjud plats" mejlar personen en länk där hen tackar ja eller nej. "Tilldela" mejlar inte.
       </div>
     </div>
   );
