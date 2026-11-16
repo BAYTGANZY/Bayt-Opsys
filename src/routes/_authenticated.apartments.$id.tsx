@@ -24,6 +24,7 @@ import { LoggbokFilterBar, loggbokEmptyText, useLoggbokFilter } from "@/componen
 import { actionKindOf, actionKindLabel } from "@/lib/logbook";
 import { ApartmentAuditTimeline } from "@/components/ApartmentAuditTimeline";
 import { ApartmentNotes } from "@/components/ApartmentNotes";
+import { ApartmentParking } from "@/components/ApartmentParking";
 import { ApartmentSublet } from "@/components/ApartmentSublet";
 import { useRecordScopeGuard } from "@/hooks/useRecordScopeGuard";
 import { useMyArendeScope, useMyContactId } from "@/hooks/useMyContactId";
@@ -684,6 +685,8 @@ function InfoTab({ apt, isMobile }: { apt: Apartment; isMobile: boolean }) {
         <div style={{ fontSize: 13, color: C.secondary, marginBottom: 16 }}>Hiss, förråd eller annat objekt kopplat till lägenheten</div>
         <LinkedObjects apartmentId={apt.id} propertyId={apt.property_id} readOnly={readOnly} />
       </div>
+
+      <ApartmentParking propertyId={apt.property_id} apartmentNumber={apt.apartment_number} trappa={apt.trappa} />
 
       <ApartmentNotes apartmentId={apt.id} propertyId={apt.property_id} />
 
