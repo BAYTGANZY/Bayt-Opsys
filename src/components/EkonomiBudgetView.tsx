@@ -195,6 +195,7 @@ function diffColor(kind: "in" | "ut", actual: number, budget: number): string {
 function Verdict({ ov, prognosUt, monthsLeft }: { ov: BudgetOverview; prognosUt: number; monthsLeft: number }) {
   const s = statusOf("ut", ov.utActual, ov.utBudgetYtd);
   const diff = ov.utActual - ov.utBudgetYtd;
+  const prognosDiff = prognosUt - ov.utBudgetYear;
   const headline =
     Math.abs(diff) < 1000 ? "Kostnaderna ligger på budget" : diff > 0 ? `Kostnaderna ligger ${fmtStort(diff)} över budget` : `Kostnaderna ligger ${fmtStort(-diff)} under budget`;
   const tile = (label: string, value: string, color?: string) => (
