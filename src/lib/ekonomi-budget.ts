@@ -5,11 +5,12 @@
  */
 import { GROUPS, groupOf, shown, type Balance, type GroupDef } from "./ekonomi-oversikt";
 
-export type BudgetRow = { account: string; name: string; actual: number; budgetYtd: number; budgetYear: number };
+export type BudgetRow = { account: string; name: string; actual: number; budgetYtd: number; budgetYear: number; /** Samma period förra året (utfall). */ prevYtd: number };
 export type BudgetGroup = GroupDef & {
   actual: number;
   budgetYtd: number;
   budgetYear: number;
+  prevYtd: number;
   accounts: BudgetRow[];
 };
 
@@ -31,9 +32,53 @@ export type BudgetOverview = {
   cumulative: { actual: Array<number | null>; budget: number[] };
   /** Månad för månad, index 0 = januari. Utfallet är null för månader efter `upTo`. Alla belopp är positiva ("shown"). */
   months: MonthRow[];
+  /** Finns det utfall för föregående år? */
+  hasPrev: boolean;
 };
 
-export type MonthRow = { month: number; utActual: number | null; utBudget: number; inActual: number | null; inBudget: number };
+export type MonthRow = {
+  month: number;
+  utActual: number | null;
+  utBudget: number;
+  inActual: number | null;
+  inBudget: number;
+  /** Förra årets utfall samma månad, null om förra året saknas. */
+  utPrev: number | null;
+  inPrev: number | null;
+};
+
+export type YearSummary = { year: number; months: number; utActual: number; utBudget: number | null; inActual: number; inBudget: number | null };
+
+/** Tidigare års utfall mot budget, senaste först. Bara år före `currentYear` som har utfall. Budget är null när året saknar budget. */
+export function yearSummaries(actualRows: Balance[], budgetRows: Balance[], currentYear: number, limit = 5): YearSummary[] {
+  const years = [...new Set(actualRows.filter((r) => r.month >= 1 && r.year < currentYear).map((r) => r.year))].sort((a, b) => b - a).slice(0, limit);
+  return years.map((year) => {
+    let ut = 0;
+    let inn = 0;
+    const months = new Set<number>();
+    for (const r of actualRows) {
+      if (r.year !== year || r.month < 1) continue;
+      const k = groupOf(r.account);
+      if (!k) continue;
+      months.add(r.month);
+      if (GROUPS.find((g) => g.key === k)!.kind === "ut") ut += r.amount;
+      else inn += -r.amount;
+    }
+    const has = budgetRows.some((r) => r.year === year);
+    let bUt = 0;
+    let bIn = 0;
+    if (has) {
+      for (const r of normalizeBudgetSigns(budgetRows, year)) {
+        if (r.year !== year) continue;
+        const k = groupOf(r.account);
+        if (!k) continue;
+        if (GROUPS.find((g) => g.key === k)!.kind === "ut") bUt += r.amount;
+        else bIn += -r.amount;
+      }
+    }
+    return { year, months: months.size, utActual: ut, utBudget: has ? bUt : null, inActual: inn, inBudget: has ? bIn : null };
+  });
+}
 
 /**
  * En budget kan ha lästs in med fel tecken (Excel har ofta kostnader som minus). I databasen ska kostnader vara plus och
@@ -80,11 +125,16 @@ export function computeBudget(
 ): BudgetOverview {
   budgetRows = normalizeBudgetSigns(budgetRows, year);
   const actual = new Map<string, number>();
+  const prev = new Map<string, number>();
   const bYtd = new Map<string, number>();
   const bYear = new Map<string, number>();
   for (const r of actualRows) {
     if (r.year !== year || r.month < from || r.month > upTo) continue;
     actual.set(r.account, (actual.get(r.account) ?? 0) + r.amount);
+  }
+  for (const r of actualRows) {
+    if (r.year !== year - 1 || r.month < from || r.month > upTo) continue;
+    prev.set(r.account, (prev.get(r.account) ?? 0) + r.amount);
   }
   for (const r of budgetRows) {
     if (r.year !== year || r.month < 1 || r.month > 12) continue;
@@ -92,9 +142,9 @@ export function computeBudget(
     if (r.month >= from && r.month <= upTo) bYtd.set(r.account, (bYtd.get(r.account) ?? 0) + r.amount);
   }
 
-  const groups: BudgetGroup[] = GROUPS.map((g) => ({ ...g, actual: 0, budgetYtd: 0, budgetYear: 0, accounts: [] }));
+  const groups: BudgetGroup[] = GROUPS.map((g) => ({ ...g, actual: 0, budgetYtd: 0, budgetYear: 0, prevYtd: 0, accounts: [] }));
   const byKey = new Map(groups.map((g) => [g.key, g]));
-  const accounts = new Set<string>([...actual.keys(), ...bYear.keys()]);
+  const accounts = new Set<string>([...actual.keys(), ...bYear.keys(), ...prev.keys()]);
   for (const a of accounts) {
     const key = groupOf(a);
     if (!key) continue;
@@ -105,10 +155,12 @@ export function computeBudget(
       actual: shown(g.kind, actual.get(a) ?? 0),
       budgetYtd: shown(g.kind, bYtd.get(a) ?? 0),
       budgetYear: shown(g.kind, bYear.get(a) ?? 0),
+      prevYtd: shown(g.kind, prev.get(a) ?? 0),
     };
     g.actual += row.actual;
     g.budgetYtd += row.budgetYtd;
     g.budgetYear += row.budgetYear;
+    g.prevYtd += row.prevYtd;
     if ([row.actual, row.budgetYtd, row.budgetYear].some((v) => Math.abs(v) > 0.5)) g.accounts.push(row);
   }
   for (const g of groups) g.accounts.sort((x, y) => y.actual - x.actual || x.account.localeCompare(y.account));
@@ -121,6 +173,9 @@ export function computeBudget(
   const mUtB = Array(12).fill(0) as number[];
   const mInA = Array(12).fill(0) as number[];
   const mInB = Array(12).fill(0) as number[];
+  const mUtP = Array(12).fill(0) as number[];
+  const mInP = Array(12).fill(0) as number[];
+  let hasPrev = false;
   const kindOfAcc = (acc: string) => {
     const k = groupOf(acc);
     return k ? GROUPS.find((g) => g.key === k)!.kind : null;
@@ -130,6 +185,13 @@ export function computeBudget(
     const k = kindOfAcc(r.account);
     if (k === "ut") mUtA[r.month - 1] += r.amount;
     else if (k === "in") mInA[r.month - 1] += -r.amount;
+  }
+  for (const r of actualRows) {
+    if (r.year !== year - 1 || r.month < 1 || r.month > 12) continue;
+    const k = kindOfAcc(r.account);
+    if (k === "ut") mUtP[r.month - 1] += r.amount;
+    else if (k === "in") mInP[r.month - 1] += -r.amount;
+    if (k) hasPrev = true;
   }
   for (const r of budgetRows) {
     if (r.year !== year || r.month < 1 || r.month > 12) continue;
@@ -147,7 +209,7 @@ export function computeBudget(
     b += mUtB[i];
     cumA.push(i < upTo ? a : null);
     cumB.push(b);
-    months.push({ month: i + 1, utActual: i < upTo ? mUtA[i] : null, utBudget: mUtB[i], inActual: i < upTo ? mInA[i] : null, inBudget: mInB[i] });
+    months.push({ month: i + 1, utActual: i < upTo ? mUtA[i] : null, utBudget: mUtB[i], inActual: i < upTo ? mInA[i] : null, inBudget: mInB[i], utPrev: hasPrev ? mUtP[i] : null, inPrev: hasPrev ? mInP[i] : null });
   }
 
   return {
@@ -163,5 +225,6 @@ export function computeBudget(
     utBudgetYear: tot("ut", "budgetYear"),
     cumulative: { actual: cumA, budget: cumB },
     months,
+    hasPrev,
   };
 }
