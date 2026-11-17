@@ -101,8 +101,37 @@ function MonthBars({ series, label }: { series: Array<{ name: string; color: str
   const gw = (W - L - R) / 12;
   const bw = Math.min(4.5, gw / 3);
   const y = (v: number) => T + (1 - v / max) * (H - T - B);
+  const [pick, setPick] = useState<number | null>(null);
+  const cx = (i: number) => L + gw * i + gw / 2;
   return (
-    <div>
+    <div style={{ position: "relative", maxWidth: 640 }}>
+      {pick !== null && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: `${Math.min(80, Math.max(20, (cx(pick) / W) * 100))}%`,
+            transform: "translateX(-50%)",
+            background: "#404040",
+            color: "#fff",
+            borderRadius: 12,
+            padding: "8px 14px",
+            fontSize: 15,
+            lineHeight: 1.45,
+            textAlign: "center",
+            pointerEvents: "none",
+            whiteSpace: "nowrap",
+            zIndex: 2,
+          }}
+        >
+          {series.map((sr) => (
+            <div key={sr.name} style={{ fontWeight: 600 }}>
+              {sr.name}: {sr.values[pick] === null ? "—" : fmtKr(sr.values[pick] as number)}
+            </div>
+          ))}
+          <div style={{ opacity: 0.85 }}>{MONTHS[pick]}</div>
+        </div>
+      )}
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label} style={{ width: "100%", maxWidth: 640, height: "auto", display: "block" }}>
         {ticks.map((t) => (
           <g key={t}>
@@ -119,6 +148,7 @@ function MonthBars({ series, label }: { series: Array<{ name: string; color: str
             {m}
           </text>
         ))}
+        {pick !== null && <line x1={cx(pick)} x2={cx(pick)} y1={T} y2={y(0)} stroke={HOT} strokeWidth="1.5" />}
         {series.map((sr, si) =>
           sr.values.map((v, i) =>
             v === null ? null : (
@@ -130,10 +160,25 @@ function MonthBars({ series, label }: { series: Array<{ name: string; color: str
                 height={Math.max(0, y(0) - y(Math.max(v, 0)))}
                 rx={bw / 2}
                 fill={sr.color}
+                opacity={pick === null || pick === i ? 1 : 0.45}
               />
             ),
           ),
         )}
+        {MONTHS_SHORT.map((m, i) => (
+          <rect
+            key={`hit-${m}`}
+            x={L + gw * i}
+            y={T}
+            width={gw}
+            height={H - T - B + 24}
+            fill="transparent"
+            style={{ cursor: "pointer" }}
+            onMouseEnter={() => setPick(i)}
+            onMouseLeave={() => setPick(null)}
+            onClick={() => setPick((c) => (c === i ? null : i))}
+          />
+        ))}
       </svg>
       <div style={{ display: "flex", justifyContent: "center", gap: 22, marginTop: 4, fontSize: 15, color: MUTED }}>
         {series.map((sr) => (
