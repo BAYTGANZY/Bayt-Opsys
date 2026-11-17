@@ -1,7 +1,7 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { MONTHS_SHORT, fmtKr, fmtStort, latestOf, periodLabel, type Balance } from "@/lib/ekonomi-oversikt";
+import { MONTHS, MONTHS_SHORT, fmtKr, fmtStort, latestOf, periodLabel, type Balance } from "@/lib/ekonomi-oversikt";
 import { computeBudget, statusOf, type BudgetGroup, type BudgetOverview, type Status } from "@/lib/ekonomi-budget";
 import { useFinanceData } from "@/components/EkonomiOversiktView";
 import { EkonomiBudgetImport } from "@/components/EkonomiBudgetImport";
@@ -74,29 +74,6 @@ function BudgetBar({ actual, ytd, year, color }: { actual: number; ytd: number; 
     <div style={{ position: "relative", height: 12, background: "#EEF1EC", borderRadius: 6, overflow: "visible" }} aria-hidden>
       <div style={{ width: pct(actual), height: "100%", background: color, borderRadius: 6 }} />
       {ytd > 0 && <div style={{ position: "absolute", left: pct(ytd), top: -3, bottom: -3, width: 2, background: INK, borderRadius: 1 }} />}
-    </div>
-  );
-}
-
-function kpiSentence(actual: number, budgetYtd: number): string {
-  const diff = actual - budgetYtd;
-  if (budgetYtd <= 0) return "Ingen budget finns för den här posten.";
-  const abs = fmtStort(Math.abs(diff));
-  if (Math.abs(diff) < 1000) return "Precis enligt budget.";
-  return diff > 0 ? `${abs} mer än budgeterat.` : `${abs} mindre än budgeterat.`;
-}
-
-function Kpi({ title, actual, budget, kind }: { title: string; actual: number; budget: number; kind: "in" | "ut" }) {
-  const s = statusOf(kind, actual, budget);
-  return (
-    <div style={{ ...card, padding: "16px 18px", flex: "1 1 240px", minWidth: 0 }}>
-      <div style={{ color: MUTED, fontSize: 15 }}>{title}</div>
-      <div style={{ fontFamily: "Outfit, Inter, sans-serif", fontSize: 30, fontWeight: 600, margin: "2px 0" }}>{fmtStort(actual)}</div>
-      <div style={{ color: MUTED, fontSize: 15 }}>Budget för samma tid: {fmtStort(budget)}</div>
-      <div style={{ margin: "10px 0 6px" }}>
-        <Badge s={s} kind={kind} />
-      </div>
-      <div style={{ fontSize: 15, lineHeight: 1.5 }}>{kpiSentence(actual, budget)}</div>
     </div>
   );
 }
@@ -202,6 +179,145 @@ function GroupRow({ g, open, toggle }: { g: BudgetGroup; open: boolean; toggle: 
   );
 }
 
+
+/** Skillnad mot budget som kort, tecknad text. Positivt = mer än budget. */
+function diffText(n: number): string {
+  if (Math.abs(n) < 1000) return "±0";
+  return `${n > 0 ? "+" : "−"}${compactKr(Math.abs(n)).replace("−", "")}`;
+}
+
+/** Färg på en skillnad: för kostnader är mer än budget dåligt, för intäkter är mindre än budget dåligt. */
+function diffColor(kind: "in" | "ut", actual: number, budget: number): string {
+  return STATUS[statusOf(kind, actual, budget)].color;
+}
+
+/** Översta rutan: ett enda besked i klartext, med de tre siffrorna under. */
+function Verdict({ ov, prognosUt, monthsLeft }: { ov: BudgetOverview; prognosUt: number; monthsLeft: number }) {
+  const s = statusOf("ut", ov.utActual, ov.utBudgetYtd);
+  const diff = ov.utActual - ov.utBudgetYtd;
+  const headline =
+    Math.abs(diff) < 1000 ? "Kostnaderna ligger på budget" : diff > 0 ? `Kostnaderna ligger ${fmtStort(diff)} över budget` : `Kostnaderna ligger ${fmtStort(-diff)} under budget`;
+  const tile = (label: string, value: string, color?: string) => (
+    <div style={{ flex: "1 1 120px", minWidth: 0 }}>
+      <div style={{ color: MUTED, fontSize: 14 }}>{label}</div>
+      <div style={{ fontFamily: "Outfit, Inter, sans-serif", fontSize: 24, fontWeight: 600, color: color ?? INK, lineHeight: 1.25 }}>{value}</div>
+    </div>
+  );
+  return (
+    <div style={{ ...card, padding: "18px 20px", borderLeft: `5px solid ${STATUS[s].color}` }}>
+      <div style={{ color: MUTED, fontSize: 14, marginBottom: 2 }}>
+        {periodLabel(ov.upTo)} {ov.year}
+      </div>
+      <div style={{ fontFamily: "Outfit, Inter, sans-serif", fontSize: 26, fontWeight: 600, lineHeight: 1.25 }}>{headline}</div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 14 }}>
+        {tile("Spenderat", fmtStort(ov.utActual))}
+        {tile("Budget", fmtStort(ov.utBudgetYtd))}
+        {tile("Skillnad", `${diff > 0 ? "+" : diff < 0 ? "−" : ""}${fmtStort(Math.abs(diff))}`, STATUS[s].color)}
+      </div>
+      {monthsLeft > 0 && (
+        <p style={{ margin: "14px 0 0", fontSize: 16, lineHeight: 1.5 }}>
+          <strong>Prognos för året:</strong> {fmtStort(prognosUt)}
+          {Math.abs(prognosDiff) < 1000 ? ", på årsbudgeten." : prognosDiff > 0 ? `, ${fmtStort(prognosDiff)} över årsbudgeten på ${fmtStort(ov.utBudgetYear)}.` : `, ${fmtStort(-prognosDiff)} under årsbudgeten på ${fmtStort(ov.utBudgetYear)}.`}
+          <span style={{ color: MUTED }}> Räknat som utfall hittills plus budget för resten av året.</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Månad för månad: utfall, budget och skillnad. Tryck på en månad för att se vad den består av. */
+function MonthTable({ ov, kind, setKind, sel, setSel }: { ov: BudgetOverview; kind: "in" | "ut"; setKind: (k: "in" | "ut") => void; sel: number; setSel: (m: number) => void }) {
+  const rows = ov.months.map((m) => ({ month: m.month, actual: kind === "ut" ? m.utActual : m.inActual, budget: kind === "ut" ? m.utBudget : m.inBudget }));
+  const sumA = rows.reduce((t, r) => t + (r.actual ?? 0), 0);
+  const sumB = rows.filter((r) => r.actual !== null).reduce((t, r) => t + r.budget, 0);
+  const col = (w: string): CSSProperties => ({ width: w, textAlign: "right", flexShrink: 0 });
+  const tab = (k: "in" | "ut", label: string) => (
+    <button
+      onClick={() => setKind(k)}
+      style={{ all: "unset", cursor: "pointer", padding: "7px 16px", borderRadius: 999, fontSize: 15, fontWeight: 600, border: `1px solid ${kind === k ? GREEN : LINE}`, background: kind === k ? "#F0F7EE" : "#fff", color: kind === k ? GREEN : MUTED }}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div style={{ ...card, padding: "16px 18px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ fontWeight: 600, fontSize: 20 }}>Månad för månad</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {tab("ut", "Kostnader")}
+          {tab("in", "Intäkter")}
+        </div>
+      </div>
+      <p style={{ margin: "6px 0 10px", color: MUTED, fontSize: 14.5 }}>Tryck på en månad för att se vad den består av.</p>
+      <div style={{ display: "flex", padding: "6px 8px", color: MUTED, fontSize: 13, fontWeight: 600 }}>
+        <span style={{ flex: 1 }}>Månad</span>
+        <span style={col("74px")}>Utfall</span>
+        <span style={col("74px")}>Budget</span>
+        <span style={col("70px")}>Skillnad</span>
+      </div>
+      {rows.map((r) => {
+        const has = r.actual !== null;
+        const active = sel === r.month;
+        const c = has ? diffColor(kind, r.actual ?? 0, r.budget) : MUTED;
+        return (
+          <button
+            key={r.month}
+            onClick={() => has && setSel(r.month)}
+            disabled={!has}
+            aria-pressed={active}
+            style={{ all: "unset", boxSizing: "border-box", width: "100%", display: "flex", alignItems: "center", padding: "10px 8px", borderTop: `1px solid ${LINE}`, cursor: has ? "pointer" : "default", background: active ? "#F0F7EE" : "transparent", opacity: has ? 1 : 0.5, fontSize: 15.5, borderRadius: active ? 8 : 0 }}
+          >
+            <span style={{ flex: 1, fontWeight: active ? 700 : 500, textTransform: "capitalize" }}>{MONTHS[r.month - 1]}</span>
+            <span style={col("74px")}>{has ? compactKr(r.actual ?? 0) : "–"}</span>
+            <span style={{ ...col("74px"), color: MUTED }}>{compactKr(r.budget)}</span>
+            <span style={{ ...col("70px"), color: c, fontWeight: 700 }}>{has ? diffText(kind === "ut" ? (r.actual ?? 0) - r.budget : (r.actual ?? 0) - r.budget) : ""}</span>
+          </button>
+        );
+      })}
+      <div style={{ display: "flex", padding: "11px 8px 4px", borderTop: `2px solid ${INK}`, fontWeight: 700, fontSize: 15.5 }}>
+        <span style={{ flex: 1 }}>Hittills</span>
+        <span style={col("74px")}>{compactKr(sumA)}</span>
+        <span style={col("74px")}>{compactKr(sumB)}</span>
+        <span style={{ ...col("70px"), color: diffColor(kind, sumA, sumB) }}>{diffText(sumA - sumB)}</span>
+      </div>
+      <p style={{ margin: "8px 0 0", color: MUTED, fontSize: 13.5, lineHeight: 1.5 }}>
+        {kind === "ut" ? "Plus (+) betyder att vi spenderat mer än budgeterat den månaden." : "Minus (−) betyder att vi fått in mindre än budgeterat den månaden."}
+      </p>
+    </div>
+  );
+}
+
+/** Vad den valda månaden består av, per grupp, med de största avvikelserna överst. */
+function MonthDetail({ ov, kind }: { ov: BudgetOverview; kind: "in" | "ut" }) {
+  const groups = ov.groups
+    .filter((g) => g.kind === kind && (g.actual > 0.5 || g.budgetYtd > 0.5))
+    .sort((a, b) => Math.abs(b.actual - b.budgetYtd) - Math.abs(a.actual - a.budgetYtd));
+  const month = MONTHS[ov.upTo - 1];
+  return (
+    <div style={{ ...card, padding: "16px 18px" }}>
+      <div style={{ fontWeight: 600, fontSize: 20, textTransform: "none" }}>
+        Så blev {month} <span style={{ color: MUTED, fontWeight: 400, fontSize: 16 }}>({kind === "ut" ? "kostnader" : "intäkter"})</span>
+      </div>
+      {groups.length === 0 && <p style={{ color: MUTED, margin: "8px 0 0" }}>Inga poster den här månaden.</p>}
+      {groups.map((g) => {
+        const d = g.actual - g.budgetYtd;
+        const c = diffColor(kind, g.actual, g.budgetYtd);
+        return (
+          <div key={g.key} style={{ padding: "11px 0", borderTop: `1px solid ${LINE}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+              <span style={{ fontWeight: 600, fontSize: 16 }}>{g.label}</span>
+              <span style={{ color: c, fontWeight: 700, whiteSpace: "nowrap" }}>{diffText(d)}</span>
+            </div>
+            <div style={{ color: MUTED, fontSize: 14.5 }}>
+              {fmtKr(g.actual)} <span style={{ opacity: 0.8 }}>· budget {g.budgetYtd > 0 ? fmtKr(g.budgetYtd) : "saknas"}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function AdminImport({ propertyId, year, open }: { propertyId: string; year: number; open?: boolean }) {
   return (
     <details open={open} style={{ marginTop: 6 }}>
@@ -220,6 +336,8 @@ export function EkonomiBudgetView({ propertyId }: { propertyId: string }) {
   const fin = useFinanceData(propertyId);
   const bud = useBudgetRows(propertyId);
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const [kind, setKind] = useState<"in" | "ut">("ut");
+  const [selMonth, setSelMonth] = useState<number | null>(null);
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin";
 
@@ -236,6 +354,12 @@ export function EkonomiBudgetView({ propertyId }: { propertyId: string }) {
   const ov = useMemo(
     () => (data && bud.data && period ? computeBudget(data.rows, bud.data.rows, data.names, period.year, period.month) : null),
     [data, bud.data, period],
+  );
+
+  const sel = ov ? Math.min(selMonth ?? ov.upTo, ov.upTo) : 1;
+  const monthOv = useMemo(
+    () => (data && bud.data && period ? computeBudget(data.rows, bud.data.rows, data.names, period.year, sel, sel) : null),
+    [data, bud.data, period, sel],
   );
 
   if (fin.isLoading || bud.isLoading) return <p style={{ color: MUTED }}>Hämtar siffrorna …</p>;
@@ -264,14 +388,10 @@ export function EkonomiBudgetView({ propertyId }: { propertyId: string }) {
   }
 
   const updated = data.importedAt ? new Date(data.importedAt).toLocaleDateString("sv-SE", { day: "numeric", month: "long", year: "numeric" }) : null;
-  const utStatus = statusOf("ut", ov.utActual, ov.utBudgetYtd);
-  const utDiff = ov.utActual - ov.utBudgetYtd;
-  const kvarUt = ov.utBudgetYear - ov.utActual;
   const costGroups = ov.groups.filter((g) => g.kind === "ut" && (g.actual > 0.5 || g.budgetYear > 0.5 || g.budgetYtd > 0.5));
   const inGroups = ov.groups.filter((g) => g.kind === "in" && (g.actual > 0.5 || g.budgetYear > 0.5 || g.budgetYtd > 0.5));
   // Helårsprognos: utfallet hittills plus budgeten för resterande månader. Avvikelsen hittills antas alltså bestå, inget mer.
   const prognosUt = ov.utActual + (ov.utBudgetYear - ov.utBudgetYtd);
-  const prognosDiff = prognosUt - ov.utBudgetYear;
   const monthsLeft = 12 - ov.upTo;
   // Poster att hålla koll på: kostnadskonton som ligger över budget hittills, störst avvikelse först.
   const watch = costGroups
@@ -279,45 +399,16 @@ export function EkonomiBudgetView({ propertyId }: { propertyId: string }) {
     .map((a) => ({ ...a, over: a.actual - a.budgetYtd, spent: a.budgetYear > 0 ? a.actual / a.budgetYear : a.actual > 0 ? Infinity : 0 }))
     .filter((a) => statusOf("ut", a.actual, a.budgetYtd) !== "ok")
     .sort((x, y) => y.over - x.over)
-    .slice(0, 8);
+    .slice(0, 5);
   const toggle = (k: string) => setOpenKey((cur) => (cur === k ? null : k));
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ ...card, padding: "18px 20px", borderLeft: `5px solid ${STATUS[utStatus].color}` }}>
-        <div style={{ fontFamily: "Outfit, Inter, sans-serif", fontSize: 22, fontWeight: 600, lineHeight: 1.3 }}>
-          {Math.abs(utDiff) < 1000
-            ? "Kostnaderna ligger precis på budget."
-            : utDiff > 0
-              ? `Kostnaderna ligger ${fmtStort(utDiff)} över budget hittills.`
-              : `Kostnaderna ligger ${fmtStort(-utDiff)} under budget hittills.`}
-        </div>
-        <p style={{ margin: "8px 0 0", color: MUTED, fontSize: 16, lineHeight: 1.55 }}>
-          {periodLabel(ov.upTo)} {ov.year} har föreningen spenderat {fmtStort(ov.utActual)}. Budgeten för samma tid var {fmtStort(ov.utBudgetYtd)}. Av
-          årsbudgeten på {fmtStort(ov.utBudgetYear)} är {kvarUt >= 0 ? `${fmtStort(kvarUt)} kvar` : `${fmtStort(-kvarUt)} redan överskridet`}.
-        </p>
-      </div>
+      <Verdict ov={ov} prognosUt={prognosUt} monthsLeft={monthsLeft} />
 
-      <div style={{ ...card, padding: "16px 18px" }}>
-        <div style={{ fontWeight: 600, fontSize: 18 }}>Så här ser året ut</div>
-        <p style={{ margin: "6px 0 0", fontSize: 16, lineHeight: 1.55 }}>
-          {monthsLeft <= 0
-            ? "Året är slut. "
-            : `Om de ${monthsLeft} återstående månaderna följer budget landar kostnaderna på `}
-          {monthsLeft > 0 && <strong>{fmtStort(prognosUt)}</strong>}
-          {monthsLeft > 0 &&
-            (Math.abs(prognosDiff) < 1000
-              ? ", precis på årsbudgeten."
-              : prognosDiff > 0
-                ? `, alltså ${fmtStort(prognosDiff)} över årsbudgeten på ${fmtStort(ov.utBudgetYear)}.`
-                : `, alltså ${fmtStort(-prognosDiff)} under årsbudgeten på ${fmtStort(ov.utBudgetYear)}.`)}
-        </p>
-        {monthsLeft > 0 && ov.utBudgetYear > ov.utBudgetYtd && (
-          <p style={{ margin: "6px 0 0", color: MUTED, fontSize: 14.5, lineHeight: 1.5 }}>
-            Det finns {fmtStort(ov.utBudgetYear - ov.utBudgetYtd)} budgeterat för resten av året. Prognosen räknar inte med att dyra poster kommer tidigare eller senare än budgeterat.
-          </p>
-        )}
-      </div>
+      <MonthTable ov={ov} kind={kind} setKind={setKind} sel={sel} setSel={setSelMonth} />
+
+      {monthOv && <MonthDetail ov={monthOv} kind={kind} />}
 
       {watch.length > 0 && (
         <div style={{ ...card, padding: "16px 18px" }}>
@@ -343,11 +434,6 @@ export function EkonomiBudgetView({ propertyId }: { propertyId: string }) {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-        <Kpi title="Kostnader hittills" actual={ov.utActual} budget={ov.utBudgetYtd} kind="ut" />
-        <Kpi title="Intäkter hittills" actual={ov.inActual} budget={ov.inBudgetYtd} kind="in" />
-      </div>
-
       <div style={{ ...card, padding: "16px 18px" }}>
         <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 4 }}>Kostnader över året</div>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 14, color: MUTED, margin: "0 0 8px" }}>
@@ -364,7 +450,7 @@ export function EkonomiBudgetView({ propertyId }: { propertyId: string }) {
       </div>
 
       <div>
-        <h2 style={{ fontFamily: "Outfit, Inter, sans-serif", fontSize: 24, margin: "0 0 4px" }}>Kostnader per post</h2>
+        <h2 style={{ fontFamily: "Outfit, Inter, sans-serif", fontSize: 24, margin: "0 0 4px" }}>Hela året hittills, per post</h2>
         <p style={{ color: MUTED, margin: "0 0 12px", fontSize: 15, lineHeight: 1.5 }}>
           Fylld stapel är vad som spenderats. Det svarta strecket är var vi borde vara hittills enligt budget. Hela stapeln är årsbudgeten. Tryck på en post för
           att se kontona.

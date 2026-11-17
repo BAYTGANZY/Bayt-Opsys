@@ -29,7 +29,38 @@ export type BudgetOverview = {
   utBudgetYear: number;
   /** Ackumulerade kostnader per månad, index 0 = januari. Utfallet slutar vid `upTo`. */
   cumulative: { actual: Array<number | null>; budget: number[] };
+  /** Månad för månad, index 0 = januari. Utfallet är null för månader efter `upTo`. Alla belopp är positiva ("shown"). */
+  months: MonthRow[];
 };
+
+export type MonthRow = { month: number; utActual: number | null; utBudget: number; inActual: number | null; inBudget: number };
+
+/**
+ * En budget kan ha lästs in med fel tecken (Excel har ofta kostnader som minus). I databasen ska kostnader vara plus och
+ * intäkter minus, precis som i SIE. Räkna ut vad filen gör som helhet och vänd på hela slaget om det behövs, så att
+ * redan inlästa budgetar blir rätt utan ny inläsning. Utfallet rörs aldrig.
+ */
+export function normalizeBudgetSigns(rows: Balance[], year: number): Balance[] {
+  let ut = 0;
+  let inn = 0;
+  for (const r of rows) {
+    if (r.year !== year) continue;
+    const k = groupOf(r.account);
+    if (!k) continue;
+    if (GROUPS.find((g) => g.key === k)!.kind === "ut") ut += r.amount;
+    else inn += r.amount;
+  }
+  const flipUt = ut < 0;
+  const flipIn = inn > 0;
+  if (!flipUt && !flipIn) return rows;
+  return rows.map((r) => {
+    if (r.year !== year) return r;
+    const k = groupOf(r.account);
+    if (!k) return r;
+    const kind = GROUPS.find((g) => g.key === k)!.kind;
+    return (kind === "ut" ? flipUt : flipIn) ? { ...r, amount: -r.amount } : r;
+  });
+}
 
 /** Kostnad: över budget är dåligt. Intäkt: under budget är dåligt. Små avvikelser (under 1 000 kr) räknas som ok. */
 export function statusOf(kind: "in" | "ut", actual: number, budgetYtd: number): Status {
@@ -45,18 +76,20 @@ export function computeBudget(
   names: Record<string, string>,
   year: number,
   upTo: number,
+  from = 1,
 ): BudgetOverview {
+  budgetRows = normalizeBudgetSigns(budgetRows, year);
   const actual = new Map<string, number>();
   const bYtd = new Map<string, number>();
   const bYear = new Map<string, number>();
   for (const r of actualRows) {
-    if (r.year !== year || r.month < 1 || r.month > upTo) continue;
+    if (r.year !== year || r.month < from || r.month > upTo) continue;
     actual.set(r.account, (actual.get(r.account) ?? 0) + r.amount);
   }
   for (const r of budgetRows) {
     if (r.year !== year || r.month < 1 || r.month > 12) continue;
     bYear.set(r.account, (bYear.get(r.account) ?? 0) + r.amount);
-    if (r.month <= upTo) bYtd.set(r.account, (bYtd.get(r.account) ?? 0) + r.amount);
+    if (r.month >= from && r.month <= upTo) bYtd.set(r.account, (bYtd.get(r.account) ?? 0) + r.amount);
   }
 
   const groups: BudgetGroup[] = GROUPS.map((g) => ({ ...g, actual: 0, budgetYtd: 0, budgetYear: 0, accounts: [] }));
@@ -83,28 +116,38 @@ export function computeBudget(
   const tot = (kind: "in" | "ut", f: "actual" | "budgetYtd" | "budgetYear") =>
     groups.filter((g) => g.kind === kind).reduce((s, g) => s + g[f], 0);
 
-  // Ackumulerade kostnader månad för månad.
-  const monthlyActual = Array(12).fill(0) as number[];
-  const monthlyBudget = Array(12).fill(0) as number[];
+  // Månad för månad (hela året), kostnader och intäkter, plus ackumulerade kostnader till diagrammet.
+  const mUtA = Array(12).fill(0) as number[];
+  const mUtB = Array(12).fill(0) as number[];
+  const mInA = Array(12).fill(0) as number[];
+  const mInB = Array(12).fill(0) as number[];
+  const kindOfAcc = (acc: string) => {
+    const k = groupOf(acc);
+    return k ? GROUPS.find((g) => g.key === k)!.kind : null;
+  };
   for (const r of actualRows) {
     if (r.year !== year || r.month < 1 || r.month > upTo) continue;
-    const k = groupOf(r.account);
-    if (k && GROUPS.find((g) => g.key === k)!.kind === "ut") monthlyActual[r.month - 1] += r.amount;
+    const k = kindOfAcc(r.account);
+    if (k === "ut") mUtA[r.month - 1] += r.amount;
+    else if (k === "in") mInA[r.month - 1] += -r.amount;
   }
   for (const r of budgetRows) {
     if (r.year !== year || r.month < 1 || r.month > 12) continue;
-    const k = groupOf(r.account);
-    if (k && GROUPS.find((g) => g.key === k)!.kind === "ut") monthlyBudget[r.month - 1] += r.amount;
+    const k = kindOfAcc(r.account);
+    if (k === "ut") mUtB[r.month - 1] += r.amount;
+    else if (k === "in") mInB[r.month - 1] += -r.amount;
   }
   let a = 0;
   let b = 0;
   const cumA: Array<number | null> = [];
   const cumB: number[] = [];
+  const months: MonthRow[] = [];
   for (let i = 0; i < 12; i++) {
-    a += monthlyActual[i];
-    b += monthlyBudget[i];
+    a += mUtA[i];
+    b += mUtB[i];
     cumA.push(i < upTo ? a : null);
     cumB.push(b);
+    months.push({ month: i + 1, utActual: i < upTo ? mUtA[i] : null, utBudget: mUtB[i], inActual: i < upTo ? mInA[i] : null, inBudget: mInB[i] });
   }
 
   return {
@@ -119,5 +162,6 @@ export function computeBudget(
     utBudgetYtd: tot("ut", "budgetYtd"),
     utBudgetYear: tot("ut", "budgetYear"),
     cumulative: { actual: cumA, budget: cumB },
+    months,
   };
 }
