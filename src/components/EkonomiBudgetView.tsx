@@ -2,7 +2,7 @@ import { useMemo, useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { MONTHS, MONTHS_SHORT, fmtKr, fmtStort, latestOf, periodLabel, type Balance } from "@/lib/ekonomi-oversikt";
-import { computeBudget, statusOf, type BudgetGroup, type BudgetOverview, type Status } from "@/lib/ekonomi-budget";
+import { computeBudget, statusOf, yearSummaries, type BudgetGroup, type BudgetOverview, type Status } from "@/lib/ekonomi-budget";
 import { useFinanceData } from "@/components/EkonomiOversiktView";
 import { EkonomiBudgetImport } from "@/components/EkonomiBudgetImport";
 import { EkonomiUtfallImport } from "@/components/EkonomiUtfallImport";
@@ -78,52 +78,109 @@ function BudgetBar({ actual, ytd, year, color }: { actual: number; ytd: number; 
   );
 }
 
-/** Ackumulerade kostnader över året: utfall (heldragen) mot budget (streckad). */
-function CostChart({ ov }: { ov: BudgetOverview }) {
+const DARK = "#0D2B1E";
+const BRIGHT = "#5CB84A";
+
+/** Två tunna staplar per månad: den mörka är jämförelsen (budget eller förra året), den ljusa är i år. */
+function MonthBars({ series, label }: { series: Array<{ name: string; color: string; values: Array<number | null> }>; label: string }) {
   const W = 360;
-  const H = 230;
-  const L = 46;
-  const R = 12;
+  const H = 240;
+  const L = 8;
+  const R = 54;
   const T = 14;
-  const B = 28;
-  const { actual, budget } = ov.cumulative;
-  const max = Math.max(...budget, ...actual.map((v) => v ?? 0), 1);
-  const x = (i: number) => L + (i * (W - L - R)) / 11;
+  const B = 56;
+  const all = series.flatMap((x) => x.values.map((v) => v ?? 0));
+  const rawMax = Math.max(...all, 1);
+  const step = (() => {
+    const mag = Math.pow(10, Math.floor(Math.log10(rawMax / 4)));
+    const n = rawMax / 4 / mag;
+    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * mag;
+  })();
+  const max = Math.ceil(rawMax / step) * step;
+  const ticks = Array.from({ length: Math.round(max / step) + 1 }, (_, i) => i * step);
+  const gw = (W - L - R) / 12;
+  const bw = Math.min(4.5, gw / 3);
   const y = (v: number) => T + (1 - v / max) * (H - T - B);
-  const path = (vals: Array<number | null>) => {
-    let d = "";
-    vals.forEach((v, i) => {
-      if (v === null) return;
-      d += `${d ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)} `;
-    });
-    return d;
-  };
-  const ticks = [0, max / 2, max];
-  const lastIdx = ov.upTo - 1;
-  const lastActual = actual[lastIdx];
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Kostnader hittills i år jämfört med budget" style={{ width: "100%", maxWidth: 640, height: "auto", display: "block" }}>
-      {ticks.map((t) => (
-        <g key={t}>
-          <line x1={L} x2={W - R} y1={y(t)} y2={y(t)} stroke={LINE} />
-          <text x={L - 6} y={y(t) + 4} textAnchor="end" fontSize="11" fill={MUTED}>
-            {compactKr(t)}
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label} style={{ width: "100%", maxWidth: 640, height: "auto", display: "block" }}>
+        {ticks.map((t) => (
+          <g key={t}>
+            <line x1={L} x2={W - R + 6} y1={y(t)} y2={y(t)} stroke="#D3D6D1" strokeDasharray={t === 0 ? undefined : "4 3"} />
+            {t > 0 && (
+              <text x={W - 2} y={y(t) - 3} textAnchor="end" fontSize="11" fill={MUTED}>
+                {compactKr(t)}
+              </text>
+            )}
+          </g>
+        ))}
+        {MONTHS_SHORT.map((m, i) => (
+          <text key={m} x={L + gw * i + gw / 2} y={H - B + 16} textAnchor="middle" fontSize="10.5" fill={MUTED}>
+            {m}
           </text>
-        </g>
-      ))}
-      {MONTHS_SHORT.map((m, i) => (
-        <text key={m} x={x(i)} y={H - 8} textAnchor="middle" fontSize="10.5" fill={MUTED}>
-          {m}
-        </text>
-      ))}
-      <path d={path(budget)} fill="none" stroke={INK} strokeWidth="2" strokeDasharray="5 4" />
-      <path d={path(actual)} fill="none" stroke={GREEN} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
-      {lastActual !== null && lastActual !== undefined && <circle cx={x(lastIdx)} cy={y(lastActual)} r="4.5" fill={GREEN} />}
-    </svg>
+        ))}
+        {series.map((sr, si) =>
+          sr.values.map((v, i) =>
+            v === null ? null : (
+              <rect
+                key={`${si}-${i}`}
+                x={L + gw * i + gw / 2 + (si - (series.length - 1) / 2) * (bw + 1.5) - bw / 2}
+                y={y(Math.max(v, 0))}
+                width={bw}
+                height={Math.max(0, y(0) - y(Math.max(v, 0)))}
+                rx={bw / 2}
+                fill={sr.color}
+              />
+            ),
+          ),
+        )}
+      </svg>
+      <div style={{ display: "flex", justifyContent: "center", gap: 22, marginTop: 4, fontSize: 15, color: MUTED }}>
+        {series.map((sr) => (
+          <span key={sr.name} style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+            <span style={{ width: 11, height: 11, borderRadius: 6, background: sr.color, display: "inline-block" }} />
+            {sr.name}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
-function GroupRow({ g, open, toggle }: { g: BudgetGroup; open: boolean; toggle: () => void }) {
+/** Tidigare års utfall mot budget, ett år per rad. */
+function HistoryTable({ rows, kind }: { rows: ReturnType<typeof yearSummaries>; kind: "in" | "ut" }) {
+  if (rows.length === 0) return null;
+  const col = (w: string): CSSProperties => ({ width: w, textAlign: "right", flexShrink: 0 });
+  return (
+    <div style={{ ...card, padding: "16px 18px" }}>
+      <div style={{ fontWeight: 600, fontSize: 20 }}>Tidigare år</div>
+      <p style={{ margin: "6px 0 10px", color: MUTED, fontSize: 14.5 }}>Hela året, {kind === "ut" ? "kostnader" : "intäkter"}: utfall mot budget.</p>
+      <div style={{ display: "flex", padding: "6px 8px", color: MUTED, fontSize: 13, fontWeight: 600 }}>
+        <span style={{ flex: 1 }}>År</span>
+        <span style={col("74px")}>Utfall</span>
+        <span style={col("74px")}>Budget</span>
+        <span style={col("70px")}>Skillnad</span>
+      </div>
+      {rows.map((r) => {
+        const a = kind === "ut" ? r.utActual : r.inActual;
+        const b = kind === "ut" ? r.utBudget : r.inBudget;
+        return (
+          <div key={r.year} style={{ display: "flex", alignItems: "center", padding: "10px 8px", borderTop: `1px solid ${LINE}`, fontSize: 15.5 }}>
+            <span style={{ flex: 1, fontWeight: 600 }}>
+              {r.year}
+              {r.months < 12 && <span style={{ color: MUTED, fontWeight: 400, fontSize: 13 }}> ({r.months} mån)</span>}
+            </span>
+            <span style={col("74px")}>{compactKr(a)}</span>
+            <span style={{ ...col("74px"), color: MUTED }}>{b === null ? "saknas" : compactKr(b)}</span>
+            <span style={{ ...col("70px"), fontWeight: 700, color: b === null ? MUTED : diffColor(kind, a, b) }}>{b === null ? "" : diffText(a - b)}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function GroupRow({ g, open, toggle, showPrev, prevYear }: { g: BudgetGroup; open: boolean; toggle: () => void; showPrev: boolean; prevYear: number }) {
   const s = statusOf(g.kind, g.actual, g.budgetYtd);
   const color = STATUS[s].color;
   const left = g.budgetYear - g.actual;
@@ -147,6 +204,12 @@ function GroupRow({ g, open, toggle }: { g: BudgetGroup; open: boolean; toggle: 
           </span>
           <span>{g.budgetYear > 0 ? (left >= 0 ? `${fmtKr(left)} kvar av årsbudgeten` : `${fmtKr(-left)} över årsbudgeten`) : "Ej budgeterat"}</span>
         </div>
+        {showPrev && (
+          <div style={{ marginTop: 6, fontSize: 15, color: MUTED }}>
+            Samma period {prevYear}: <strong style={{ color: INK }}>{fmtKr(g.prevYtd)}</strong>
+            {Math.abs(g.actual - g.prevYtd) >= 1000 && <> ({diffText(g.actual - g.prevYtd)} mot i år)</>}
+          </div>
+        )}
       </button>
       {open && (
         <div style={{ borderTop: `1px solid ${LINE}`, padding: "6px 18px 14px" }}>
@@ -169,6 +232,7 @@ function GroupRow({ g, open, toggle }: { g: BudgetGroup; open: boolean; toggle: 
                 <div style={{ fontSize: 14.5, color: MUTED, lineHeight: 1.55 }}>
                   Hittills <strong style={{ color: INK }}>{fmtKr(a.actual)}</strong> · budget hittills {fmtKr(a.budgetYtd)} · årsbudget {fmtKr(a.budgetYear)}
                   {a.budgetYear > 0 && <> · {kvar >= 0 ? `${fmtKr(kvar)} kvar` : `${fmtKr(-kvar)} över`}</>}
+                  {showPrev && <> · {prevYear}: {fmtKr(a.prevYtd)}</>}
                 </div>
               </div>
             );
@@ -436,19 +500,28 @@ export function EkonomiBudgetView({ propertyId }: { propertyId: string }) {
       )}
 
       <div style={{ ...card, padding: "16px 18px" }}>
-        <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 4 }}>Kostnader över året</div>
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 14, color: MUTED, margin: "0 0 8px" }}>
-          <span>
-            <span style={{ display: "inline-block", width: 22, height: 3, background: GREEN, verticalAlign: "middle", marginRight: 6 }} />
-            Faktiskt hittills
-          </span>
-          <span>
-            <span style={{ display: "inline-block", width: 22, borderTop: `2px dashed ${INK}`, verticalAlign: "middle", marginRight: 6 }} />
-            Budget
-          </span>
-        </div>
-        <CostChart ov={ov} />
+        <div style={{ fontWeight: 600, fontSize: 20, marginBottom: 8 }}>Budget mot utfall, månad för månad</div>
+        <MonthBars
+          label="Budget och utfall per månad"
+          series={[
+            { name: "Budget", color: DARK, values: ov.months.map((m) => (kind === "ut" ? m.utBudget : m.inBudget)) },
+            { name: String(ov.year), color: BRIGHT, values: ov.months.map((m) => (kind === "ut" ? m.utActual : m.inActual)) },
+          ]}
+        />
       </div>
+
+      {ov.hasPrev && (
+        <div style={{ ...card, padding: "16px 18px" }}>
+          <div style={{ fontWeight: 600, fontSize: 20, marginBottom: 8 }}>Förra året mot i år, månad för månad</div>
+          <MonthBars
+            label="Förra året och i år per månad"
+            series={[
+              { name: String(ov.year - 1), color: DARK, values: ov.months.map((m) => (kind === "ut" ? m.utPrev : m.inPrev)) },
+              { name: String(ov.year), color: BRIGHT, values: ov.months.map((m) => (kind === "ut" ? m.utActual : m.inActual)) },
+            ]}
+          />
+        </div>
+      )}
 
       <div>
         <h2 style={{ fontFamily: "Outfit, Inter, sans-serif", fontSize: 24, margin: "0 0 4px" }}>Hela året hittills, per post</h2>
@@ -458,7 +531,7 @@ export function EkonomiBudgetView({ propertyId }: { propertyId: string }) {
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {costGroups.map((g) => (
-            <GroupRow key={g.key} g={g} open={openKey === g.key} toggle={() => toggle(g.key)} />
+            <GroupRow key={g.key} g={g} open={openKey === g.key} toggle={() => toggle(g.key)} showPrev={ov.hasPrev} prevYear={ov.year - 1} />
           ))}
         </div>
       </div>
@@ -468,11 +541,13 @@ export function EkonomiBudgetView({ propertyId }: { propertyId: string }) {
           <h2 style={{ fontFamily: "Outfit, Inter, sans-serif", fontSize: 24, margin: "0 0 12px" }}>Intäkter</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {inGroups.map((g) => (
-              <GroupRow key={g.key} g={g} open={openKey === g.key} toggle={() => toggle(g.key)} />
+              <GroupRow key={g.key} g={g} open={openKey === g.key} toggle={() => toggle(g.key)} showPrev={ov.hasPrev} prevYear={ov.year - 1} />
             ))}
           </div>
         </div>
       )}
+
+      <HistoryTable rows={yearSummaries(data.rows, bud.data?.rows ?? [], ov.year)} kind={kind} />
 
       <p style={{ color: MUTED, fontSize: 14, lineHeight: 1.6, margin: 0 }}>
         Källa: föreningens bokföring och budget. Siffrorna gäller {periodLabel(ov.upTo)} {ov.year}.{updated ? ` Uppdaterad ${updated}.` : ""} Avvikelser under 1 000 kr
