@@ -291,14 +291,14 @@ function Verdict({ ov, prognosUt, monthsLeft }: { ov: BudgetOverview; prognosUt:
 }
 
 /** Månad för månad: utfall, budget och skillnad. Tryck på en månad för att se vad den består av. */
-function MonthTable({ ov, kind, setKind, sel, setSel }: { ov: BudgetOverview; kind: "in" | "ut"; setKind: (k: "in" | "ut") => void; sel: number; setSel: (m: number) => void }) {
+function MonthTable({ ov, kind, setKind, sel, setSel }: { ov: BudgetOverview; kind: "in" | "ut"; setKind?: (k: "in" | "ut") => void; sel: number; setSel: (m: number) => void }) {
   const rows = ov.months.map((m) => ({ month: m.month, actual: kind === "ut" ? m.utActual : m.inActual, budget: kind === "ut" ? m.utBudget : m.inBudget }));
   const sumA = rows.reduce((t, r) => t + (r.actual ?? 0), 0);
   const sumB = rows.filter((r) => r.actual !== null).reduce((t, r) => t + r.budget, 0);
   const col = (w: string): CSSProperties => ({ width: w, textAlign: "right", flexShrink: 0 });
   const tab = (k: "in" | "ut", label: string) => (
     <button
-      onClick={() => setKind(k)}
+      onClick={() => setKind?.(k)}
       style={{ all: "unset", cursor: "pointer", padding: "7px 16px", borderRadius: 999, fontSize: 15, fontWeight: 600, border: `1px solid ${kind === k ? GREEN : LINE}`, background: kind === k ? "#F0F7EE" : "#fff", color: kind === k ? GREEN : MUTED }}
     >
       {label}
@@ -308,10 +308,12 @@ function MonthTable({ ov, kind, setKind, sel, setSel }: { ov: BudgetOverview; ki
     <div style={{ ...card, padding: "16px 18px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <div style={{ fontWeight: 600, fontSize: 20 }}>Månad för månad</div>
-        <div style={{ display: "flex", gap: 8 }}>
-          {tab("ut", "Kostnader")}
-          {tab("in", "Intäkter")}
-        </div>
+        {setKind && (
+          <div style={{ display: "flex", gap: 8 }}>
+            {tab("ut", "Kostnader")}
+            {tab("in", "Intäkter")}
+          </div>
+        )}
       </div>
       <p style={{ margin: "6px 0 10px", color: MUTED, fontSize: 14.5 }}>Tryck på en månad för att se vad den består av.</p>
       <div style={{ display: "flex", padding: "6px 8px", color: MUTED, fontSize: 13, fontWeight: 600 }}>
@@ -402,6 +404,7 @@ export function EkonomiBudgetView({ propertyId }: { propertyId: string }) {
   const bud = useBudgetRows(propertyId);
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [kind, setKind] = useState<"in" | "ut">("ut");
+  const [compare, setCompare] = useState(false);
   const [selMonth, setSelMonth] = useState<number | null>(null);
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin";
@@ -465,13 +468,60 @@ export function EkonomiBudgetView({ propertyId }: { propertyId: string }) {
     .filter((a) => statusOf("ut", a.actual, a.budgetYtd) !== "ok")
     .sort((x, y) => y.over - x.over)
     .slice(0, 5);
+  const showPrev = ov.hasPrev && compare;
+  const pill = (on: boolean, label: string, onClick: () => void) => (
+    <button
+      key={label}
+      onClick={onClick}
+      style={{ all: "unset", cursor: "pointer", padding: "7px 16px", borderRadius: 999, fontSize: 15, fontWeight: 600, border: `1px solid ${on ? GREEN : LINE}`, background: on ? "#F0F7EE" : "#fff", color: on ? GREEN : MUTED }}
+    >
+      {label}
+    </button>
+  );
   const toggle = (k: string) => setOpenKey((cur) => (cur === k ? null : k));
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          {pill(kind === "ut", "Kostnader", () => setKind("ut"))}
+          {pill(kind === "in", "Intäkter", () => setKind("in"))}
+        </div>
+        {ov.hasPrev && (
+          <div style={{ display: "flex", gap: 8 }}>
+            {pill(!compare, `Bara ${ov.year}`, () => setCompare(false))}
+            {pill(compare, `Jämför med ${ov.year - 1}`, () => setCompare(true))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ ...card, padding: "16px 18px" }}>
+        <div style={{ fontWeight: 600, fontSize: 20, marginBottom: 8 }}>Budget mot utfall, månad för månad</div>
+        <MonthBars
+          label="Budget och utfall per månad"
+          series={[
+            { name: "Budget", color: DARK, values: ov.months.map((m) => (kind === "ut" ? m.utBudget : m.inBudget)) },
+            { name: String(ov.year), color: BRIGHT, values: ov.months.map((m) => (kind === "ut" ? m.utActual : m.inActual)) },
+          ]}
+        />
+      </div>
+
+      {showPrev && (
+        <div style={{ ...card, padding: "16px 18px" }}>
+          <div style={{ fontWeight: 600, fontSize: 20, marginBottom: 8 }}>Förra året mot i år, månad för månad</div>
+          <MonthBars
+            label="Förra året och i år per månad"
+            series={[
+              { name: String(ov.year - 1), color: DARK, values: ov.months.map((m) => (kind === "ut" ? m.utPrev : m.inPrev)) },
+              { name: String(ov.year), color: BRIGHT, values: ov.months.map((m) => (kind === "ut" ? m.utActual : m.inActual)) },
+            ]}
+          />
+        </div>
+      )}
+
       <Verdict ov={ov} prognosUt={prognosUt} monthsLeft={monthsLeft} />
 
-      <MonthTable ov={ov} kind={kind} setKind={setKind} sel={sel} setSel={setSelMonth} />
+      <MonthTable ov={ov} kind={kind} sel={sel} setSel={setSelMonth} />
 
       {monthOv && <MonthDetail ov={monthOv} kind={kind} />}
 
@@ -499,30 +549,6 @@ export function EkonomiBudgetView({ propertyId }: { propertyId: string }) {
         </div>
       )}
 
-      <div style={{ ...card, padding: "16px 18px" }}>
-        <div style={{ fontWeight: 600, fontSize: 20, marginBottom: 8 }}>Budget mot utfall, månad för månad</div>
-        <MonthBars
-          label="Budget och utfall per månad"
-          series={[
-            { name: "Budget", color: DARK, values: ov.months.map((m) => (kind === "ut" ? m.utBudget : m.inBudget)) },
-            { name: String(ov.year), color: BRIGHT, values: ov.months.map((m) => (kind === "ut" ? m.utActual : m.inActual)) },
-          ]}
-        />
-      </div>
-
-      {ov.hasPrev && (
-        <div style={{ ...card, padding: "16px 18px" }}>
-          <div style={{ fontWeight: 600, fontSize: 20, marginBottom: 8 }}>Förra året mot i år, månad för månad</div>
-          <MonthBars
-            label="Förra året och i år per månad"
-            series={[
-              { name: String(ov.year - 1), color: DARK, values: ov.months.map((m) => (kind === "ut" ? m.utPrev : m.inPrev)) },
-              { name: String(ov.year), color: BRIGHT, values: ov.months.map((m) => (kind === "ut" ? m.utActual : m.inActual)) },
-            ]}
-          />
-        </div>
-      )}
-
       <div>
         <h2 style={{ fontFamily: "Outfit, Inter, sans-serif", fontSize: 24, margin: "0 0 4px" }}>Hela året hittills, per post</h2>
         <p style={{ color: MUTED, margin: "0 0 12px", fontSize: 15, lineHeight: 1.5 }}>
@@ -531,7 +557,7 @@ export function EkonomiBudgetView({ propertyId }: { propertyId: string }) {
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {costGroups.map((g) => (
-            <GroupRow key={g.key} g={g} open={openKey === g.key} toggle={() => toggle(g.key)} showPrev={ov.hasPrev} prevYear={ov.year - 1} />
+            <GroupRow key={g.key} g={g} open={openKey === g.key} toggle={() => toggle(g.key)} showPrev={showPrev} prevYear={ov.year - 1} />
           ))}
         </div>
       </div>
@@ -541,13 +567,13 @@ export function EkonomiBudgetView({ propertyId }: { propertyId: string }) {
           <h2 style={{ fontFamily: "Outfit, Inter, sans-serif", fontSize: 24, margin: "0 0 12px" }}>Intäkter</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {inGroups.map((g) => (
-              <GroupRow key={g.key} g={g} open={openKey === g.key} toggle={() => toggle(g.key)} showPrev={ov.hasPrev} prevYear={ov.year - 1} />
+              <GroupRow key={g.key} g={g} open={openKey === g.key} toggle={() => toggle(g.key)} showPrev={showPrev} prevYear={ov.year - 1} />
             ))}
           </div>
         </div>
       )}
 
-      <HistoryTable rows={yearSummaries(data.rows, bud.data?.rows ?? [], ov.year)} kind={kind} />
+      {showPrev && <HistoryTable rows={yearSummaries(data.rows, bud.data?.rows ?? [], ov.year)} kind={kind} />}
 
       <p style={{ color: MUTED, fontSize: 14, lineHeight: 1.6, margin: 0 }}>
         Källa: föreningens bokföring och budget. Siffrorna gäller {periodLabel(ov.upTo)} {ov.year}.{updated ? ` Uppdaterad ${updated}.` : ""} Avvikelser under 1 000 kr
