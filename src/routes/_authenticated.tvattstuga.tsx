@@ -39,6 +39,7 @@ type Req = {
   phone: string | null;
   status: Status;
   send_error: string | null;
+  match_result: "epost" | "namn" | "ingen" | "okand" | null;
   sent_at: string | null;
   sent_by_name: string | null;
   created_at: string;
@@ -50,6 +51,13 @@ const STATUS_STYLE: Record<Status, { bg: string; fg: string }> = {
   skickad: { bg: "#DCFCE7", fg: "#166534" },
   fastnat: { bg: "#FEE2E2", fg: "#991B1B" },
   avvisad: { bg: "#F3F4F6", fg: "#374151" },
+};
+
+const MATCH: Record<string, { text: string; bg: string; fg: string }> = {
+  epost: { text: "E-posten finns registrerad på lägenheten", bg: "#DCFCE7", fg: "#166534" },
+  namn: { text: "Namnet stämmer med lägenhetsregistret", bg: "#DCFCE7", fg: "#166534" },
+  ingen: { text: "Stämmer inte med lägenhetsregistret", bg: "#FEE2E2", fg: "#991B1B" },
+  okand: { text: "Lägenheten saknar registrerade uppgifter", bg: "#F3F4F6", fg: "#374151" },
 };
 
 const STYLES = `
@@ -327,6 +335,11 @@ function RequestCard({ r, isAdmin, update, remove, refresh, profileName }: RowPr
             Sök i Bokatvättid: <strong style={{ color: INK, fontSize: 15 }}>{key}</strong> · {r.reference} · {fmtDate(r.created_at)}
             {isOpen && <> · <span style={{ color: w.color, fontWeight: 600 }}>{w.text}</span></>}
           </div>
+          {isOpen && r.match_result && (
+            <div style={{ marginTop: 6 }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: MATCH[r.match_result].bg, color: MATCH[r.match_result].fg }}>{MATCH[r.match_result].text}</span>
+            </div>
+          )}
           <div style={{ fontSize: 13.5, marginTop: 3 }}>
             <a href={`mailto:${r.email}`} style={{ color: GREEN }}>{r.email}</a>
             {r.phone ? <> · <a href={`tel:${r.phone}`} style={{ color: GREEN }}>{r.phone}</a></> : null}

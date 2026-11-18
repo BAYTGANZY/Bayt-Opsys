@@ -8,6 +8,11 @@
 -- ALDRIG här: styrelsen slår upp den i Bokatvättid, skriver in den i listan och
 -- funktionen mejlar den vidare. Den finns alltså bara i mejlet.
 --
+-- match_result: jämförelse mellan det som skrevs i formuläret och lägenhetsregistret
+-- (apartments.tenant_name / tenant_email): epost = adressen finns registrerad på lägenheten,
+-- namn = namnet stämmer, ingen = registret har uppgifter men de stämmer inte, okand = lägenheten
+-- eller uppgifterna saknas. Bara ett stöd för styrelsens ögon, inget som skickar något själv.
+--
 -- status: ny (väntar på kod) · skickad (koden mejlad) · fastnat (mejlet gick
 -- inte iväg, styrelsen måste skicka själv) · avvisad.
 -- Läsning och ändring: admin allt, styrelse sin egen förening. Radera: admin.
@@ -25,6 +30,7 @@ create table if not exists public.laundry_code_requests (
   name             text not null,
   email            text not null,
   phone            text,
+  match_result     text check (match_result in ('epost', 'namn', 'ingen', 'okand')),  -- stämmer uppgifterna med lägenhetsregistret?
   status           text not null default 'ny' check (status in ('ny', 'skickad', 'fastnat', 'avvisad')),
   send_error       text,                         -- varför utskicket fastnade
   sent_at          timestamptz,
@@ -65,3 +71,7 @@ begin
 exception when duplicate_object then null;
          when undefined_object then null;
 end $$;
+
+-- Redan körd tidigare version? Lägg till kolumnen.
+alter table public.laundry_code_requests add column if not exists match_result text
+  check (match_result in ('epost', 'namn', 'ingen', 'okand'));

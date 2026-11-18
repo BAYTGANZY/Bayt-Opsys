@@ -228,7 +228,40 @@ async function staffRecipients(db: Db, propertyId: string): Promise<string[]> {
 }
 
 
-const BOKATVATTID_URL = "https://admin.bokatvattid.se";
+const MATCH_LABEL: Record<string, string> = {
+  epost: "E-postadressen finns registrerad på lägenheten",
+  namn: "Namnet stämmer med lägenhetsregistret",
+  ingen: "Uppgifterna stämmer inte med lägenhetsregistret",
+  okand: "Lägenheten saknar registrerade uppgifter",
+};
+
+const fold = (v: unknown) => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const wordsOf = (v: unknown) => fold(v).split(/[^a-z0-9]+/).filter((w) => w.length >= 2);
+
+/**
+ * Jämför formuläret med lägenhetsregistret (apartments.tenant_name / tenant_email). Bara ett stöd för
+ * styrelsen — ingenting skickas av sig självt. `epost` väger tyngst: finns adressen registrerad på lägenheten
+ * går koden till rätt person oavsett vad som står i namnfältet. Registrerade fält kan innehålla flera
+ * personer/adresser, så jämförelsen är ordvis och adresserna delas på , ; och mellanslag.
+ */
+async function matchAgainstRegister(db: Db, propertyId: string, apartmentNumber: string, trappa: string, name: string, email: string): Promise<"epost" | "namn" | "ingen" | "okand"> {
+  try {
+    const r = await db.from("apartments").select("tenant_name, tenant_email").eq("property_id", propertyId).eq("apartment_number", apartmentNumber).eq("trappa", trappa).maybeSingle();
+    const apt = r.data as { tenant_name?: string | null; tenant_email?: string | null } | null;
+    if (!apt) return "okand";
+    const regEmails = String(apt.tenant_email ?? "").toLowerCase().split(/[\s,;]+/).filter(Boolean);
+    const regWords = new Set(wordsOf(apt.tenant_name));
+    if (regEmails.length === 0 && regWords.size === 0) return "okand";
+    if (regEmails.includes(email.toLowerCase())) return "epost";
+    const typed = wordsOf(name);
+    if (typed.length >= 2 && regWords.size > 0 && typed.every((w) => regWords.has(w))) return "namn";
+    return "ingen";
+  } catch (e) {
+    console.error("matchAgainstRegister failed:", (e as Error)?.message ?? e);
+    return "okand"; // ett läsfel får aldrig stoppa en förfrågan
+  }
+}
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -355,9 +388,10 @@ Deno.serve(async (req) => {
     const recent = await db.from("laundry_code_requests").select("id", { count: "exact", head: true }).ilike("email", email.replace(/[\\%_]/g, "\\$&")).gte("created_at", since);
     if ((recent.count ?? 0) >= 5) return json({ error: "Du har skickat flera förfrågningar det senaste dygnet. Försök igen i morgon eller kontakta styrelsen." }, 429);
 
+    const match = await matchAgainstRegister(db, propertyId, apartmentNumber, trappa, name, email);
     const ins = await db
       .from("laundry_code_requests")
-      .insert({ property_id: propertyId, apartment_number: apartmentNumber, trappa, name, email, phone: phone || null })
+      .insert({ property_id: propertyId, apartment_number: apartmentNumber, trappa, name, email, phone: phone || null, match_result: match })
       .select("*")
       .single();
     if (ins.error || !ins.data) throw new Error(ins.error?.message ?? "Förfrågan kunde inte sparas.");
@@ -383,7 +417,7 @@ Deno.serve(async (req) => {
         intro: `${name} ber om kod till tvättstugan. Slå upp ${lookup} i Bokatvättid, öppna förfrågningarna och skriv in pinkoden så mejlas den.`,
         rows: [
           ["Namn", name], ["E-post", email], ...(phone ? ([["Telefon", phone]] as Row[]) : []),
-          ["Lägenhet", `${apartmentNumber}, trappa ${trappa}`], ["Sök i Bokatvättid", lookup], ["Referens", String(row.reference)],
+          ["Lägenhet", `${apartmentNumber}, trappa ${trappa}`], ["Sök i Bokatvättid", lookup], ["Kontroll", MATCH_LABEL[match]], ["Referens", String(row.reference)],
         ],
         cta: { label: "Öppna förfrågningarna", url: `${APP_URL}/tvattstuga` },
       });
