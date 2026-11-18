@@ -42,6 +42,9 @@ export const HEMSIDA_NAV_ICON: NavIcon = icon(
 /** Två pilar: Andrahand (överlåtelse). */
 export const ANDRAHAND_NAV_ICON: NavIcon = icon("M7 7h13l-3-3M17 17H4l3 3");
 
+/** Tvättmaskin: Tvättstugekod. */
+export const TVATTSTUGA_NAV_ICON: NavIcon = icon("M6 3.5h12a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1z", "M5 8h14", "M12 18.2a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", "M8 5.75h.01M10.5 5.75h.01");
+
 /** Bil: Parkeringskö. */
 export const PARKERING_NAV_ICON: NavIcon = icon("M5 16V11l1.7-4.2A2 2 0 0 1 8.6 5.5h6.8a2 2 0 0 1 1.9 1.3L19 11v5", "M3.5 16h17", "M7.5 16v2M16.5 16v2", "M7.5 12.5h.01M16.5 12.5h.01");
 
