@@ -48,3 +48,8 @@ verify_jwt = true
 # Publik kölista för parkering (ställ dig i kö, följ plats, lämna kön); anon-nyckel räcker.
 [functions.submit-parkering]
 verify_jwt = true
+
+# Publik förfrågan om kod till tvättstugan (Bokatvättid) + styrelsens "Skicka koden"; anon-nyckel räcker för
+# förfrågan, rollen och föreningen kontrolleras inuti funktionen för utskicket.
+[functions.submit-tvattstuga]
+verify_jwt = true

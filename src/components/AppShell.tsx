@@ -37,7 +37,7 @@ import { useMyArenden } from "@/hooks/useMyArenden";
 import { TEKNIK_NAV_ICON } from "@/lib/teknik-config";
 import {
   EKONOMI_NAV_ICON, EKONOMI_OVERSIKT_NAV_ICON, BUDGET_NAV_ICON, UNDERHALL_NAV_ICON, HEMSIDA_NAV_ICON,
-  ANDRAHAND_NAV_ICON, PARKERING_NAV_ICON, ENTREPRENOR_NAV_ICON, KONTAKT_NAV_ICON,
+  ANDRAHAND_NAV_ICON, PARKERING_NAV_ICON, TVATTSTUGA_NAV_ICON, ENTREPRENOR_NAV_ICON, KONTAKT_NAV_ICON,
 } from "@/lib/nav-icons";
 import { PRESENTATION_NAV_ICON } from "@/lib/presentation-config";
 import { useWebchatBadge } from "@/hooks/useWebchatBadge";
@@ -69,6 +69,7 @@ const SECTIONS: NavSection[] = [
       { to: "/apartments", label: "Lägenheter", icon: DoorOpenIcon },
       { to: "/objects", label: "Objekt", icon: Package01Icon },
       { to: "/parkering", label: "Parkeringskö", icon: PARKERING_NAV_ICON },
+      { to: "/tvattstuga", label: "Tvättstugekod", icon: TVATTSTUGA_NAV_ICON },
       { to: "/genomgang-av-fastighet", label: "Genomgång av fastighet", icon: EyeIcon },
       { to: "/teknik", label: "Teknik", icon: TEKNIK_NAV_ICON },
       { to: "/fastighetspresentation", label: "Fastighetspresentation", icon: PRESENTATION_NAV_ICON },

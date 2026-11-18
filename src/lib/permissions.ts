@@ -40,6 +40,7 @@ const STYRELSE_ROUTES = [
   "/underhallsplan",
   "/andrahand",
   "/parkering",
+  "/tvattstuga",
   "/ekonomi-oversikt",
   "/ekonomi-budget",
   "/objects",
