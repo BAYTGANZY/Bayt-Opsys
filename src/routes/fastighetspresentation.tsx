@@ -620,6 +620,11 @@ function ArendeSection({
 // Teknik: beslutsunderlag för styrelsen. Visar bara det som är genomgånget, och lyfter det som
 // markerats "Åtgärd krävs". Obockade punkter visas aldrig (de är inte bedömda än).
 // ---------------------------------------------------------------------------
+// Innan teknik-action-required.sql är körd finns ingen kolumn att läsa. Då bedöms anteckningen på orden
+// i den, så att sidan aldrig säger "inget kräver åtgärd" över en anteckning som säger det motsatta.
+// Samma ordlista som backfill-steget i SQL-filen; håll dem lika. När kolumnen finns är det den som gäller.
+const ACTION_WORDS = /åtgärd krävs|bör åtgärdas|ej godkänd|saknar|\bbör\b|krånglar/i;
+
 type TeknikCheck = { round_id: string; item_id: string; checked: boolean; note: string | null; action_required?: boolean | null };
 
 function TeknikSection({ propertyId, propertyName }: { propertyId: string; propertyName: string }) {
@@ -660,6 +665,8 @@ function TeknikSection({ propertyId, propertyName }: { propertyId: string; prope
   });
   const items = itemsQ.data ?? [];
   const checks = checksQ.data ?? [];
+  // select("*") ger undefined (inte false) för en kolumn som inte finns.
+  const hasFlagColumn = checks.some((c) => c.action_required !== undefined);
 
   const areas = TEKNIK_SECTIONS.filter((s) => s.kind === "checklist")
     .map((s) => {
@@ -668,7 +675,7 @@ function TeknikSection({ propertyId, propertyName }: { propertyId: string; prope
         .filter((i) => i.section === s.key)
         .map((it) => {
           const c = round ? checks.find((x) => x.round_id === round.id && x.item_id === it.id) : undefined;
-          return { id: it.id, label: it.label, note: c?.note ?? "", act: c?.action_required === true, done: c?.checked === true };
+          return { id: it.id, label: it.label, note: c?.note ?? "", act: hasFlagColumn ? c?.action_required === true : ACTION_WORDS.test(c?.note ?? ""), done: c?.checked === true };
         })
         .filter((r) => r.done);
       return { key: s.key, label: s.label, rows, flagged: rows.filter((r) => r.act).length };
