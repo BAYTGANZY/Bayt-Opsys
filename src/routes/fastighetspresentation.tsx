@@ -22,7 +22,7 @@ import {
   CUSTOM_ICON_CHOICES,
   PresentationIcon,
 } from "@/lib/presentation-config";
-import { TEKNIK_SECTIONS } from "@/lib/teknik-config";
+import { TEKNIK_SECTIONS, TeknikIcon } from "@/lib/teknik-config";
 import { MaintenancePlanView } from "@/components/MaintenancePlan";
 import { EkonomiAvgift } from "@/components/EkonomiAvgift";
 import { EkonomiOversiktView } from "@/components/EkonomiOversiktView";
@@ -420,7 +420,76 @@ function ArendeDetail({
 // ---------------------------------------------------------------------------
 // Sammanställning: felanmälningar, besiktningar, projekt
 // ---------------------------------------------------------------------------
+// Sidor som ritar sin egen mörkgröna topp (PresentationHero) i stället för ikon + rubrik.
+const HERO_SECTIONS = new Set(["felanmalningar", "besiktningar", "projekt", "genomgang", "teknik"]);
+
 type FilterKey = "aktiva" | "forsenade" | "avslutade" | "alla";
+
+// Gemensam mörkgrön topp för sidorna Felanmälningar, Besiktningar, Projekt, Genomgång och Teknik.
+// Chip + rubrik + en rad under, och upp till tre siffror till höger. `tone` färgar en siffra:
+// "warn" = gul (något att agera på), "good" = grön (inget att agera på).
+type HeroStat = { value: React.ReactNode; label: string; tone?: "warn" | "good" };
+
+function PresentationHero({
+  chip,
+  title,
+  sub,
+  stats,
+  chip2,
+}: {
+  chip: string;
+  title: string;
+  sub: string;
+  stats: HeroStat[];
+  chip2?: string;
+}) {
+  return (
+    <div className="fp-hero">
+      <div className="fp-hero-text">
+        <span className="fp-hero-chip">{chip}</span>
+        {chip2 && <span className="fp-hero-chip2">{chip2}</span>}
+        <h1>{title}</h1>
+        <p>{sub}</p>
+      </div>
+      <div className="fp-hero-stats">
+        {stats.map((s) => (
+          <div key={s.label} className={`fp-hero-stat${s.tone ? ` fp-hero-${s.tone}` : ""}`}>
+            <b>{s.value}</b>
+            <span>{s.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CheckIcon({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 12l5 5 9-10" />
+    </svg>
+  );
+}
+
+// "om 3 dygn" / "9 dygn försenad" under datumet på en rad.
+function relDays(daysLeft: number | null | undefined): string | null {
+  if (daysLeft == null) return null;
+  if (daysLeft < 0) return `${Math.abs(daysLeft)} dygn försenad`;
+  if (daysLeft === 0) return "idag";
+  return `om ${daysLeft} dygn`;
+}
+
+const KIND_PLURAL: Record<Kind, string> = { issue: "felanmälningar", inspection: "besiktningar", project: "projekt" };
+const EMPTY_HINT: Record<Kind, string> = {
+  issue: "Felanmälningar som kommer in eller pågår visas här.",
+  inspection: "Besiktningar som planeras eller pågår visas här.",
+  project: "Projekt som planeras eller pågår visas här.",
+};
+const KIND_HERO: Record<Kind, { chip: string; title: string; sub: string }> = {
+  issue: { chip: "FELANMÄLNINGAR", title: "Felanmälningar", sub: "pågående och försenade ärenden" },
+  inspection: { chip: "BESIKTNINGAR", title: "Besiktningar", sub: "planerade och pågående besiktningar" },
+  project: { chip: "PROJEKT", title: "Projekt", sub: "pågående och planerade projekt" },
+};
 
 function ArendeSection({
   kind,
@@ -464,20 +533,16 @@ function ArendeSection({
 
   return (
     <>
-      <div className="fp-stats">
-        <div className="fp-stat">
-          <div className="fp-stat-n">{counts.aktiva}</div>
-          <div className="fp-stat-l">Aktiva</div>
-        </div>
-        <div className={`fp-stat${counts.forsenade > 0 ? " fp-stat-warn" : ""}`}>
-          <div className="fp-stat-n">{counts.forsenade}</div>
-          <div className="fp-stat-l">Försenade</div>
-        </div>
-        <div className="fp-stat">
-          <div className="fp-stat-n">{counts.avslutade}</div>
-          <div className="fp-stat-l">Avslutade</div>
-        </div>
-      </div>
+      <PresentationHero
+        chip={KIND_HERO[kind].chip}
+        title={KIND_HERO[kind].title}
+        sub={`${propertyName} · ${KIND_HERO[kind].sub}`}
+        stats={[
+          { value: counts.aktiva, label: kind === "project" ? (counts.aktiva === 1 ? "aktivt" : "aktiva") : "aktiva" },
+          { value: counts.forsenade, label: counts.forsenade === 1 ? "försenad" : "försenade", tone: counts.forsenade > 0 ? "warn" : undefined },
+          { value: counts.avslutade, label: "avslutade" },
+        ]}
+      />
 
       <div className="fp-chips">
         {chips.map((c) => (
@@ -494,11 +559,31 @@ function ArendeSection({
       </div>
 
       {isLoading && <div className="fp-muted">Hämtar…</div>}
-      {!isLoading && visible.length === 0 && <div className="fp-muted">Inget att visa för det här valet.</div>}
+      {!isLoading && visible.length === 0 && (
+        <div className="fp-empty">
+          <div className="fp-empty-ic">
+            <CheckIcon size={26} />
+          </div>
+          <b>
+            {filter === "aktiva"
+              ? `Inga aktiva ${KIND_PLURAL[kind]}`
+              : filter === "forsenade"
+                ? `Inga försenade ${KIND_PLURAL[kind]}`
+                : filter === "avslutade"
+                  ? `Inga avslutade ${KIND_PLURAL[kind]}`
+                  : `Inga ${KIND_PLURAL[kind]} ännu`}
+          </b>
+          <span>
+            {filter === "forsenade"
+              ? "Inget ligger efter sin tidsgräns just nu."
+              : EMPTY_HINT[kind]}
+          </span>
+        </div>
+      )}
 
-      <div className="fp-list">
+      <div className="fp-list fp-list-cards">
         {visible.map((i) => (
-          <button key={i.id} type="button" className="fp-row" onClick={() => setOpen(i)}>
+          <button key={i.id} type="button" className={`fp-row${isOverdue(i) ? " fp-row-late" : ""}`} onClick={() => setOpen(i)}>
             <div className="fp-row-main">
               <div className="fp-row-title">{i.title}</div>
               <div className="fp-row-sub">
@@ -508,9 +593,12 @@ function ArendeSection({
             <div className="fp-row-right">
               <div className="fp-row-due">
                 {i.status.dueDate ? (
-                  <span style={{ color: isOverdue(i) ? "#B91C1C" : undefined, fontWeight: 600 }}>
-                    {fmtDay(i.status.dueDate)}
-                  </span>
+                  <>
+                    <span style={{ fontWeight: 600 }}>{fmtDay(i.status.dueDate)}</span>
+                    {i.lifecycle !== "avslutat" && relDays(i.status.daysLeft) && (
+                      <small className="fp-row-rel">{relDays(i.status.daysLeft)}</small>
+                    )}
+                  </>
                 ) : (
                   <span style={{ color: "#8A94A0" }}>Ingen tidsgräns</span>
                 )}
@@ -529,9 +617,12 @@ function ArendeSection({
 }
 
 // ---------------------------------------------------------------------------
-// Teknik: framsteg per område för den valda fastigheten
+// Teknik: beslutsunderlag för styrelsen. Visar bara det som är genomgånget, och lyfter det som
+// markerats "Åtgärd krävs". Obockade punkter visas aldrig (de är inte bedömda än).
 // ---------------------------------------------------------------------------
-function TeknikSection({ propertyId }: { propertyId: string }) {
+type TeknikCheck = { round_id: string; item_id: string; checked: boolean; note: string | null; action_required?: boolean | null };
+
+function TeknikSection({ propertyId, propertyName }: { propertyId: string; propertyName: string }) {
   const itemsQ = useQuery({
     queryKey: ["fp-teknik-items"],
     queryFn: async () => {
@@ -561,56 +652,117 @@ function TeknikSection({ propertyId }: { propertyId: string }) {
     queryKey: ["fp-teknik-checks", roundKey],
     enabled: rounds.length > 0,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("teknik_checks")
-        .select("round_id, item_id, checked, note")
-        .in("round_id", rounds.map((r) => r.id));
-      return (data ?? []) as Array<{ round_id: string; item_id: string; checked: boolean; note: string | null }>;
+      // select("*"): action_required kommer från en handkörd migration (teknik-action-required.sql).
+      // Att namnge kolumnen skulle 400:a hela sidan innan SQL:en körts.
+      const { data } = await supabase.from("teknik_checks").select("*").in("round_id", rounds.map((r) => r.id));
+      return (data ?? []) as TeknikCheck[];
     },
   });
   const items = itemsQ.data ?? [];
   const checks = checksQ.data ?? [];
 
+  const areas = TEKNIK_SECTIONS.filter((s) => s.kind === "checklist")
+    .map((s) => {
+      const round = rounds.find((r) => r.section === s.key);
+      const rows = items
+        .filter((i) => i.section === s.key)
+        .map((it) => {
+          const c = round ? checks.find((x) => x.round_id === round.id && x.item_id === it.id) : undefined;
+          return { id: it.id, label: it.label, note: c?.note ?? "", act: c?.action_required === true, done: c?.checked === true };
+        })
+        .filter((r) => r.done);
+      return { key: s.key, label: s.label, rows, flagged: rows.filter((r) => r.act).length };
+    })
+    .filter((a) => a.rows.length > 0)
+    .sort((x, y) => y.flagged - x.flagged);
+
+  const actions = areas.flatMap((a) => a.rows.filter((r) => r.act).map((r) => ({ ...r, area: a.label, key: a.key })));
+  const withFlag = areas.filter((a) => a.flagged > 0).length;
+
+  if (itemsQ.isLoading || roundsQ.isLoading) return <div className="fp-muted">Hämtar…</div>;
+
   return (
-    <div className="fp-cards">
-      {TEKNIK_SECTIONS.filter((s) => s.kind === "checklist").map((s) => {
-        const sectionItems = items.filter((i) => i.section === s.key);
-        const round = rounds.find((r) => r.section === s.key);
-        const roundChecks = round ? checks.filter((c) => c.round_id === round.id) : [];
-        const done = sectionItems.filter((i) => roundChecks.some((c) => c.item_id === i.id && c.checked)).length;
-        const total = sectionItems.length;
-        return (
-          <div key={s.key} className="fp-card">
-            <div className="fp-card-head">
-              <PresentationIcon name={s.key === "ovk" ? "genomgang" : s.key === "energi" ? "teknik" : "note"} size={26} />
-              <div className="fp-card-title">{s.label}</div>
-              <div className="fp-card-count">
-                {done}/{total}
+    <div>
+      <PresentationHero
+        chip="TEKNIK"
+        title="Teknisk status"
+        sub={`${propertyName} · underlag för styrelsens beslut`}
+        stats={[
+          { value: actions.length, label: actions.length === 1 ? "punkt att åtgärda" : "punkter att åtgärda", tone: actions.length > 0 ? "warn" : "good" },
+          { value: areas.length > 0 ? <>{withFlag}<small>/{areas.length}</small></> : 0, label: "områden med anmärkning" },
+          { value: areas.length - withFlag, label: "utan anmärkning" },
+        ]}
+      />
+
+      {areas.length === 0 ? (
+        <div className="fp-empty" style={{ marginTop: 24 }}>
+          <div className="fp-empty-ic">
+            <CheckIcon size={26} />
+          </div>
+          <b>Ingen genomgång att visa ännu</b>
+          <span>Områden visas här när de har gåtts igenom.</span>
+        </div>
+      ) : (
+        <>
+          <div className="fp-sec">
+            Sammanfattning: bör åtgärdas<i />
+          </div>
+          {actions.length === 0 ? (
+            <div className="fp-allgood">
+              <div className="fp-allgood-ic">
+                <CheckIcon />
+              </div>
+              <div>
+                <b>Inget kräver åtgärd just nu</b>
+                <span>Ingen punkt har markerats med "Åtgärd krävs".</span>
               </div>
             </div>
-            <div className="fp-bar">
-              <div style={{ width: total > 0 ? `${Math.round((done / total) * 100)}%` : "0%" }} />
+          ) : (
+            <div className="fp-sum">
+              {actions.map((a) => (
+                <div key={`${a.key}-${a.id}`} className="fp-sum-row">
+                  <div className="fp-sum-area">
+                    <span className="fp-sum-ic">
+                      <TeknikIcon name={a.key} size={20} />
+                    </span>
+                    {a.area}
+                  </div>
+                  <div>{a.label}</div>
+                  <div className="fp-sum-note">{a.note || "Åtgärd krävs"}</div>
+                </div>
+              ))}
             </div>
-            {!round && <div className="fp-muted" style={{ marginTop: 8 }}>Ingen genomgång påbörjad.</div>}
-            {round && (
-              <div style={{ marginTop: 8 }}>
-                {sectionItems.map((it) => {
-                  const c = roundChecks.find((x) => x.item_id === it.id);
-                  return (
-                    <div key={it.id} className={`fp-check${c?.checked ? " fp-check-done" : ""}`}>
-                      <span className="fp-check-box">{c?.checked ? "✓" : ""}</span>
-                      <span className="fp-check-label">
-                        {it.label}
-                        {c?.note ? <span className="fp-check-note"> — {c.note}</span> : null}
+          )}
+
+          <div className="fp-sec">
+            Per område<i />
+          </div>
+          <div className="fp-tcards">
+            {areas.map((a) => (
+              <div key={a.key} className={`fp-tcard${a.flagged > 0 ? " fp-tcard-flag" : ""}`}>
+                <div className="fp-tcard-head">
+                  <span className="fp-tcard-ic">
+                    <TeknikIcon name={a.key} size={26} />
+                  </span>
+                  <div className="fp-tcard-title">{a.label}</div>
+                  <span className="fp-tag fp-tag-pill">{a.flagged > 0 ? `${a.flagged} att åtgärda` : "Inga anmärkningar"}</span>
+                </div>
+                {[...a.rows]
+                  .sort((x, y) => Number(y.act) - Number(x.act))
+                  .map((r) => (
+                    <div key={r.id} className={`fp-tit${r.act ? " fp-tit-act" : ""}`}>
+                      <span className="fp-tit-mark">{r.act ? "!" : "✓"}</span>
+                      <span className="fp-tit-lbl">
+                        {r.label}
+                        {r.note && <span className={r.act ? "fp-tit-badge" : "fp-tit-info"}>{r.note}</span>}
                       </span>
                     </div>
-                  );
-                })}
+                  ))}
               </div>
-            )}
+            ))}
           </div>
-        );
-      })}
+        </>
+      )}
     </div>
   );
 }
@@ -642,8 +794,6 @@ const WNAME: Record<number, string> = {
   9: "Uppföljning",
 };
 const WMODE: Record<string, string> = { offer: "Första besök (offert)", control: "Kontrollrunda" };
-const W_OK = "#3D8A30";
-const W_BAD = "#C2334D";
 const W_NA = "#9CA3AF";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -721,22 +871,22 @@ function WalkthroughSection({ propertyId }: { propertyId: string }) {
     );
   }
 
-  const pct = data.total > 0 ? Math.round((data.assessed / data.total) * 100) : 0;
-  const R = 54;
-  const C = 2 * Math.PI * R;
-  const remaining = Math.max(0, data.total - data.assessed);
-
-  const big = (label: string, value: number, tone?: "bad" | "ok") => (
-    <div className={`fp-stat${tone === "bad" && value > 0 ? " fp-stat-warn" : ""}`} style={{ minWidth: 150 }}>
-      <div className="fp-stat-n" style={tone === "ok" ? { color: W_OK } : undefined}>{value}</div>
-      <div className="fp-stat-l">{label}</div>
-    </div>
-  );
+  // Bara det som är bedömt visas: styrelsen ska se vad som är gjort och vad som bör åtgärdas, inte vad som återstår.
+  const assessedSections = data.sections.filter((s) => s.items.length > 0);
+  const inProgress = data.assessed < data.total;
+  const heroSub = [
+    WMODE[cur.visit_type] ?? "Genomgång",
+    `besök ${fmtDay(cur.visit_date)}`,
+    cur.contact ? `kontakt: ${cur.contact}` : null,
+    cur.address || null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <div style={{ display: "grid", gap: 20 }}>
+    <div style={{ display: "grid", gap: 0 }}>
       {rows.length > 1 && (
-        <div>
+        <div style={{ marginBottom: 16 }}>
           <label className="fp-label">Besök</label>
           <select className="fp-select" style={{ maxWidth: 420 }} value={cur.id} onChange={(e) => { setSelId(e.target.value); setOpenSec(null); }}>
             {rows.map((r) => (
@@ -748,119 +898,101 @@ function WalkthroughSection({ propertyId }: { propertyId: string }) {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 28, alignItems: "center", flexWrap: "wrap", background: "#fff", border: "1px solid #E3E7E2", borderRadius: 18, padding: "22px 26px" }}>
-        <div style={{ position: "relative", width: 140, height: 140, flexShrink: 0 }}>
-          <svg width="140" height="140" viewBox="0 0 140 140" aria-hidden>
-            <circle cx="70" cy="70" r={R} fill="none" stroke="#E8EBE7" strokeWidth="14" />
-            <circle
-              cx="70" cy="70" r={R} fill="none" stroke={data.bad > 0 ? W_BAD : W_OK} strokeWidth="14" strokeLinecap="round"
-              strokeDasharray={`${(pct / 100) * C} ${C}`} transform="rotate(-90 70 70)"
-            />
-          </svg>
-          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-            <div style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 32, fontWeight: 700, lineHeight: 1 }}>{pct}%</div>
-            <div style={{ fontSize: 11, color: "#6B7280", marginTop: 4 }}>bedömt</div>
+      <PresentationHero
+        chip="GENOMGÅNG"
+        chip2={inProgress ? "Pågående genomgång" : undefined}
+        title="Genomgång av fastighet"
+        sub={heroSub}
+        stats={[
+          { value: data.bad, label: "kräver åtgärd", tone: data.bad > 0 ? "warn" : "good" },
+          { value: data.ok, label: "punkter klara" },
+          { value: data.na, label: "ej aktuella" },
+        ]}
+      />
+
+      <div className="fp-sec">
+        Bör åtgärdas<i />
+      </div>
+      {data.actions.length === 0 ? (
+        <div className="fp-allgood">
+          <div className="fp-allgood-ic">
+            <CheckIcon />
+          </div>
+          <div>
+            <b>Inget kräver åtgärd just nu</b>
+            <span>Ingen bedömd punkt har markerats med "Åtgärd krävs".</span>
           </div>
         </div>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div className="fp-kind">{WMODE[cur.visit_type] ?? "Genomgång"}</div>
-          <div style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 26, fontWeight: 600, margin: "4px 0 6px" }}>
-            {data.assessed} av {data.total} punkter bedömda
-          </div>
-          <div style={{ fontSize: 15, color: "#4B5563", lineHeight: 1.6 }}>
-            Besök {fmtDay(cur.visit_date)}
-            {cur.contact ? ` · Kontakt: ${cur.contact}` : ""}
-            {cur.address ? ` · ${cur.address}` : ""}
-          </div>
+      ) : (
+        <div className="fp-sum">
+          {data.actions.map((a, i) => (
+            <div key={i} className="fp-sum-row">
+              <div className="fp-sum-area">{WNAME[a.sec]}</div>
+              <div>{a.text}</div>
+              <div className="fp-sum-note">{a.comment || "Åtgärd krävs"}</div>
+            </div>
+          ))}
         </div>
-      </div>
+      )}
 
-      <div className="fp-stats" style={{ marginBottom: 0 }}>
-        {big("Klara", data.ok, "ok")}
-        {big("Kräver åtgärd", data.bad, "bad")}
-        {big("Återstår", remaining)}
-        {big("Ej aktuella", data.na)}
-      </div>
-
-      <div>
-        <h3 style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 22, margin: "0 0 10px", color: data.bad > 0 ? "#B91C1C" : undefined }}>
-          Det här bör åtgärdas
-        </h3>
-        {data.actions.length === 0 ? (
-          <div className="fp-muted">Inga punkter har bedömts som "Åtgärd krävs".</div>
-        ) : (
-          <div className="fp-list" style={{ borderColor: "#F1C0C0" }}>
-            {data.actions.map((a, i) => (
-              <div key={i} className="fp-row fp-row-static" style={{ background: "#FEF3F3", alignItems: "flex-start" }}>
-                <div className="fp-row-main">
-                  <div className="fp-row-title">{a.text}</div>
-                  <div className="fp-row-sub">{WNAME[a.sec]}</div>
-                  {a.comment && <div className="fp-text-sm" style={{ marginTop: 6 }}>{a.comment}</div>}
-                </div>
-                <span style={{ background: "#8B1A2B", color: "#F2E3BC", borderRadius: 999, padding: "3px 10px", fontSize: 11, fontWeight: 800, whiteSpace: "nowrap" }}>
-                  Åtgärd krävs
-                </span>
-              </div>
-            ))}
+      {assessedSections.length > 0 && (
+        <>
+          <div className="fp-sec">
+            Genomgångna områden<i />
           </div>
-        )}
-      </div>
-
-      <div>
-        <h3 style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 22, margin: "0 0 10px" }}>Områden</h3>
-        <div className="fp-list">
-          {data.sections.map((s) => {
-            const open = openSec === s.n;
-            const w = (v: number) => `${s.total > 0 ? (v / s.total) * 100 : 0}%`;
-            return (
-              <div key={s.n} style={{ borderBottom: "1px solid #F0F2EF" }}>
-                <button type="button" className="fp-row" style={{ borderBottom: "none", flexWrap: "wrap" }} onClick={() => setOpenSec(open ? null : s.n)}>
-                  <div className="fp-row-main" style={{ minWidth: 220 }}>
-                    <div className="fp-row-title">{WNAME[s.n]}</div>
-                    <div className="fp-row-sub">
-                      {s.ok} klara{s.bad > 0 ? ` · ${s.bad} att åtgärda` : ""} · {Math.max(0, s.total - s.ok - s.bad - s.na)} återstår
+          <div className="fp-areas">
+            {assessedSections.map((s) => {
+              const open = openSec === s.n;
+              return (
+                <div key={s.n} className={`fp-area${s.bad > 0 ? " fp-area-flag" : ""}`}>
+                  <button type="button" className="fp-area-head" onClick={() => setOpenSec(open ? null : s.n)} aria-expanded={open}>
+                    <span className="fp-area-ic">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" />
+                      </svg>
+                    </span>
+                    <span className="fp-area-title">{WNAME[s.n]}</span>
+                    {s.bad > 0 && <span className="fp-tag fp-tag-act">{s.bad} att åtgärda</span>}
+                    {s.ok > 0 && <span className="fp-tag fp-tag-ok">{s.ok} {s.ok === 1 ? "klar" : "klara"}</span>}
+                    {s.na > 0 && <span className="fp-tag fp-tag-na">{s.na} ej {s.na === 1 ? "aktuell" : "aktuella"}</span>}
+                    <span style={{ color: "#6B7280", fontSize: 16 }}>{open ? "▴" : "▾"}</span>
+                  </button>
+                  {open && (
+                    <div className="fp-area-body">
+                      {[...s.items]
+                        .sort((x, y) => Number(y.status === "Åtgärd krävs") - Number(x.status === "Åtgärd krävs"))
+                        .map((it, i) => (
+                          <div key={i} className={`fp-check${it.status === "Kontrollerat" ? " fp-check-done" : ""}`}>
+                            <span
+                              className="fp-check-box"
+                              style={it.status === "Åtgärd krävs" ? { background: "#E0A93B", borderColor: "#E0A93B" } : it.status === "Ej aktuellt" ? { background: W_NA, borderColor: W_NA } : undefined}
+                            >
+                              {it.status === "Kontrollerat" ? "✓" : it.status === "Åtgärd krävs" ? "!" : "–"}
+                            </span>
+                            <span className="fp-check-label" style={it.status === "Åtgärd krävs" ? { color: "#7A4A08", fontWeight: 600 } : undefined}>
+                              {it.text}
+                              {it.comment ? <span className="fp-check-note"> — {it.comment}</span> : null}
+                            </span>
+                          </div>
+                        ))}
                     </div>
-                  </div>
-                  <div style={{ flex: "1 1 220px", maxWidth: 420, height: 12, borderRadius: 6, background: "#E8EBE7", overflow: "hidden", display: "flex" }}>
-                    <div style={{ width: w(s.ok), background: W_OK }} />
-                    <div style={{ width: w(s.bad), background: W_BAD }} />
-                    <div style={{ width: w(s.na), background: W_NA }} />
-                  </div>
-                  <span style={{ color: "#6B7280", fontSize: 18 }}>{open ? "▴" : "▾"}</span>
-                </button>
-                {open && (
-                  <div style={{ padding: "0 18px 14px" }}>
-                    {s.items.length === 0 && <div className="fp-muted">Inga punkter bedömda i det här området.</div>}
-                    {s.items.map((it, i) => (
-                      <div key={i} className={`fp-check${it.status === "Kontrollerat" ? " fp-check-done" : ""}`}>
-                        <span
-                          className="fp-check-box"
-                          style={it.status === "Åtgärd krävs" ? { background: W_BAD, borderColor: W_BAD } : it.status === "Ej aktuellt" ? { background: W_NA, borderColor: W_NA } : undefined}
-                        >
-                          {it.status === "Kontrollerat" ? "✓" : it.status === "Åtgärd krävs" ? "!" : "–"}
-                        </span>
-                        <span className="fp-check-label" style={it.status === "Åtgärd krävs" ? { color: "#B91C1C", fontWeight: 600 } : undefined}>
-                          {it.text}
-                          {it.comment ? <span className="fp-check-note"> — {it.comment}</span> : null}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="fp-footnote">Bara områden som har bedömts visas.</div>
+        </>
+      )}
 
       {cur.general_notes && (
-        <div className="fp-card">
+        <div className="fp-card" style={{ marginTop: 20 }}>
           <div className="fp-dlabel">Övergripande anteckningar</div>
           <div className="fp-text-sm">{cur.general_notes}</div>
         </div>
       )}
 
-      <div>
+      <div style={{ marginTop: 20 }}>
         <a className="fp-btn" href="/genomgang-av-fastighet" target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", textDecoration: "none" }}>
           Öppna i Platsbesök (ny flik)
         </a>
@@ -1210,6 +1342,96 @@ const STYLES = `
   .fp-icon-choice[aria-pressed="true"] { border-color: ${GREEN}; background: rgba(61,138,48,0.12); color: ${GREEN}; }
   .fp-icon-choice svg { width: 28px; height: 28px; }
 
+
+  /* Gemensam topp och byggstenar för Felanmälningar, Besiktningar, Projekt, Genomgång och Teknik */
+  .fp-hero {
+    border-radius: 20px; padding: 30px 34px; color: #e6efd8; margin-top: 14px;
+    background: radial-gradient(ellipse at top left, #2a5444 0%, #0f241c 70%); border: 1px solid #D9C36F55;
+    box-shadow: 0 14px 34px rgba(13,43,30,0.22); display: flex; gap: 28px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  }
+  .fp-hero-text { min-width: 0; flex: 1 1 320px; }
+  .fp-hero-chip { display: inline-block; background: #E0C46C; color: ${INK}; font-size: 12px; font-weight: 700; letter-spacing: 0.18em; padding: 7px 14px; border-radius: 999px; }
+  .fp-hero-chip2 { display: inline-block; margin-left: 8px; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 999px; color: #E8D48F; border: 1px solid #E0C46C88; }
+  .fp-hero h1 { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 38px; margin: 14px 0 6px; color: #fff; font-weight: 600; }
+  .fp-hero p { margin: 0; color: #b9cbb9; font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
+  .fp-hero-stats { display: flex; gap: 14px; flex-wrap: wrap; }
+  .fp-hero-stat { min-width: 124px; padding: 14px 16px; border-radius: 14px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14); }
+  .fp-hero-stat b { display: block; font-family: Outfit, Inter, system-ui, sans-serif; font-size: 30px; color: #fff; font-weight: 600; line-height: 1.1; }
+  .fp-hero-stat b small { font-size: 16px; color: #b9cbb9; font-weight: 500; }
+  .fp-hero-stat span { font-size: 12.5px; color: #b9cbb9; }
+  .fp-hero-warn { background: rgba(224,169,59,0.18); border-color: rgba(243,201,105,0.55); }
+  .fp-hero-warn b { color: #F6CF72; }
+  .fp-hero-good b { color: #8EDB7E; }
+
+  .fp-sec { display: flex; align-items: center; gap: 10px; margin: 32px 2px 12px; font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: ${MUTED}; }
+  .fp-sec i { flex: 1; height: 1px; background: ${LINE}; }
+  .fp-footnote { margin-top: 14px; font-size: 13.5px; color: ${MUTED}; }
+
+  .fp-empty { background: #fff; border: 1px dashed #CBD3CA; border-radius: 16px; padding: 44px 20px; text-align: center; }
+  .fp-empty-ic, .fp-allgood-ic { width: 56px; height: 56px; border-radius: 50%; background: #EAF4E6; color: ${GREEN}; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; flex-shrink: 0; }
+  .fp-empty b { display: block; font-family: Outfit, Inter, system-ui, sans-serif; font-size: 20px; margin-bottom: 6px; }
+  .fp-empty span { color: ${MUTED}; font-size: 14.5px; }
+  .fp-allgood { display: flex; gap: 16px; align-items: center; background: #fff; border: 1px solid #CFE6C8; border-radius: 16px; padding: 18px 22px; box-shadow: 0 2px 8px rgba(61,138,48,0.08); }
+  .fp-allgood-ic { width: 44px; height: 44px; margin: 0; }
+  .fp-allgood b { display: block; font-size: 16px; }
+  .fp-allgood span { color: ${MUTED}; font-size: 14px; }
+
+  /* Ärenderader som egna kort; försenade lyfts med gul kant */
+  .fp-chips { margin-top: 22px; }
+  .fp-list-cards { background: transparent; border: none; border-radius: 0; overflow: visible; display: grid; gap: 10px; }
+  .fp-list-cards .fp-row { background: #fff; border: 1px solid ${LINE}; border-radius: 14px; padding: 16px 20px; box-shadow: 0 2px 6px rgba(13,43,30,0.05); position: relative; overflow: hidden; }
+  .fp-list-cards .fp-row:last-child { border-bottom: 1px solid ${LINE}; }
+  .fp-list-cards .fp-row:hover { background: #F7F9F6; }
+  .fp-list-cards .fp-row-late { border-color: #EBCB8A; background: linear-gradient(90deg, #FFF9EA, #fff 60%); box-shadow: 0 6px 18px rgba(154,91,11,0.10); }
+  .fp-list-cards .fp-row-late:before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: #E0A93B; }
+  .fp-row-rel { display: block; font-weight: 500; color: ${MUTED}; font-size: 12px; margin-top: 2px; }
+  .fp-row-late .fp-row-due { color: #9A5B0B; }
+
+  /* Sammanfattning: bör åtgärdas (Genomgång och Teknik) */
+  .fp-sum { background: #fff; border: 1px solid #EBCB8A; border-radius: 16px; overflow: hidden; box-shadow: 0 6px 18px rgba(154,91,11,0.10); }
+  .fp-sum-row { display: grid; grid-template-columns: 200px 1fr minmax(0, 340px); gap: 14px; align-items: center; padding: 13px 20px; border-top: 1px solid #F3EAD3; font-size: 14.5px; }
+  .fp-sum-row:first-child { border-top: none; }
+  .fp-sum-area { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+  .fp-sum-ic { width: 32px; height: 32px; border-radius: 9px; background: #FCEFD0; color: #9A5B0B; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .fp-sum-note { color: #9A5B0B; font-weight: 600; font-size: 13px; text-align: right; overflow-wrap: anywhere; }
+
+  .fp-tag { font-size: 12.5px; font-weight: 600; padding: 5px 11px; border-radius: 999px; white-space: nowrap; }
+  .fp-tag-ok { background: #EAF4E6; color: ${GREEN}; }
+  .fp-tag-na { background: #F1F3F0; color: ${MUTED}; }
+  .fp-tag-act { background: #FCEFD0; color: #9A5B0B; }
+
+  /* Genomgång: områden */
+  .fp-areas { display: grid; gap: 10px; }
+  .fp-area { background: #fff; border: 1px solid ${LINE}; border-radius: 16px; box-shadow: 0 2px 6px rgba(13,43,30,0.05); overflow: hidden; }
+  .fp-area-flag { border-color: #EBCB8A; }
+  .fp-area-head { display: flex; align-items: center; gap: 12px; width: 100%; padding: 16px 20px; background: transparent; border: none; cursor: pointer; font: inherit; color: ${INK}; text-align: left; }
+  .fp-area-ic { width: 44px; height: 44px; border-radius: 12px; background: #EAF4E6; color: ${GREEN}; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .fp-area-flag .fp-area-ic { background: #FCEFD0; color: #9A5B0B; }
+  .fp-area-title { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 19px; font-weight: 600; flex: 1; min-width: 0; }
+  .fp-area-body { padding: 0 20px 14px 76px; }
+
+  /* Teknik: kort per område */
+  .fp-tcards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+  .fp-tcard { background: #fff; border: 1px solid ${LINE}; border-radius: 16px; padding: 20px 20px 12px; box-shadow: 0 2px 6px rgba(13,43,30,0.05); position: relative; overflow: hidden; }
+  .fp-tcard-flag { border-color: #EBCB8A; }
+  .fp-tcard-flag:before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: #E0A93B; }
+  .fp-tcard-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .fp-tcard-ic { width: 44px; height: 44px; border-radius: 12px; background: #EAF4E6; color: ${GREEN}; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .fp-tcard-flag .fp-tcard-ic { background: #FCEFD0; color: #9A5B0B; }
+  .fp-tcard-title { font-family: Outfit, Inter, system-ui, sans-serif; font-size: 20px; font-weight: 600; flex: 1; min-width: 0; }
+  .fp-tag-pill { background: #EAF4E6; color: ${GREEN}; }
+  .fp-tcard-flag .fp-tag-pill { background: #FCEFD0; color: #9A5B0B; }
+  .fp-tit { display: flex; gap: 11px; align-items: flex-start; padding: 9px 6px; border-top: 1px solid #F0F2EF; font-size: 14.5px; line-height: 1.4; }
+  .fp-tit:first-of-type { border-top: none; }
+  .fp-tit-mark { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; background: #EAF4E6; color: ${GREEN}; }
+  .fp-tit-lbl { color: #4B5563; min-width: 0; overflow-wrap: anywhere; }
+  .fp-tit-act { background: #FFF4DC; border-radius: 10px; margin: 3px 0; border-top-color: transparent; }
+  .fp-tit-act .fp-tit-mark { background: #E0A93B; color: #fff; }
+  .fp-tit-act .fp-tit-lbl { color: ${INK}; font-weight: 600; }
+  .fp-tit-badge, .fp-tit-info { display: block; width: fit-content; margin-top: 5px; font-size: 12.5px; border-radius: 6px; padding: 3px 9px; font-weight: 600; }
+  .fp-tit-badge { color: #9A5B0B; background: #FCEFD0; }
+  .fp-tit-info { color: ${MUTED}; background: #F3F5F2; font-weight: 500; padding: 2px 8px; }
+
   /* iPad och mindre: samma upplägg som datorn, tätare. */
   @media (max-width: 1100px) {
     .fp-page { padding: 18px 24px 32px; }
@@ -1217,8 +1439,16 @@ const STYLES = `
     .fp-logo { height: 52px; }
     .fp-tile-label { font-size: 15px; }
     .fp-cards { grid-template-columns: minmax(0, 1fr); }
+    .fp-tcards { grid-template-columns: minmax(0, 1fr); }
   }
   @media (max-width: 768px) {
+    .fp-hero { padding: 22px 20px; }
+    .fp-hero h1 { font-size: 28px; }
+    .fp-hero-stat { min-width: 0; flex: 1 1 90px; padding: 12px 12px; }
+    .fp-hero-stat b { font-size: 24px; }
+    .fp-sum-row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+    .fp-sum-note { text-align: left; }
+    .fp-area-body { padding-left: 20px; }
     .fp-page { padding: 14px 12px 36px; }
     .fp-header { margin-bottom: 12px; padding-bottom: 12px; gap: 8px; }
     .fp-select { max-width: 150px; height: 36px; font-size: 13px; }
@@ -1442,7 +1672,7 @@ function PresentationPage() {
       case "genomgang":
         return <WalkthroughSection key={propertyId} propertyId={propertyId} />;
       case "teknik":
-        return <TeknikSection propertyId={propertyId} />;
+        return <TeknikSection propertyId={propertyId} propertyName={propertyName} />;
       case "oversikt":
         return <OversiktSection propertyId={propertyId} />;
       case "loggbok":
@@ -1576,10 +1806,12 @@ function PresentationPage() {
             <button type="button" className="fp-back" onClick={() => setView(null)}>
               ← Presentation
             </button>
-            <div className="fp-panel-head">
-              <PresentationIcon name={sectionTile.key} size={44} />
-              <h1>{sectionTile.label}</h1>
-            </div>
+            {!HERO_SECTIONS.has(sectionTile.key) && (
+              <div className="fp-panel-head">
+                <PresentationIcon name={sectionTile.key} size={44} />
+                <h1>{sectionTile.label}</h1>
+              </div>
+            )}
             {renderSection()}
           </div>
         )}
