@@ -14,10 +14,13 @@
 alter table public.teknik_checks
   add column if not exists action_required boolean not null default false;
 
--- Redan skrivna anteckningar som säger det rakt ut markeras en gång. Övriga ("saknar", "bör
--- bytas" osv.) lämnas orörda: de bedömer ni själva och bockar i på /teknik.
+-- Redan skrivna anteckningar som låter som en åtgärd markeras en gång, så att sidan ser likadan ut
+-- före och efter att den här filen körts. Samma ordlista som ACTION_WORDS i fastighetspresentation.tsx.
+-- Ni justerar sedan själva med knappen "Åtgärd krävs" på /teknik (t.ex. en anteckning som egentligen
+-- bara är information).
 update public.teknik_checks
    set action_required = true
  where action_required = false
    and note is not null
-   and (note ilike '%åtgärd krävs%' or note ilike '%bör åtgärdas%' or note ilike '%ej godkänd%');
+   and (note ilike '%åtgärd krävs%' or note ilike '%bör åtgärdas%' or note ilike '%ej godkänd%'
+        or note ilike '%saknar%' or note ~* '\mbör\M' or note ilike '%krånglar%');
