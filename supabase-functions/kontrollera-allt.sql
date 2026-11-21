@@ -5,7 +5,7 @@
 with
   tabeller as (select table_name::text as k from information_schema.tables where table_schema = 'public'),
   kolumner as (select (table_name || '.' || column_name)::text as k from information_schema.columns where table_schema = 'public'),
-  notnull as (select (table_name || '.' || column_name)::text as k from information_schema.columns where table_schema = 'public' and is_nullable = 'NO'),
+  icke_null as (select (table_name || '.' || column_name)::text as k from information_schema.columns where table_schema = 'public' and is_nullable = 'NO'),
   funktioner as (select p.proname::text as k from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public'),
   triggers as (select tgname::text as k from pg_trigger where not tgisinternal),
   policyer as (select (tablename || '.' || policyname)::text as k from pg_policies),
@@ -154,7 +154,7 @@ with
         when (case f.typ
                 when 'tabell' then f.namn in (select k from tabeller)
                 when 'kolumn' then f.namn in (select k from kolumner)
-                when 'notnull' then f.namn in (select k from notnull)
+                when 'notnull' then f.namn in (select k from icke_null)
                 when 'funktion' then f.namn in (select k from funktioner)
                 when 'trigger' then f.namn in (select k from triggers)
                 when 'policy' then f.namn in (select k from policyer)
