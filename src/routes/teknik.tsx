@@ -23,7 +23,7 @@ export const Route = createFileRoute("/teknik")({
 
 type Item = { id: string; section: string; label: string; sort_order: number };
 type Round = { id: string; section: string; started_at: string };
-type Check = { round_id: string; item_id: string; checked: boolean; note: string | null };
+type Check = { round_id: string; item_id: string; checked: boolean; note: string | null; action_required?: boolean | null };
 
 const dateFmt = new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short", year: "numeric" });
 
@@ -118,6 +118,12 @@ const STYLES = `
     background: rgba(255,255,255,0.06); color: #e6efd8; border: 1px solid rgba(255,255,255,0.12);
   }
   .tk-note::placeholder { color: #6f8a70; }
+  .tk-flag {
+    height: 30px; padding: 0 10px; border-radius: 999px; flex-shrink: 0; cursor: pointer; font-family: inherit; font-size: 12.5px; font-weight: 600;
+    background: transparent; color: #8aa38a; border: 1px solid rgba(255,255,255,0.18);
+  }
+  .tk-flag:hover { color: #F6CF72; border-color: rgba(243,201,105,0.6); }
+  .tk-flag[aria-pressed="true"] { background: rgba(224,169,59,0.2); color: #F6CF72; border-color: rgba(243,201,105,0.7); }
   .tk-del { background: none; border: none; color: #c98a8a; cursor: pointer; font-size: 20px; line-height: 1; padding: 4px 8px; }
   .tk-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; align-items: center; }
   .tk-btn {
@@ -161,23 +167,29 @@ function CheckRow({
   label,
   checked,
   note,
+  flagged,
   editing,
   onToggle,
   onNote,
+  onFlag,
   onDelete,
 }: {
   label: string;
   checked: boolean;
   note: string;
+  flagged: boolean;
   editing: boolean;
   onToggle: (next: boolean) => void;
   onNote: (next: string | null) => void;
+  onFlag: (next: boolean) => void;
   onDelete: () => void;
 }) {
   const [isChecked, setIsChecked] = useState(checked);
   const [text, setText] = useState(note);
+  const [isFlagged, setIsFlagged] = useState(flagged);
   useEffect(() => setIsChecked(checked), [checked]);
   useEffect(() => setText(note), [note]);
+  useEffect(() => setIsFlagged(flagged), [flagged]);
 
   return (
     <div className={`tk-row${isChecked ? " tk-done" : ""}`}>
@@ -208,6 +220,19 @@ function CheckRow({
           if (text.trim() !== note.trim()) onNote(text.trim() || null);
         }}
       />
+      <button
+        type="button"
+        className="tk-flag"
+        aria-pressed={isFlagged}
+        title={"Visas som \"Åtgärd krävs\" för styrelsen"}
+        onClick={() => {
+          const next = !isFlagged;
+          setIsFlagged(next);
+          onFlag(next);
+        }}
+      >
+        Åtgärd krävs
+      </button>
       {editing && (
         <button type="button" className="tk-del" aria-label="Ta bort punkt" onClick={onDelete}>
           ×
@@ -354,7 +379,8 @@ function TeknikPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("teknik_checks")
-        .select("round_id, item_id, checked, note")
+        // select("*"): action_required kommer från en handkörd migration (teknik-action-required.sql).
+        .select("*")
         .in("round_id", rounds.map((r) => r.id));
       if (error) throw error;
       return (data ?? []) as Check[];
@@ -407,7 +433,7 @@ function TeknikPage() {
   }, [allowed, section?.key, propertyId, roundsQ.isSuccess, round?.id]);
 
   const saveCheck = useMutation({
-    mutationFn: async (v: { round_id: string; item_id: string; checked?: boolean; note?: string | null }) => {
+    mutationFn: async (v: { round_id: string; item_id: string; checked?: boolean; note?: string | null; action_required?: boolean }) => {
       const row: Record<string, unknown> = {
         round_id: v.round_id,
         item_id: v.item_id,
@@ -416,8 +442,15 @@ function TeknikPage() {
       };
       if (v.checked !== undefined) row.checked = v.checked;
       if (v.note !== undefined) row.note = v.note;
+      if (v.action_required !== undefined) row.action_required = v.action_required;
       const { error } = await supabase.from("teknik_checks").upsert(row, { onConflict: "round_id,item_id" });
-      if (error) throw error;
+      if (error) {
+        // 42703 / PGRST204 = kolumnen finns inte: SQL-filen har inte körts än.
+        if (v.action_required !== undefined && (error.code === "42703" || error.code === "PGRST204")) {
+          throw new Error("Markeringen kräver att teknik-action-required.sql körs i Supabase först.");
+        }
+        throw error;
+      }
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["teknik-checks"] }),
     onError: (e: Error) => {
@@ -631,9 +664,11 @@ function TeknikPage() {
                       label={it.label}
                       checked={c?.checked ?? false}
                       note={c?.note ?? ""}
+                      flagged={c?.action_required === true}
                       editing={editing}
                       onToggle={(next) => saveCheck.mutate({ round_id: round.id, item_id: it.id, checked: next })}
                       onNote={(next) => saveCheck.mutate({ round_id: round.id, item_id: it.id, note: next })}
+                      onFlag={(next) => saveCheck.mutate({ round_id: round.id, item_id: it.id, action_required: next })}
                       onDelete={() => {
                         if (
                           window.confirm(
