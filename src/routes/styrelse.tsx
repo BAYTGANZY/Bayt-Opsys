@@ -28,6 +28,7 @@ import { Hero } from "@/components/HeroKit";
 import { HomeWideMenu } from "@/components/HomeWideMenu";
 import { FloatingNav } from "@/components/FloatingNav";
 import { StackedBars, DonutChart, DARK_CHART, type Bar, type Slice } from "@/components/MiniCharts";
+import { isStaff } from "@/lib/permissions";
 
 export const Route = createFileRoute("/styrelse")({
   ssr: false,
@@ -148,7 +149,7 @@ function levelOf(entries: Entry[]): Level {
 
 function StyrelsePage() {
   const { role, name } = useHomeUser();
-  const allowed = role === "styrelse" || role === "admin";
+  const allowed = role === "styrelse" || isStaff(role);
   const [sel, setSel] = useState<string | null>(null);
 
   const propsQ = useQuery({
@@ -259,7 +260,7 @@ function StyrelsePage() {
       <style>{HOME_STYLES}</style>
       <div className="hk-page">
         <div className="hk-wrap">
-          <HomeWideMenu role={role} name={name} roleLabel={role === "admin" ? "Förhandsvisning" : "Styrelse"} logoTo="/dashboard" compact={role === "admin"} />
+          <HomeWideMenu role={role} name={name} roleLabel={isStaff(role) ? "Förhandsvisning" : "Styrelse"} logoTo="/dashboard" compact={role === "admin"} />
 
           {role === undefined && <div className="hk-empty">Laddar…</div>}
           {role !== undefined && !allowed && (

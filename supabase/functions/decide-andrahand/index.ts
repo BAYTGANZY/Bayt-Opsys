@@ -210,7 +210,7 @@ Deno.serve(async (req) => {
     const me = await db.from("profiles").select("role, full_name").eq("id", userId).maybeSingle();
     const role = (me.data as { role?: string } | null)?.role;
     const myName = String((me.data as { full_name?: string } | null)?.full_name ?? "").trim() || userData.user.email || "Styrelsen";
-    if (role !== "admin" && role !== "styrelse") return json({ error: "Du har inte behörighet att besluta om ansökningar." }, 403);
+    if (role !== "admin" && role !== "medarbetare" && role !== "styrelse") return json({ error: "Du har inte behörighet att besluta om ansökningar." }, 403);
 
     const body = await req.json().catch(() => null);
     const id = String(body?.id ?? "");

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth";
-import { homeForRole } from "@/lib/permissions";
+import { homeForRole, isStaff } from "@/lib/permissions";
 import { useVisibleProperties } from "@/hooks/useVisibleProperties";
 import { useMyContactIds } from "@/hooks/useMyContactId";
 import { useMyAssignedApartmentIds } from "@/hooks/useMyAssignedApartmentIds";
@@ -60,7 +60,7 @@ export function useRecordScopeGuard({
     (!isEntreprenor || contactIds !== undefined);
 
   let denied = false;
-  if (ready && role !== "admin") {
+  if (ready && !isStaff(role)) {
     if (isEntreprenor && assignedContactId !== undefined) {
       // Errand-level records: assignment is what grants access. `includes` and
       // not `===`: ett konto kan ha delegerats en annan entreprenörs kontakt

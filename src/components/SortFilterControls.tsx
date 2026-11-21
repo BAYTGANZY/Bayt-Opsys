@@ -2,6 +2,7 @@ import { RefreshCw, Plus } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/lib/auth";
+import { isStaff } from "@/lib/permissions";
 
 const C = { dark: "#0D2B1E", green: "#5CB84A" };
 
@@ -157,7 +158,7 @@ export function SectionHeaderRow({
   // Creating is admin-only, so every section's "Ny …" action is hidden for other
   // roles — otherwise the button is visible but bounces off the route guard.
   const { profile } = useAuth();
-  const canCreate = profile?.role === "admin";
+  const canCreate = isStaff(profile?.role);
 
   const button = !canCreate ? null : actionTo ? (
     <Link to={actionTo as never} params={actionToParams as never} style={btnStyle}>

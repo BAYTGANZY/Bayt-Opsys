@@ -4,6 +4,7 @@ import { FileText, X, Download, FolderPlus, Folder, Upload, Trash2 } from "lucid
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { isStaff } from "@/lib/permissions";
 import { sanitizeStorageName } from "@/lib/storage";
 
 const C = {
@@ -43,7 +44,7 @@ const isImage = (f: { name: string; mime: string | null }) =>
 export function MinaDokument({ isMobile }: { isMobile: boolean }) {
   const qc = useQueryClient();
   const { user, profile } = useAuth();
-  const isAdmin = profile?.role === "admin";
+  const isAdmin = isStaff(profile?.role);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [scope, setScope] = useState<"mine" | "all">("mine");
   const [folderId, setFolderId] = useState<string | null>(null);

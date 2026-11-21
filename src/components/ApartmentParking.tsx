@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { isStaff } from "@/lib/permissions";
 
 const C = { border: "#E5E7EB", secondary: "#6B7280", text: "#1a1a1a", green: "#3D8A30" };
 const KIND_LABEL: Record<string, string> = { parkering: "Parkeringsplats", garage: "Garageplats" };
@@ -34,7 +35,7 @@ const fmt = (iso: string) => new Date(iso).toLocaleDateString("sv-SE", { day: "n
  */
 export function ApartmentParking({ propertyId, apartmentNumber, trappa }: { propertyId: string | null; apartmentNumber: string; trappa: string | null }) {
   const { profile } = useAuth();
-  const allowed = profile?.role === "admin" || profile?.role === "styrelse";
+  const allowed = isStaff(profile?.role) || profile?.role === "styrelse";
 
   const q = useQuery({
     queryKey: ["apartment-parking", propertyId, apartmentNumber, trappa],

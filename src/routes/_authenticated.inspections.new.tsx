@@ -14,6 +14,7 @@ import { derivePriority } from "@/lib/issue-tokens";
 import { sanitizeStorageName } from "@/lib/storage";
 import { INSPECTION_TYPES, inspectionTypeLabel } from "@/lib/inspection-tokens";
 import { gateEntreprenorEmail, notifyEntreprenorAboutArende } from "@/lib/entreprenor-notify";
+import { isStaff } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_authenticated/inspections/new")({
   head: () => ({ meta: [{ title: "Ny besiktning — BAYT" }] }),
@@ -114,7 +115,7 @@ export function NewInspectionPage({ initialPropertyId }: { initialPropertyId?: s
       // bara reagerar på ett *byte* av entreprenör.
     let gateEmail: string | null = null;
     let gateName: string | null = null;
-    if (profile?.role === "admin" && assignedContactId) {
+    if (isStaff(profile?.role) && assignedContactId) {
       try {
         const gate = await gateEntreprenorEmail({
           contactId: assignedContactId,

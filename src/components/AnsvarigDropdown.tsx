@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { isStaff } from "@/lib/permissions";
 import { ChevronSelect } from "@/components/ChevronSelect";
 
 const C = {
@@ -87,7 +88,7 @@ export function AnsvarigDropdown({
 }) {
   const qc = useQueryClient();
   const { profile } = useAuth();
-  const isAdmin = profile?.role === "admin";
+  const isAdmin = isStaff(profile?.role);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");

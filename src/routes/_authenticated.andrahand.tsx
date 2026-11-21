@@ -10,6 +10,7 @@ import { sanitizeStorageName } from "@/lib/storage";
 import { SubletSuspicions, useSuspicions, type Apt } from "@/components/SubletSuspicions";
 import { SubletApplications } from "@/components/SubletApplications";
 import { useVisibleProperties } from "@/hooks/useVisibleProperties";
+import { isStaff } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_authenticated/andrahand")({
   head: () => ({ meta: [{ title: "Andrahand — BAYT" }] }),
@@ -105,7 +106,7 @@ function AndrahandPage() {
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin";
   // Styrelsen arbetar i registret för sin egen förening men raderar inget och ser inte misstankelistan.
-  const canUse = isAdmin || profile?.role === "styrelse";
+  const canUse = isStaff(profile?.role) || profile?.role === "styrelse";
   const { allowedIds } = useVisibleProperties();
   const qc = useQueryClient();
   const [propertyId, setPropertyId] = useState<string>(() => {

@@ -26,7 +26,7 @@ import {
   EyeIcon,
 } from "@hugeicons/core-free-icons";
 import { useAuth } from "@/lib/auth";
-import { canAccess, homeForRole } from "@/lib/permissions";
+import { canAccess, homeForRole, isStaff } from "@/lib/permissions";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { PropertyContextNav } from "@/components/ContextNav";
 import { NotificationBell, NotificationToasts } from "@/components/NotificationCenter";
@@ -405,7 +405,7 @@ export function AppShell() {
   const homeTo =
     profile?.role === "entreprenor"
       ? "/mina-uppdrag"
-      : (profile?.role === "admin" || profile?.role === "styrelse") && pathname !== "/dashboard"
+      : (isStaff(profile?.role) || profile?.role === "styrelse") && pathname !== "/dashboard"
         ? "/dashboard"
         : "/styrelse";
   const { grants: pageGrants } = usePageGrants();
@@ -432,7 +432,7 @@ export function AppShell() {
   const centerNav: NavItem =
     profile?.role === "entreprenor"
       ? { to: "/mina-uppdrag", label: "Start", icon: GridViewIcon }
-      : (profile?.role === "admin" || profile?.role === "styrelse") && pathname !== "/dashboard"
+      : (isStaff(profile?.role) || profile?.role === "styrelse") && pathname !== "/dashboard"
         ? { to: "/dashboard", label: "Start", icon: GridViewIcon }
         : { to: "/styrelse", label: "Översikt", icon: GridViewIcon };
   const bottomNav: NavItem[] = [

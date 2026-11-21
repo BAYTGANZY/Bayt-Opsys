@@ -221,7 +221,7 @@ Deno.serve(async (req) => {
     const profs = await db.from("profiles").select("id, email, role").in("id", others.map((o) => o.profile_id));
     const emailOf = new Map(
       ((profs.data ?? []) as Array<{ id: string; email: string | null; role: string | null }>)
-        .filter((p) => p.email && ["admin", "styrelse", "entreprenor"].includes(String(p.role)))
+        .filter((p) => p.email && ["admin", "medarbetare", "styrelse", "entreprenor"].includes(String(p.role)))
         .map((p) => [p.id, String(p.email).trim()]),
     );
 

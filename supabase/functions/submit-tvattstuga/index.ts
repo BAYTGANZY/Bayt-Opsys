@@ -285,7 +285,7 @@ Deno.serve(async (req) => {
       const me = await db.from("profiles").select("role, full_name").eq("id", userId).maybeSingle();
       const meRow = me.data as { role?: string; full_name?: string | null } | null;
       const role = meRow?.role;
-      if (role !== "admin" && role !== "styrelse") return json({ error: "Du har inte behörighet." }, 403);
+      if (role !== "admin" && role !== "medarbetare" && role !== "styrelse") return json({ error: "Du har inte behörighet." }, 403);
 
       const found = await db.from("laundry_code_requests").select("*").eq("id", String(body.id ?? "")).maybeSingle();
       const row = found.data as Record<string, unknown> | null;

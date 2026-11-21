@@ -8,6 +8,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useVisibleProperties } from "@/hooks/useVisibleProperties";
 import { confirmDialog } from "@/components/ConfirmDialog";
 import { normalizeApartmentNumber, normalizeTrappa, TRAPPA_PLACEHOLDER } from "@/lib/apartment-tokens";
+import { isStaff } from "@/lib/permissions";
 
 /**
  * Parkeringskön — den som ställt sig i kö via /parkering-ko (edge-funktionen submit-parkering).
@@ -77,7 +78,7 @@ function ParkeringPage() {
   const isMobile = useIsMobile();
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin";
-  const canUse = isAdmin || profile?.role === "styrelse";
+  const canUse = isStaff(profile?.role) || profile?.role === "styrelse";
   const { allowedIds } = useVisibleProperties();
   const qc = useQueryClient();
   const [propertyId, setPropertyId] = useState("");

@@ -13,6 +13,7 @@ import { DerivedPriorityField } from "@/components/DerivedPriorityField";
 import { FileDropzone } from "@/components/FileDropzone";
 import { derivePriority } from "@/lib/issue-tokens";
 import { sanitizeStorageName } from "@/lib/storage";
+import { isStaff } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_authenticated/projects/new")({
   head: () => ({ meta: [{ title: "Nytt projekt — BAYT" }] }),
@@ -99,7 +100,7 @@ export function NewProjectPage({ initialPropertyId }: { initialPropertyId?: stri
       // bara reagerar på ett *byte* av entreprenör.
       let gateEmail: string | null = null;
       let gateName: string | null = null;
-      if (profile?.role === "admin" && assignedContactId) {
+      if (isStaff(profile?.role) && assignedContactId) {
         const gate = await gateEntreprenorEmail({
           contactId: assignedContactId,
           qc,

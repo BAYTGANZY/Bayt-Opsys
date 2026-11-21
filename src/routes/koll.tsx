@@ -6,6 +6,7 @@ import { LIFECYCLE_OF } from "@/lib/issue-tokens";
 import { inspectionTypeLabel } from "@/lib/inspection-tokens";
 import { useHomeUser } from "@/components/HomeKit";
 import { FloatingNav } from "@/components/FloatingNav";
+import { isStaff } from "@/lib/permissions";
 
 const logo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
 
@@ -174,7 +175,7 @@ const IcoDoc = () => (
 
 function KollPage() {
   const { role, name } = useHomeUser();
-  const allowed = role === "styrelse" || role === "admin";
+  const allowed = role === "styrelse" || isStaff(role);
   const [sel, setSel] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
 

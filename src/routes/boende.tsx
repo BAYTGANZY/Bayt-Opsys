@@ -17,7 +17,7 @@ export const Route = createFileRoute("/boende")({
       .maybeSingle();
     const role = (profile as { role?: string } | null)?.role;
     if (role === "boende") return;
-    if (role === "admin") throw redirect({ to: "/dashboard" });
+    if (role === "admin" || role === "medarbetare") throw redirect({ to: "/dashboard" });
     if (role === "styrelse") throw redirect({ to: "/styrelse" });
     throw redirect({ to: "/login" });
   },

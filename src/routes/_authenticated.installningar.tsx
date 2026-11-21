@@ -167,7 +167,7 @@ type ProfileRow = {
   created_at: string;
 };
 
-const ROLES = ["admin", "styrelse", "entreprenor"];
+const ROLES = ["admin", "medarbetare", "styrelse", "entreprenor"];
 
 // Användarlistan låg fast på skapad fallande. Namn och Skapad delar en grupp —
 // exakt en av dem ordnar listan åt gången — och rollfiltret kombineras fritt
@@ -893,7 +893,7 @@ function SettingsPage() {
                       </div>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4, alignSelf: "flex-start" }}>
-                      {(p.role === "styrelse" || p.role === "entreprenor") && (
+                      {(p.role === "styrelse" || p.role === "entreprenor" || p.role === "medarbetare") && (
                         <button
                           type="button"
                           onClick={() => setAccessPanelUserId(p.id)}
@@ -950,7 +950,7 @@ function SettingsPage() {
                       <td style={{ ...td, color: C.muted }}>{fmtDate.format(new Date(p.created_at))}</td>
                       <td style={{ ...td, whiteSpace: "nowrap" }}>
                         <div style={{ display: "flex", gap: 4 }}>
-                          {(p.role === "styrelse" || p.role === "entreprenor") && (
+                          {(p.role === "styrelse" || p.role === "entreprenor" || p.role === "medarbetare") && (
                             <button
                               type="button"
                               onClick={() => setAccessPanelUserId(p.id)}

@@ -93,6 +93,7 @@ const TILES = [
 function canReachSection(role: string | null | undefined, section: string | null): boolean {
   if (section === null) return true;
   if (role === "admin") return true;
+  if (role === "medarbetare") return section !== "ekonomi";
   return !!(role && PROPERTY_SECTIONS_FOR_ROLE[role]?.includes(section));
 }
 

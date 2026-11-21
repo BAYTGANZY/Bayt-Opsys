@@ -472,8 +472,8 @@ Deno.serve(async (req) => {
       .select("id, role, full_name")
       .eq("id", userData.user.id)
       .maybeSingle();
-    if (profile?.role !== "admin") {
-      return json({ error: "Endast administratörer kan skicka ut ärenden till entreprenörer." }, 403);
+    if (profile?.role !== "admin" && profile?.role !== "medarbetare") {
+      return json({ error: "Endast personal kan skicka ut ärenden till entreprenörer." }, 403);
     }
 
     const body = await req.json().catch(() => ({}));

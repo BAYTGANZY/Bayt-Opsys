@@ -7,6 +7,7 @@ import { Screensaver } from "@/components/Screensaver";
 import { sectionsForRole, type NavItem } from "@/components/AppShell";
 import { useFavorites } from "@/hooks/useFavorites";
 import { usePageGrants } from "@/hooks/usePageGrants";
+import { isStaff } from "@/lib/permissions";
 
 const whiteLogo = `${import.meta.env.BASE_URL}assets/bayt-logo.png`;
 
@@ -141,7 +142,7 @@ export function HomeWideMenu({
         </div>
       </div>
 
-      {(role === "admin" || role === "styrelse") && (
+      {(isStaff(role) || role === "styrelse") && (
         <nav className="wm-bottom" aria-label="Snabbmeny">
           <span className="wm-bottom-spacer" />
           <Link to={"/dashboard" as never} className="wm-bottom-center">

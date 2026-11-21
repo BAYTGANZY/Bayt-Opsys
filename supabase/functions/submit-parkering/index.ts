@@ -239,7 +239,7 @@ Deno.serve(async (req) => {
       if (!userId) return json({ error: "Du måste vara inloggad." }, 401);
       const me = await db.from("profiles").select("role").eq("id", userId).maybeSingle();
       const role = (me.data as { role?: string } | null)?.role;
-      if (role !== "admin" && role !== "styrelse") return json({ error: "Du har inte behörighet." }, 403);
+      if (role !== "admin" && role !== "medarbetare" && role !== "styrelse") return json({ error: "Du har inte behörighet." }, 403);
       const id = String(body.id ?? "");
       const found = await db.from("parking_queue").select("*").eq("id", id).maybeSingle();
       const row = found.data as Record<string, unknown> | null;

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { isStaff } from "@/lib/permissions";
 
 const C = { border: "#E5E7EB", secondary: "#6B7280", text: "#1a1a1a", green: "#3D8A30", soft: "#F3F9F1" };
 
@@ -21,7 +22,8 @@ export function ApartmentNotes({ apartmentId, propertyId }: { apartmentId: strin
   const { user, profile } = useAuth();
   const qc = useQueryClient();
   const isAdmin = profile?.role === "admin";
-  const allowed = isAdmin || profile?.role === "styrelse";
+  const staff = isStaff(profile?.role);
+  const allowed = staff || profile?.role === "styrelse";
   const [text, setText] = useState("");
   const key = ["apartment-notes", apartmentId];
 
@@ -116,18 +118,18 @@ export function ApartmentNotes({ apartmentId, propertyId }: { apartmentId: strin
                 <div style={{ fontSize: 12, color: C.secondary, marginTop: 4, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                   <span>{n.created_by_name || "Okänd"} · {fmt(n.created_at)}</span>
                   {n.done && <span>Klar {n.done_at ? fmt(n.done_at) : ""}</span>}
-                  {isAdmin && (
+                  {staff && (
                     <>
                       <button type="button" onClick={() => toggle.mutate(n)} style={{ background: "none", border: "none", color: C.green, fontWeight: 600, cursor: "pointer", padding: 0, fontSize: 12 }}>
                         {n.done ? "Öppna igen" : "Markera som klar"}
                       </button>
-                      <button
+                      {isAdmin && <button
                         type="button"
                         onClick={() => { if (window.confirm("Ta bort anteckningen? Det går inte att ångra.")) remove.mutate(n); }}
                         style={{ background: "none", border: "none", color: "#B91C1C", cursor: "pointer", padding: 0, fontSize: 12 }}
                       >
                         Ta bort
-                      </button>
+                      </button>}
                     </>
                   )}
                 </div>
