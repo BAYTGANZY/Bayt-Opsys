@@ -20,7 +20,7 @@ import { DerivedPriorityField } from "@/components/DerivedPriorityField";
 import { deriveInspectionStatus, derivePriorityFromStatus } from "@/lib/issue-tokens";
 import { useRecordScopeGuard } from "@/hooks/useRecordScopeGuard";
 import { gateEntreprenorEmail, notifyEntreprenorAboutArende } from "@/lib/entreprenor-notify";
-import { isEntreprenor } from "@/lib/permissions";
+import { isEntreprenor, isStaff } from "@/lib/permissions";
 import { sanitizeStorageName } from "@/lib/storage";
 import { INSPECTION_TYPES, inspectionTypeLabel } from "@/lib/inspection-tokens";
 
@@ -167,7 +167,7 @@ export function InspectionDetailPage({ idOverride }: { idOverride?: string } = {
     mutationFn: async () => {
       const previousContactId = insp?.assigned_contact_id ?? null;
       const notifyContactId =
-        profile?.role === "admin" && assignedContactId && assignedContactId !== previousContactId
+        isStaff(profile?.role) && assignedContactId && assignedContactId !== previousContactId
           ? assignedContactId
           : null;
       let gateEmail: string | null = null;

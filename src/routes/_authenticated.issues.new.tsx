@@ -14,6 +14,7 @@ import { ObjectDropdown } from "@/components/ObjectDropdown";
 import { ChevronSelect } from "@/components/ChevronSelect";
 import { DerivedPriorityField } from "@/components/DerivedPriorityField";
 import { sanitizeStorageName } from "@/lib/storage";
+import { isStaff } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_authenticated/issues/new")({
   head: () => ({ meta: [{ title: "Ny felanmälan — BAYT" }] }),
@@ -131,7 +132,7 @@ export function NewIssuePage({ initialPropertyId, lockProperty }: { initialPrope
     // reagerar bara på ett *byte* av entreprenör).
     let gateEmail: string | null = null;
     let gateName: string | null = null;
-    if (profile?.role === "admin" && assignedContactId) {
+    if (isStaff(profile?.role) && assignedContactId) {
       try {
         const gate = await gateEntreprenorEmail({
           contactId: assignedContactId,

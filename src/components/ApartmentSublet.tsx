@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { isStaff, canDelete } from "@/lib/permissions";
 import { SubletSuspicions } from "@/components/SubletSuspicions";
 
 const INK = "#0D2B1E";
@@ -53,7 +54,8 @@ export function ApartmentSublet({
   memberName?: string | null;
 }) {
   const { profile } = useAuth();
-  const isAdmin = profile?.role === "admin";
+  const isAdmin = isStaff(profile?.role);
+  const mayDelete = canDelete(profile?.role);
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({
@@ -228,13 +230,13 @@ export function ApartmentSublet({
                   <Link to="/andrahand" style={{ fontSize: 13, fontWeight: 600, color: GREEN, textDecoration: "none" }}>
                     Se i registret (bilagor, redigera) →
                   </Link>
-                  <button
+                  {mayDelete && <button
                     type="button"
                     onClick={() => { if (window.confirm("Ta bort uthyrningen? Det går inte att ångra.")) remove.mutate(r.id); }}
                     style={{ background: "none", border: "none", color: "#B91C1C", fontSize: 13, cursor: "pointer", fontFamily: "inherit", padding: 0 }}
                   >
                     Ta bort
-                  </button>
+                  </button>}
                 </div>
               </div>
             );

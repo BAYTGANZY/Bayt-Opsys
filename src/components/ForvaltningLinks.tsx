@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { confirmDialog } from "@/components/ConfirmDialog";
+import {  } from "@/lib/permissions";
 
 const INK = "#0D2B1E";
 const GREEN = "#3D8A30";
@@ -45,7 +46,7 @@ export function ForvaltningLinks({ propertyId }: { propertyId: string }) {
   const { profile } = useAuth();
   const role = profile?.role;
   const isAdmin = role === "admin";
-  const allowed = isAdmin || role === "styrelse";
+  const allowed = isAdmin || role === "medarbetare" || role === "styrelse";
   const qc = useQueryClient();
 
   // Tabellen kommer från en handkörd migration. Saknas den ska sidan visa en tydlig notis,

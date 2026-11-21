@@ -22,7 +22,7 @@ import { DerivedPriorityField } from "@/components/DerivedPriorityField";
 import { deriveProjectStatus, derivePriorityFromStatus } from "@/lib/issue-tokens";
 import { gateEntreprenorEmail, notifyEntreprenorAboutArende } from "@/lib/entreprenor-notify";
 import { useRecordScopeGuard } from "@/hooks/useRecordScopeGuard";
-import { isEntreprenor, isStyrelse } from "@/lib/permissions";
+import { isEntreprenor, isStyrelse, isStaff } from "@/lib/permissions";
 import { sanitizeStorageName, useSignedFileUrls, storagePathFromPublicUrl } from "@/lib/storage";
 
 export const Route = createFileRoute("/_authenticated/projects/$id")({
@@ -202,7 +202,7 @@ export function ProjectDetailPage({ idOverride }: { idOverride?: string } = {}) 
     mutationFn: async () => {
       const previousContactId = projectQ.data?.assigned_contact_id ?? null;
       const notifyContactId =
-        profile?.role === "admin" && assignedContactId && assignedContactId !== previousContactId
+        isStaff(profile?.role) && assignedContactId && assignedContactId !== previousContactId
           ? assignedContactId
           : null;
       let gateEmail: string | null = null;

@@ -23,7 +23,7 @@ import { ObjectInfoCard } from "@/components/ObjectInfoCard";
 import { DeleteButton } from "@/components/DeleteButton";
 import { ContractorBox } from "@/components/ContractorBox";
 import { EntreprenorView } from "@/components/EntreprenorView";
-import { isEntreprenor } from "@/lib/permissions";
+import { isEntreprenor, isStaff } from "@/lib/permissions";
 import { useRecordScopeGuard } from "@/hooks/useRecordScopeGuard";
 
 export const Route = createFileRoute("/_authenticated/issues/$id")({
@@ -283,7 +283,7 @@ export function IssueDetailPage({ idOverride }: { idOverride?: string } = {}) {
 
       const previousContactId = issueQ.data.assigned_contact_id ?? null;
       const notifyContactId =
-        profile?.role === "admin" && assignedContactId && assignedContactId !== previousContactId
+        isStaff(profile?.role) && assignedContactId && assignedContactId !== previousContactId
           ? assignedContactId
           : null;
       let gateEmail: string | null = null;

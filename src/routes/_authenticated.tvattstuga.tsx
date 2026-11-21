@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useVisibleProperties } from "@/hooks/useVisibleProperties";
 import { confirmDialog } from "@/components/ConfirmDialog";
+import { isStaff } from "@/lib/permissions";
 
 /**
  * Förfrågningar om kod till tvättstugan (Bokatvättid) från /tvattstuga-kod (edge-funktionen submit-tvattstuga).
@@ -96,7 +97,7 @@ function TvattstugaPage() {
   const isMobile = useIsMobile();
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin";
-  const canUse = isAdmin || profile?.role === "styrelse";
+  const canUse = isStaff(profile?.role) || profile?.role === "styrelse";
   const { allowedIds } = useVisibleProperties();
   const qc = useQueryClient();
   const [propertyId, setPropertyId] = useState("");

@@ -2,6 +2,9 @@
  * Role → allowed top-level routes.
  *
  *  - admin: everything.
+ *  - medarbetare (anställd): sees and edits everything admin does, in all buildings,
+ *    but never deletes, has no ekonomi and no user management (MEDARBETARE_DENIED).
+ *    The matching DB policies are additive and have no DELETE (medarbetare-roll.sql).
  *  - styrelse: read-only on their own buildings (see STYRELSE_ROUTES).
  *  - entreprenor: only what relates to errands assigned to them.
  *
@@ -20,7 +23,7 @@
  * entreprenörer that admin has granted access per plan (maintenance_plan_access).
  * The real filtering is done by the maintenance_* RLS policies.
  */
-export type Role = "admin" | "styrelse" | "entreprenor";
+export type Role = "admin" | "medarbetare" | "styrelse" | "entreprenor";
 
 // NOTE: `/properties` must be included wherever `/fastigheter` is — the building
 // cards link into `/properties/$id/<section>` for every per-building sub-page.
@@ -73,6 +76,7 @@ export const PROPERTY_SECTIONS_FOR_ROLE: Record<string, ReadonlyArray<string>> =
 /** Where each role lands when it hits something it may not open. */
 export const HOME_FOR_ROLE: Record<string, string> = {
   admin: "/styrelse",
+  medarbetare: "/styrelse",
   styrelse: "/styrelse",
   entreprenor: "/mina-uppdrag",
 };
@@ -81,8 +85,26 @@ export function homeForRole(role: string | null | undefined): string {
   return (role && HOME_FOR_ROLE[role]) || "/dashboard";
 }
 
+/** Pages a medarbetare never opens: money, user management, admin-only tools. */
+const MEDARBETARE_DENIED = [
+  "/ekonomi",
+  "/ekonomi-oversikt",
+  "/ekonomi-budget",
+  "/entreprenorer",
+  "/hemsidechatt",
+  "/properties/new",
+  "/fastigheter/new",
+];
+
 export function canAccess(role: string | null | undefined, to: string): boolean {
   if (role === "admin") return true;
+
+  if (role === "medarbetare") {
+    if (MEDARBETARE_DENIED.some((d) => to === d || to.startsWith(d + "/"))) return false;
+    // Building ekonomi tab: "/properties/<id>/ekonomi".
+    if (/^\/properties\/[^/]+\/ekonomi(\/|$)/.test(to)) return false;
+    return true;
+  }
 
   // Creation is admin-only.
   if (/(^|\/)new$/.test(to)) return false;
@@ -98,8 +120,18 @@ export function canAccess(role: string | null | undefined, to: string): boolean 
   return allowed.some((r) => to === r || to.startsWith(r + "/"));
 }
 
-/** True when the role may create/edit/delete. Styrelse is read-only by spec. */
+/** Staff = the people who run the platform: admin and medarbetare. */
+export function isStaff(role: string | null | undefined): boolean {
+  return role === "admin" || role === "medarbetare";
+}
+
+/** True when the role may create/edit. Styrelse is read-only by spec. */
 export function canEdit(role: string | null | undefined): boolean {
+  return isStaff(role);
+}
+
+/** Only admin deletes — a medarbetare can change things but never erase them. */
+export function canDelete(role: string | null | undefined): boolean {
   return role === "admin";
 }
 

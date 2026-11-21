@@ -4,6 +4,7 @@ import { Plus, X, Upload, Trash2, TrendingUp, AlertTriangle, Flame, ChevronLeft,
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { isStaff } from "@/lib/permissions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { sanitizeStorageName } from "@/lib/storage";
 import { COLORS, labelStyle, inputStyle, textareaStyle, primaryBtn } from "@/components/property-tabs";
@@ -986,7 +987,7 @@ function ActionModal({
   const qc = useQueryClient();
   const { user, profile } = useAuth();
   const isAdmin = profile?.role === "admin";
-  const canWrite = isAdmin || profile?.role === "styrelse";
+  const canWrite = isStaff(profile?.role) || profile?.role === "styrelse";
   const [tab, setTab] = useState<ModalTab>("detaljer");
   const [f, setF] = useState({
     name: action?.name ?? "",

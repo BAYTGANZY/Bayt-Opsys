@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { isStaff } from "@/lib/permissions";
 import { useMyContactIds } from "@/hooks/useMyContactId";
 
 /**
@@ -64,7 +65,7 @@ export function useVisibleProperties() {
     },
   });
 
-  if (role === "admin") return { allowedIds: null as Set<string> | null, isLoading: false };
+  if (isStaff(role)) return { allowedIds: null as Set<string> | null, isLoading: false };
 
   if (isStyrelse) {
     return { allowedIds: styrelseQ.data ?? new Set<string>(), isLoading: styrelseQ.isLoading };

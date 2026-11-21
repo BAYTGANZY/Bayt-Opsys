@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { isStaff } from "@/lib/permissions";
 
 export type LaundryNotification = {
   id: string;
@@ -29,7 +30,7 @@ export function useLaundryNotifications(): LaundryNotification[] {
   const { user, profile } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const enabled = !!user?.id && (profile?.role === "admin" || profile?.role === "styrelse");
+  const enabled = !!user?.id && (isStaff(profile?.role) || profile?.role === "styrelse");
   const known = useRef<Map<string, string> | null>(null);
 
   const q = useQuery({
