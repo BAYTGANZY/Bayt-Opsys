@@ -375,3 +375,10 @@ Klientkrav: ett lugnt formulär som länkas från RTB:s hemsida, så att medlemm
 - **Styrelsens sida `/synpunkter`** (`STYRELSE_ROUTES`): filter Nya/Alla/Besvarade + typ, sök, "Svara" (öppnar ett mejl från personens egen e-post — plattformen skickar inget svar), markera läst/besvarad/ny, intern anteckning, Exportera (CSV), "Kopiera länk till formuläret". Alla skrivningar `.select("id")` + kast vid noll rader.
 - **Klockan:** `useFeedbackNotifications` visar `status = 'ny'`; raden försvinner när den markeras läst. Realtime kräver att tabellen ligger i publikationen (SQL:en försöker lägga dit den); annars tar 60 s-intervallet över.
 - `verify_jwt = true` i `config.toml`. Deploy: `submit-synpunkt`.
+
+## Nabo-import — medlemslista → lägenheter (2026-11-22)
+Admin-knapp "Importera medlemmar från Nabo" överst i fastighetens Lägenheter-flik (`NaboImport.tsx`, ren logik i `src/lib/nabo-import.ts`). Klientkrav: komplettera, aldrig förlora det som lagts in för hand.
+- **Matchning på numret i `apartments.status`** ("Bostadsrätt nr 1051"), inte på folkbokföringens lgh-nummer — Nabos "Beteckning" bär det andra numret. Status utan "nr 1234" kan inte matchas och rörs inte; samma nummer på flera lägenheter hoppas över.
+- **Regler (`planNaboImport`):** samma ägare → namnstavning, medägare och inflyttningsdatum fylls i, telefon/e-post rörs aldrig. Ny ägare (ingen i plattformens namn finns i Nabo) → namn, datum ersätts och telefon, e-post, utflytt töms. Delvis överlapp → namn uppdateras, kontaktuppgifter behålls, raden är avkryssad som standard. Inget raderas för att Nabo saknar det. Nabo har varken telefon eller e-post.
+- Förhandsgranskning först (från → till, flaggor), kryssa per rad, bekräftelse, skrivning med `.select("id")` som kastar vid noll rader. Ändringarna hamnar i Historik via `audit_log_changes`. Inget skapas för bostäder som bara finns i Nabo.
+- Folkbokföringsadressen sparas inte (ingen kolumn). Filen läses som UTF-8, med Windows-1252 som reserv.

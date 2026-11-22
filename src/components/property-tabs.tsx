@@ -17,6 +17,7 @@ import {
   TRAPPA_PLACEHOLDER,
 } from "@/lib/apartment-tokens";
 import { EditableSelect } from "@/components/EditableSelect";
+import { NaboImport } from "@/components/NaboImport";
 import { canEdit } from "@/lib/permissions";
 import { useMyAssignedApartmentIds } from "@/hooks/useMyAssignedApartmentIds";
 import {
@@ -500,6 +501,7 @@ export function ApartmentsTab({ propertyId }: { propertyId: string }) {
         actionLabel="Ny lägenhet"
         onAction={() => setShowForm((v) => !v)}
       />
+      {profile?.role === "admin" && <NaboImport propertyId={propertyId} />}
       {/* SectionHeaderRow already hides the "Ny lägenhet" button for non-admins,
           so showForm can't normally be set — but the create form must not exist
           for a read-only role even if some future path flips that flag. */}
