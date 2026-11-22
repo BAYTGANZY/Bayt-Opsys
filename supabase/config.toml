@@ -53,3 +53,8 @@ verify_jwt = true
 # förfrågan, rollen och föreningen kontrolleras inuti funktionen för utskicket.
 [functions.submit-tvattstuga]
 verify_jwt = true
+
+# Publik insamling av synpunkter/klagomål från medlemmar (/lamna-synpunkt). Anon-nyckeln räcker; allt skrivs
+# med service role inuti funktionen.
+[functions.submit-synpunkt]
+verify_jwt = true

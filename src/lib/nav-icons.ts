@@ -55,3 +55,5 @@ export const ENTREPRENOR_NAV_ICON: NavIcon = icon("M4 18h16", "M5.5 18v-2a6.5 6.
 export const KONTAKT_NAV_ICON: NavIcon = icon("M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", "M4.5 20c0-3.3 3.4-6 7.5-6s7.5 2.7 7.5 6");
 
 /** Mapp med bock: Ekonomisk förvaltning. */
+
+export const SYNPUNKTER_NAV_ICON: NavIcon = icon("M5 4.5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-7l-4.5 4v-4H5a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z", "M8 8.5h8M8 11.5h5");
