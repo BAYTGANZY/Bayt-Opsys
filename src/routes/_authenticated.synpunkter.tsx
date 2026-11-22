@@ -27,7 +27,7 @@ const GOLD = "#E8C464";
 const GOLD_SOFT = "rgba(232,196,100,0.16)";
 
 type Status = "ny" | "last" | "besvarad";
-type Category = "synpunkt" | "fraga" | "klagomal";
+type Category = "synpunkt" | "ide" | "fraga" | "klagomal";
 type Item = {
   id: string;
   reference: string;
@@ -51,10 +51,11 @@ const STATUS_STYLE: Record<Status, { bg: string; fg: string }> = {
   last: { bg: "#F3F4F6", fg: "#374151" },
   besvarad: { bg: "#DCFCE7", fg: "#166534" },
 };
-const CATEGORY_LABEL: Record<Category, string> = { synpunkt: "Synpunkt", fraga: "Fråga", klagomal: "Klagomål" };
+const CATEGORY_LABEL: Record<Category, string> = { synpunkt: "Synpunkt", fraga: "Fråga", ide: "Idé", klagomal: "Klagomål" };
 const CATEGORY_STYLE: Record<Category, { bg: string; fg: string }> = {
   synpunkt: { bg: "#E8EEF9", fg: "#2F4F8F" },
   fraga: { bg: "#F3E8FF", fg: "#6B21A8" },
+  ide: { bg: "#E3F4EA", fg: "#1F6B3A" },
   klagomal: { bg: "#FDE7E2", fg: "#B03A22" },
 };
 
@@ -194,7 +195,7 @@ function SynpunkterPage() {
             <span style={{ display: "inline-block", fontSize: 11, fontWeight: 800, letterSpacing: "0.16em", color: INK, background: GOLD, borderRadius: 999, padding: "3px 10px", marginBottom: 8 }}>MEDLEMMAR</span>
             <h1 style={{ fontFamily: "Outfit, Inter, system-ui, sans-serif", fontSize: 28, fontWeight: 800, color: "#fff", margin: 0 }}>Synpunkter</h1>
             <div style={{ fontSize: 14, color: "#c9d8c3", marginTop: 6, maxWidth: 640, lineHeight: 1.6 }}>
-              Synpunkter, frågor och klagomål från medlemmar om avgiftshöjningen. {propertyName}
+              Synpunkter, frågor och klagomål från medlemmar. {propertyName}
             </div>
           </div>
           <select className="sy-input" style={{ maxWidth: 280 }} value={activeProperty} onChange={(e) => setPropertyId(e.target.value)} aria-label="Förening">
@@ -234,6 +235,7 @@ function SynpunkterPage() {
             <option value="alla">Alla typer</option>
             <option value="klagomal">Klagomål</option>
             <option value="synpunkt">Synpunkter</option>
+            <option value="ide">Idéer</option>
             <option value="fraga">Frågor</option>
           </select>
         </div>

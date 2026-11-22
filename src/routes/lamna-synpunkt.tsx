@@ -6,7 +6,7 @@ import { LOGO_ON_DARK } from "@/lib/logo";
 import { normalizeApartmentNumber, normalizeTrappa, TRAPPA_PLACEHOLDER } from "@/lib/apartment-tokens";
 
 /**
- * Publik sida för synpunkter, frågor och klagomål från medlemmar (nu: avgiftshöjningen) — ingen inloggning.
+ * Publik sida för synpunkter, frågor och klagomål från medlemmar — ingen inloggning.
  * Länkas från föreningens hemsida:
  *   /lamna-synpunkt?forening=<fastighetens id>   (föreningen är då förvald; finns bara en förening väljs den själv)
  * Allt skrivs av edge-funktionen submit-synpunkt (service role); sidan läser bara `public_properties`,
@@ -18,15 +18,16 @@ export const Route = createFileRoute("/lamna-synpunkt")({
   component: LamnaSynpunktPage,
 });
 
-// Texterna på sidan. Ändra här när det gäller något annat än avgiftshöjningen (och TOPIC i submit-synpunkt).
-const PAGE_TITLE = "Synpunkter på avgiftshöjningen";
+// Texterna på sidan. Allmänna: allt boende vill kommentera.
+const PAGE_TITLE = "Lämna synpunkter och idéer";
 const PAGE_INTRO =
-  "Har du synpunkter, frågor eller klagomål om avgiftshöjningen? Skriv dem här. Styrelsen läser alla meddelanden. Du får ett bekräftelsemejl när vi har tagit emot ditt meddelande.";
+  "Har du en synpunkt, en idé, en fråga eller ett klagomål? Skriv det här, om avgiftshöjningen eller något annat som rör föreningen. Styrelsen läser alla meddelanden. Du får ett bekräftelsemejl när vi har tagit emot ditt meddelande.";
 const PAGE_NOTE = "Vi tar emot synpunkter skriftligt här, så att inget går förlorat. Du behöver inte ringa.";
 
-type Category = "synpunkt" | "fraga" | "klagomal";
+type Category = "synpunkt" | "ide" | "fraga" | "klagomal";
 const CATEGORIES: Array<{ key: Category; label: string }> = [
   { key: "synpunkt", label: "Synpunkt" },
+  { key: "ide", label: "Idé" },
   { key: "fraga", label: "Fråga" },
   { key: "klagomal", label: "Klagomål" },
 ];

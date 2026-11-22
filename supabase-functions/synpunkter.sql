@@ -1,4 +1,4 @@
--- Synpunkter och klagomål från medlemmar (t.ex. om avgiftshöjningen)
+-- Synpunkter och klagomål från medlemmar (allt boende vill kommentera: synpunkter, idéer, frågor, klagomål)
 -- ---------------------------------------------------------------------------
 -- Körs EN gång för hand i Supabase → SQL Editor. Säker att köra om.
 -- Kräver is_admin(), is_styrelse() och my_property_ids() (finns sedan tidigare).
@@ -19,8 +19,8 @@ create table if not exists public.member_feedback (
   reference        text not null unique
                    default ('SY-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('public.member_feedback_seq')::text, 4, '0')),
   property_id      uuid not null references public.properties(id) on delete cascade,
-  topic            text not null default 'avgiftshojning',
-  category         text not null default 'synpunkt' check (category in ('synpunkt', 'fraga', 'klagomal')),
+  topic            text not null default 'allmant',
+  category         text not null default 'synpunkt' check (category in ('synpunkt', 'ide', 'fraga', 'klagomal')),
   apartment_number text not null,
   trappa           text not null,
   name             text not null,

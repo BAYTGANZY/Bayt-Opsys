@@ -1,4 +1,4 @@
-// submit-synpunkt — publik insamling av synpunkter, frågor och klagomål från medlemmar (t.ex. om avgiftshöjningen)
+// submit-synpunkt — publik insamling av synpunkter, frågor och klagomål från medlemmar (allt boende vill kommentera: synpunkter, idéer, frågor, klagomål)
 //
 // Se CLAUDE.md, avsnittet "Synpunkter från medlemmar".
 
@@ -233,10 +233,9 @@ async function staffRecipients(db: Db, propertyId: string): Promise<string[]> {
 
 
 // Ämnet för det här formuläret. Byt här (och i src/routes/lamna-synpunkt.tsx) när det gäller något annat.
-const TOPIC = "avgiftshojning";
-const TOPIC_LABEL = "avgiftshöjningen";
+const TOPIC = "allmant";
 
-const CATEGORY_LABEL: Record<string, string> = { synpunkt: "Synpunkt", fraga: "Fråga", klagomal: "Klagomål" };
+const CATEGORY_LABEL: Record<string, string> = { synpunkt: "Synpunkt", fraga: "Fråga", ide: "Idé", klagomal: "Klagomål" };
 
 const MAX_MESSAGE = 5000;
 
@@ -293,7 +292,7 @@ Deno.serve(async (req) => {
       {
         to: email,
         subject: `Vi har tagit emot ditt meddelande (${row.reference})`,
-        intro: `Hej ${name}! Tack för att du hör av dig. Styrelsen i ${property.name} har tagit emot dina synpunkter om ${TOPIC_LABEL} och läser alla meddelanden. Du behöver inte göra något mer, och du behöver inte ringa.`,
+        intro: `Hej ${name}! Tack för att du hör av dig. Styrelsen i ${property.name} har tagit emot ditt meddelande och läser alla meddelanden. Du behöver inte göra något mer, och du behöver inte ringa.`,
         rows: [["Lägenhet", `${apartmentNumber}, trappa ${trappa}`], ["Gäller", CATEGORY_LABEL[category]], ["Referens", String(row.reference)]],
         note: { label: "Ditt meddelande", text: message },
         outro: "Om styrelsen behöver fråga något mer hör de av sig till den här e-postadressen. Det här är ett automatiskt bekräftelsemejl.",
@@ -305,8 +304,8 @@ Deno.serve(async (req) => {
     if (staff.length > 0) {
       mails.push({
         to: staff,
-        subject: `Ny ${CATEGORY_LABEL[category].toLowerCase()} om ${TOPIC_LABEL}: lgh ${apartmentNumber} — ${property.name}`,
-        intro: `${name} har lämnat ${CATEGORY_LABEL[category] === "Fråga" ? "en fråga" : CATEGORY_LABEL[category] === "Klagomål" ? "ett klagomål" : "en synpunkt"} om ${TOPIC_LABEL}. Tryck Svara i det här mejlet för att svara direkt till medlemmen.`,
+        subject: `Nytt meddelande (${CATEGORY_LABEL[category].toLowerCase()}): lgh ${apartmentNumber} — ${property.name}`,
+        intro: `${name} har lämnat ${CATEGORY_LABEL[category] === "Fråga" ? "en fråga" : CATEGORY_LABEL[category] === "Klagomål" ? "ett klagomål" : CATEGORY_LABEL[category] === "Idé" ? "en idé" : "en synpunkt"}. Tryck Svara i det här mejlet för att svara direkt till medlemmen.`,
         rows: [
           ["Namn", name], ["E-post", email], ["Lägenhet", `${apartmentNumber}, trappa ${trappa}`],
           ["Gäller", CATEGORY_LABEL[category]], ["Referens", String(row.reference)],
