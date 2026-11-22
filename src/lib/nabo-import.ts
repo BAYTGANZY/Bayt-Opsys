@@ -29,6 +29,7 @@ export type AptRow = {
   tenant_name: string | null;
   tenant_phone: string | null;
   tenant_email: string | null;
+  member_address?: string | null; // finns bara om member-address.sql körts
   move_in_date: string | null;
   move_out_date: string | null;
 };
@@ -250,6 +251,12 @@ export function planNaboImport(apts: AptRow[], units: Map<string, NaboUnit>): Pl
       pushChange(changes, patch, "move_in_date", "Inflyttning", orNull(apt.move_in_date), date);
     } else if (date) {
       pushChange(changes, patch, "move_in_date", "Inflyttning", orNull(apt.move_in_date), date);
+    }
+
+    // Medlemmens adress ur Nabo läggs i ett eget fält. Bostadens egen adress och allt annat som lagts in rörs aldrig,
+    // och en tom adress i Nabo tar inte bort en befintlig. Fältet hoppas över om kolumnen inte finns än.
+    if ("member_address" in apt && unit.address) {
+      pushChange(changes, patch, "member_address", "Medlemmens adress", orNull(apt.member_address), unit.address);
     }
 
     if (changes.length === 0) { unchanged++; continue; }

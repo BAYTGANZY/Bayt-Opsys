@@ -61,7 +61,7 @@ export function NaboImport({ propertyId }: { propertyId: string }) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("apartments")
-        .select("id, apartment_number, trappa, status, tenant_name, tenant_phone, tenant_email, move_in_date, move_out_date")
+        .select("*") // * med flit: member_address kommer från en handkörd migration
         .eq("property_id", propertyId);
       if (error) throw error;
       return (data ?? []) as AptRow[];
