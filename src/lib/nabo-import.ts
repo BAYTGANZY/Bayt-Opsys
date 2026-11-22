@@ -161,9 +161,33 @@ export function splitPersons(s: string | null | undefined): string[] {
 
 const tokens = (s: string) => fold(s).split(/[^a-z0-9]+/).filter(Boolean);
 
+/** Redigeringsavstånd (Levenshtein), för stavfel som "Bothman" / "Bothmann". */
+function editDistance(a: string, b: string): number {
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let diag = prev[0];
+    prev[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = prev[j];
+      prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diag + (a[i - 1] === b[j - 1] ? 0 : 1));
+      diag = tmp;
+    }
+  }
+  return prev[b.length];
+}
+
+/** Samma ord, eller ett litet stavfel (ett tecken på ord ≥ 4 tecken, två på ord ≥ 8). Initialer måste vara lika. */
+function sameToken(a: string, b: string): boolean {
+  if (a === b) return true;
+  const n = Math.min(a.length, b.length);
+  if (n < 4) return false;
+  return editDistance(a, b) <= (n >= 8 ? 2 : 1);
+}
+
 /**
  * Samma person? Alla ord i det kortare namnet ska finnas i det längre ("Charles Kelly" = "Charles Kelly
- * Ifeanyichukwu", "Gulcan Celikli" = "Gülcan Çelikli"). Minst två ord, annars räcker inte ett förnamn.
+ * Ifeanyichukwu", "Gulcan Celikli" = "Gülcan Çelikli"), med tolerans för enstaka stavfel ("Jan Bothman" =
+ * "Jan Bothmann"). Minst två ord, annars räcker inte ett förnamn.
  */
 export function samePerson(a: string, b: string): boolean {
   const ta = tokens(a);
@@ -171,7 +195,13 @@ export function samePerson(a: string, b: string): boolean {
   if (ta.length === 0 || tb.length === 0) return false;
   const [short, long] = ta.length <= tb.length ? [ta, tb] : [tb, ta];
   if (short.length < 2) return short.join(" ") === long.join(" ");
-  return short.every((t) => long.includes(t));
+  return short.every((t) => long.some((l) => sameToken(t, l)));
+}
+
+/** Delar två namn något riktigt ord (≥ 3 tecken)? Då är det inte säkert en ny person, och inget får tömmas automatiskt. */
+export function shareNameWord(a: string, b: string): boolean {
+  const tb = tokens(b).filter((t) => t.length >= 3);
+  return tokens(a).filter((t) => t.length >= 3).some((t) => tb.some((l) => sameToken(t, l)));
 }
 
 const orNull = (s: string | null | undefined) => (s && s.trim() ? s.trim() : null);
@@ -219,7 +249,12 @@ export function planNaboImport(apts: AptRow[], units: Map<string, NaboUnit>): Pl
     if (platPersons.length === 0) kind = "ny_uppgift";
     else {
       const matchedPlat = platPersons.filter((p) => naboPersons.some((n) => samePerson(p, n)));
-      if (matchedPlat.length === 0) kind = "ny_agare";
+      // Helt ny ägare kräver att inget namn alls liknar något i Nabo. Delar de ett ord (t.ex. efternamn) är det oklart,
+      // och då töms ingen telefon eller e-post — raden hamnar under "Kontrollera själv".
+      if (matchedPlat.length === 0) {
+        const overlap = platPersons.some((p) => naboPersons.some((n) => shareNameWord(p, n)));
+        kind = overlap ? "delvis" : "ny_agare";
+      }
       else if (matchedPlat.length === platPersons.length) kind = "samma";
       else kind = "delvis";
     }
