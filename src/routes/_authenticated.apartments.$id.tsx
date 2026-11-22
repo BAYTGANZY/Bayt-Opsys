@@ -131,6 +131,7 @@ type Apartment = {
   tenant_name: string | null;
   tenant_phone: string | null;
   tenant_email: string | null;
+  member_address?: string | null; // medlemmens adress (från Nabo) — kolumnen kommer från en handkörd migration
   move_in_date: string | null;
   move_out_date: string | null;
   notes: string | null;
@@ -485,6 +486,7 @@ function InfoTab({ apt, isMobile }: { apt: Apartment; isMobile: boolean }) {
   const [tenantName, setTenantName] = useState(apt.tenant_name ?? "");
   const [tenantPhone, setTenantPhone] = useState(apt.tenant_phone ?? "");
   const [tenantEmail, setTenantEmail] = useState(apt.tenant_email ?? "");
+  const [memberAddress, setMemberAddress] = useState(apt.member_address ?? "");
   const [moveInDate, setMoveInDate] = useState(apt.move_in_date ?? "");
   const [moveOutDate, setMoveOutDate] = useState(apt.move_out_date ?? "");
   const [notes, setNotes] = useState(apt.notes ?? "");
@@ -499,6 +501,7 @@ function InfoTab({ apt, isMobile }: { apt: Apartment; isMobile: boolean }) {
     setTenantName(apt.tenant_name ?? "");
     setTenantPhone(apt.tenant_phone ?? "");
     setTenantEmail(apt.tenant_email ?? "");
+    setMemberAddress(apt.member_address ?? "");
     setMoveInDate(apt.move_in_date ?? "");
     setMoveOutDate(apt.move_out_date ?? "");
     setNotes(apt.notes ?? "");
@@ -519,6 +522,8 @@ function InfoTab({ apt, isMobile }: { apt: Apartment; isMobile: boolean }) {
       tenant_name: tenantName.trim() || null,
       tenant_phone: tenantPhone.trim() || null,
       tenant_email: tenantEmail.trim() || null,
+      // Bara om kolumnen finns, annars 400:ar hela sparningen innan SQL:en körts.
+      ...("member_address" in apt ? { member_address: memberAddress.trim() || null } : {}),
       move_in_date: moveInDate || null,
       move_out_date: moveOutDate || null,
       notes: notes.trim() || null,
@@ -624,6 +629,9 @@ function InfoTab({ apt, isMobile }: { apt: Apartment; isMobile: boolean }) {
         <div><label style={labelStyle}>Telefon</label><input style={inputStyle} value={tenantPhone} onChange={(e) => setTenantPhone(e.target.value)} /></div>
         <div><label style={labelStyle}>E-post</label><input type="email" style={inputStyle} value={tenantEmail} onChange={(e) => setTenantEmail(e.target.value)} /></div>
       </div>
+      {"member_address" in apt && (
+        <div><label style={labelStyle}>Medlemmens adress</label><input style={inputStyle} value={memberAddress} onChange={(e) => setMemberAddress(e.target.value)} /></div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
         <div><label style={labelStyle}>Inflytt</label><input type="date" style={inputStyle} value={moveInDate} onChange={(e) => setMoveInDate(e.target.value)} /></div>
         <div><label style={labelStyle}>Utflytt</label><input type="date" style={inputStyle} value={moveOutDate} onChange={(e) => setMoveOutDate(e.target.value)} /></div>

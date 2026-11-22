@@ -99,6 +99,7 @@ export const FIELD_LABEL: Record<string, string> = {
   tenant_name: "Hyresgäst",
   tenant_phone: "Telefon",
   tenant_email: "E-post",
+  member_address: "Medlemmens adress",
   move_in_date: "Inflytt",
   move_out_date: "Utflytt",
   notes: "Anteckningar",
