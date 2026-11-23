@@ -120,6 +120,32 @@ function SynpunkterPage() {
   const all = q.data ?? [];
   const missingTable = !!q.error && /does not exist|relation|schema cache/i.test((q.error as Error).message);
 
+  // Föreningens svarsadress (property_letterhead.email). Svar skickas från plattformen med den som Reply-To.
+  const replyQ = useQuery({
+    queryKey: ["synpunkt-reply-address", activeProperty],
+    enabled: canUse && !!activeProperty,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("property_letterhead").select("email").eq("property_id", activeProperty).maybeSingle();
+      if (error) return { email: "", missing: /does not exist|relation|schema cache/i.test(error.message) };
+      return { email: String((data as { email?: string | null } | null)?.email ?? ""), missing: false };
+    },
+  });
+  const replyEmail = replyQ.data?.email ?? "";
+  const [addrDraft, setAddrDraft] = useState<string | null>(null);
+  const saveAddr = useMutation({
+    mutationFn: async (email: string) => {
+      const { data, error } = await supabase.from("property_letterhead").upsert({ property_id: activeProperty, email, updated_at: new Date().toISOString() }, { onConflict: "property_id" }).select("property_id");
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Adressen sparades inte. Du saknar behörighet för den här föreningen.");
+    },
+    onSuccess: () => {
+      setAddrDraft(null);
+      void qc.invalidateQueries({ queryKey: ["synpunkt-reply-address"] });
+      toast.success("Svarsadressen är sparad");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ["member-feedback"] });
     void qc.invalidateQueries({ queryKey: ["feedback-notifications"] });
@@ -252,9 +278,35 @@ function SynpunkterPage() {
           {all.length === 0 ? "Inga meddelanden har kommit in ännu." : filter === "ny" ? "Inga nya meddelanden. Allt är läst." : "Inget matchar valet."}
         </div>
       )}
+      <div style={{ background: "#fff", border: `1px solid ${replyEmail ? LINE : "#EBCB8A"}`, borderRadius: 14, padding: "12px 16px", display: "grid", gap: 8 }}>
+        <div style={{ fontSize: 13.5, color: MUTED, lineHeight: 1.55 }}>
+          <strong style={{ color: INK }}>Svarsadress för {propertyName}.</strong> Svar till medlemmar skickas från plattformen med föreningens namn, och medlemmens svar går till den här adressen.
+        </div>
+        {replyQ.data?.missing && <div style={{ fontSize: 13.5, color: "#B42318" }}>Tabellen för föreningens uppgifter saknas. Kör <code>andrahand-brevhuvud.sql</code> i Supabase först.</div>}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            className="sy-input"
+            style={{ flex: "1 1 260px", maxWidth: 380 }}
+            type="email"
+            inputMode="email"
+            value={addrDraft ?? replyEmail}
+            onChange={(e) => setAddrDraft(e.target.value)}
+            placeholder="info@forening.se"
+            aria-label="Svarsadress"
+          />
+          <button
+            type="button"
+            className="sy-btn sy-primary"
+            disabled={saveAddr.isPending || addrDraft === null || addrDraft.trim() === replyEmail || !/^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/.test(addrDraft.trim())}
+            onClick={() => saveAddr.mutate((addrDraft ?? "").trim().toLowerCase())}
+          >
+            Spara adress
+          </button>
+        </div>
+      </div>
       <div style={{ display: "grid", gap: 10 }}>
         {shown.map((r) => (
-          <FeedbackCard key={r.id} r={r} isAdmin={isAdmin} update={update} remove={remove} profileName={profile?.full_name ?? null} propertyName={propertyName} />
+          <FeedbackCard key={r.id} r={r} isAdmin={isAdmin} update={update} remove={remove} profileName={profile?.full_name ?? null} propertyName={propertyName} replyEmail={replyEmail} onSent={refresh} />
         ))}
       </div>
 
@@ -272,9 +324,44 @@ type CardProps = {
   remove: { mutate: (id: string) => void; isPending: boolean };
   profileName: string | null;
   propertyName: string;
+  replyEmail: string;
+  onSent: () => void;
 };
 
-function FeedbackCard({ r, isAdmin, update, remove, profileName, propertyName }: CardProps) {
+/** Läser det svenska felmeddelandet ur ett icke-2xx-svar från edge-funktionen. */
+async function functionError(error: unknown): Promise<string> {
+  try {
+    const res = (error as { context?: Response })?.context;
+    const body = res && typeof res.json === "function" ? await res.json() : null;
+    if (body?.error) return String(body.error);
+  } catch { /* faller tillbaka nedan */ }
+  return "Svaret kunde inte skickas. Försök igen om en stund.";
+}
+
+function FeedbackCard({ r, isAdmin, update, remove, profileName, propertyName, replyEmail, onSent }: CardProps) {
+  const [replying, setReplying] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const startReply = () => {
+    setDraft((d) => d || `Hej ${r.name},\n\n\n\nVänliga hälsningar,\nStyrelsen i ${propertyName}`);
+    setReplying(true);
+  };
+  const sendReply = async () => {
+    setSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("submit-synpunkt", { body: { action: "reply", id: r.id, message: draft } });
+      if (error || !data?.success) {
+        toast.error(error ? await functionError(error) : String(data?.error ?? "Svaret kunde inte skickas."));
+        return;
+      }
+      toast.success(`Svaret skickades till ${r.email}`);
+      setReplying(false);
+      setDraft("");
+      onSent();
+    } finally {
+      setSending(false);
+    }
+  };
   const [note, setNote] = useState(r.staff_note ?? "");
   const [open, setOpen] = useState(r.status === "ny");
   const st = STATUS_STYLE[r.status];
@@ -282,7 +369,6 @@ function FeedbackCard({ r, isAdmin, update, remove, profileName, propertyName }:
   const isNew = r.status === "ny";
   const long = r.message.length > 280;
   const text = !open && long ? r.message.slice(0, 280).trimEnd() + "…" : r.message;
-  const replyHref = `mailto:${r.email}?subject=${encodeURIComponent(`Svar på ditt meddelande (${r.reference})`)}&body=${encodeURIComponent(`Hej ${r.name},\n\n\n\nVänliga hälsningar,\nStyrelsen i ${propertyName}`)}`;
 
   const del = async () => {
     if (await confirmDialog({ title: "Radera helt?", message: `Meddelandet från ${r.name} (${r.reference}) raderas för alltid. Det går inte att ångra.`, confirmLabel: "Radera", danger: true })) {
@@ -310,7 +396,7 @@ function FeedbackCard({ r, isAdmin, update, remove, profileName, propertyName }:
           </div>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <a className="sy-btn sy-primary" href={replyHref}>Svara</a>
+          <button type="button" className="sy-btn sy-primary" onClick={startReply}>Svara</button>
           {r.status !== "besvarad" && <button type="button" className="sy-btn" disabled={update.isPending} onClick={markAnswered}>Markera som besvarad</button>}
           {r.status === "ny" && <button type="button" className="sy-btn" disabled={update.isPending} onClick={() => update.mutate({ id: r.id, patch: { status: "last" } })}>Markera som läst</button>}
           {r.status !== "ny" && <button type="button" className="sy-btn" disabled={update.isPending} onClick={() => update.mutate({ id: r.id, patch: { status: "ny", handled_at: null, handled_by_name: null } })}>Markera som ny</button>}
@@ -326,6 +412,26 @@ function FeedbackCard({ r, isAdmin, update, remove, profileName, propertyName }:
           </button>
         )}
       </div>
+
+      {replying && (
+        <div style={{ border: `1px solid ${LINE}`, borderRadius: 10, padding: 12, display: "grid", gap: 8, background: "#FBFCFA" }}>
+          <div style={{ fontSize: 13.5, color: MUTED, lineHeight: 1.55 }}>
+            Till <strong style={{ color: INK }}>{r.email}</strong> från {propertyName}.{" "}
+            {replyEmail ? <>Medlemmens svar går till <strong style={{ color: INK }}>{replyEmail}</strong>.</> : <span style={{ color: "#B42318" }}>Lägg in föreningens svarsadress högst upp på sidan först.</span>}
+          </div>
+          <textarea
+            className="sy-input"
+            style={{ height: 180, padding: 10, resize: "vertical", fontFamily: "inherit", fontSize: 14.5, lineHeight: 1.55 }}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            aria-label={`Svar till ${r.name}`}
+          />
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" className="sy-btn sy-primary" disabled={sending || !replyEmail || draft.trim().length < 2} onClick={sendReply}>{sending ? "Skickar…" : "Skicka svar"}</button>
+            <button type="button" className="sy-btn" disabled={sending} onClick={() => setReplying(false)}>Avbryt</button>
+          </div>
+        </div>
+      )}
 
       {r.status === "besvarad" && r.handled_at && (
         <div style={{ fontSize: 13, color: "#166534" }}>
