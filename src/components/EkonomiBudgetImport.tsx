@@ -231,7 +231,8 @@ export function EkonomiBudgetImport({ propertyId, defaultYear }: { propertyId: s
         Läs in budgeten från en fil: SIE (om budgeten finns i bokföringen), Excel, CSV eller PDF. Du får se vad som hittades innan något sparas. Det som sparas
         ersätter hela årets budget för den här föreningen.
       </p>
-      <input ref={fileRef} type="file" accept=".se,.sie,.si,.xlsx,.xls,.csv,.pdf" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+      {/* Ingen accept med flit: iOS gråar ut filer med okänd ändelse (.se/.sie) om accept anges. Ändelsen kontrolleras i onFile. */}
+      <input ref={fileRef} type="file" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
       {stage === "idle" || stage === "reading" ? (
         <button type="button" style={btn(true, busy)} disabled={busy} onClick={() => fileRef.current?.click()}>
           {stage === "reading" ? "Läser filen …" : "Välj budgetfil"}

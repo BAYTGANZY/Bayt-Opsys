@@ -190,7 +190,7 @@ export function EkonomiOversiktImport({ propertyId, propertyName }: { propertyId
         Hämta en SIE-fil för räkenskapsåret från bokföringen (Nabo → Bokföring → SIE-export) och välj den här. Du får se vad som läses in innan något sparas.
         Bara summor per konto och månad sparas, inga verifikationer.
       </p>
-      <input ref={input} type="file" accept=".se,.sie,.txt" onChange={(e) => onPick(e.target.files?.[0])} style={{ fontSize: 16 }} />
+      <input ref={input} type="file" onChange={(e) => onPick(e.target.files?.[0])} style={{ fontSize: 16 }} />
       {error && <p style={{ color: HOT, lineHeight: 1.5, marginBottom: 0 }}>{error}</p>}
       {p && (
         <div style={{ marginTop: 16, background: "#F6F9F4", borderRadius: 10, padding: 16, lineHeight: 1.7 }}>
