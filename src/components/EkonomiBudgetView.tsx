@@ -192,6 +192,61 @@ function MonthBars({ series, label }: { series: Array<{ name: string; color: str
   );
 }
 
+/** De senaste årens hela utfall mot budget, två staplar per år. Bara avslutade år; äldst till vänster. */
+function YearBars({ rows, kind }: { rows: ReturnType<typeof yearSummaries>; kind: "in" | "ut" }) {
+  const data = [...rows].reverse();
+  const [pick, setPick] = useState<number | null>(null);
+  if (data.length === 0) return null;
+  const val = (r: (typeof data)[number]) => ({ a: kind === "ut" ? r.utActual : r.inActual, b: kind === "ut" ? r.utBudget : r.inBudget });
+  const W = 360;
+  const H = 230;
+  const T = 22;
+  const B = 34;
+  const max = Math.max(1, ...data.flatMap((r) => [val(r).a, val(r).b ?? 0]));
+  const gw = W / data.length;
+  const bw = Math.min(26, gw / 3);
+  const y = (v: number) => T + (1 - v / max) * (H - T - B);
+  return (
+    <div style={{ ...card, padding: "16px 18px" }}>
+      <div style={{ fontWeight: 600, fontSize: 20 }}>Budget mot utfall, senaste åren</div>
+      <p style={{ margin: "6px 0 10px", color: MUTED, fontSize: 14.5 }}>Hela året, {kind === "ut" ? "kostnader" : "intäkter"}. Tryck på ett år för siffrorna.</p>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: 640, display: "block" }} role="img" aria-label="Budget mot utfall per år">
+        <line x1={0} x2={W} y1={H - B} y2={H - B} stroke={LINE} />
+        {data.map((r, i) => {
+          const { a, b } = val(r);
+          const cx = gw * i + gw / 2;
+          const dim = pick !== null && pick !== i ? 0.35 : 1;
+          return (
+            <g key={r.year} opacity={dim} onClick={() => setPick(pick === i ? null : i)} style={{ cursor: "pointer" }}>
+              <rect x={gw * i} y={0} width={gw} height={H} fill="transparent" />
+              {b !== null && <rect x={cx - bw - 1} y={y(b)} width={bw} height={Math.max(0, H - B - y(b))} rx={3} fill="#BFCBC3" />}
+              <rect x={cx + 1} y={y(a)} width={bw} height={Math.max(0, H - B - y(a))} rx={3} fill={kind === "ut" ? GREEN : INK} />
+              <text x={cx} y={H - B + 18} textAnchor="middle" fontSize={13} fill={INK} fontWeight={600}>{r.year}</text>
+              {r.months < 12 && <text x={cx} y={H - B + 31} textAnchor="middle" fontSize={10} fill={MUTED}>{r.months} mån</text>}
+            </g>
+          );
+        })}
+      </svg>
+      <div style={{ display: "flex", gap: 16, fontSize: 14, color: MUTED, flexWrap: "wrap" }}>
+        <span><span style={{ display: "inline-block", width: 11, height: 11, borderRadius: 6, background: "#BFCBC3", marginRight: 6 }} />Budget</span>
+        <span><span style={{ display: "inline-block", width: 11, height: 11, borderRadius: 6, background: kind === "ut" ? GREEN : INK, marginRight: 6 }} />Utfall</span>
+      </div>
+      {pick !== null && (() => {
+        const r = data[pick];
+        const { a, b } = val(r);
+        return (
+          <div style={{ marginTop: 10, background: "#404040", color: "#fff", borderRadius: 10, padding: "10px 12px", fontSize: 14.5, lineHeight: 1.6 }}>
+            <strong>{r.year}</strong>
+            <div>Utfall {fmtKr(a)}</div>
+            <div>Budget {b === null ? "saknas" : fmtKr(b)}</div>
+            {b !== null && <div>Skillnad {diffText(a - b)}</div>}
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
 /** Tidigare års utfall mot budget, ett år per rad. */
 function HistoryTable({ rows, kind }: { rows: ReturnType<typeof yearSummaries>; kind: "in" | "ut" }) {
   if (rows.length === 0) return null;
@@ -618,7 +673,16 @@ export function EkonomiBudgetView({ propertyId }: { propertyId: string }) {
         </div>
       )}
 
-      {showPrev && <HistoryTable rows={yearSummaries(data.rows, bud.data?.rows ?? [], ov.year)} kind={kind} />}
+      {(() => {
+        // Femårsdiagrammet visas alltid när det finns avslutade år, inte bara vid "Jämför med förra året".
+        const hist = yearSummaries(data.rows, bud.data?.rows ?? [], ov.year);
+        return (
+          <>
+            <YearBars rows={hist} kind={kind} />
+            {showPrev && <HistoryTable rows={hist} kind={kind} />}
+          </>
+        );
+      })()}
 
       <p style={{ color: MUTED, fontSize: 14, lineHeight: 1.6, margin: 0 }}>
         Källa: föreningens bokföring och budget. Siffrorna gäller {periodLabel(ov.upTo)} {ov.year}.{updated ? ` Uppdaterad ${updated}.` : ""} Avvikelser under 1 000 kr
