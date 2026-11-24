@@ -116,8 +116,8 @@ type Mail = {
   fromName?: string;
   /** Svara-adress. Bara en validerad e-postadress får hamna här (ingen CR/LF). */
   replyTo?: string;
-  /** Kopia till. Redan validerade adresser (ingen CR/LF). */
-  cc?: string[];
+  /** Dold kopia. Redan validerade adresser (ingen CR/LF). Syns inte för mottagaren. */
+  bcc?: string[];
 };
 
 function mailText(m: Mail): string {
@@ -193,7 +193,7 @@ async function sendMails(mails: Mail[]): Promise<boolean[]> {
         await client.send({
           from: fromHeader(fromAddr, m.fromName),
           to: m.to,
-          ...(m.cc && m.cc.length ? { cc: m.cc } : {}),
+          ...(m.bcc && m.bcc.length ? { bcc: m.bcc } : {}),
           subject: encodeMailSubject(m.subject),
           content: mailText(m),
           html: mailHtml(m),
@@ -279,16 +279,16 @@ Deno.serve(async (req) => {
       const propertyName = String((prop.data as { name?: string } | null)?.name ?? "");
       // Läsfelet sväljs (tabellen kommer från en handkörd migration): saknas adressen får personalen ett tydligt besked.
       const lh = await db.from("property_letterhead").select("email").eq("property_id", fb.property_id as string).maybeSingle();
-      // Kopia: högst fem giltiga adresser, utan dubbletter och utan mottagaren själv.
-      const ccRaw: unknown[] = Array.isArray(body.cc) ? body.cc : String(body.cc ?? "").split(/[,;\s]+/);
-      const cc: string[] = [];
-      for (const v of ccRaw) {
+      // Dold kopia: högst fem giltiga adresser, utan dubbletter och utan mottagaren själv.
+      const bccRaw: unknown[] = Array.isArray(body.bcc) ? body.bcc : String(body.bcc ?? "").split(/[,;\s]+/);
+      const bcc: string[] = [];
+      for (const v of bccRaw) {
         const a = String(v ?? "").trim().toLowerCase();
         if (!a) continue;
-        if (!/^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/.test(a) || a.length > 200) return json({ error: `Kopia-adressen "${a.slice(0, 60)}" ser inte ut som en e-postadress.` }, 400);
-        if (a !== String(fb.email).toLowerCase() && !cc.includes(a)) cc.push(a);
+        if (!/^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/.test(a) || a.length > 200) return json({ error: `Adressen "${a.slice(0, 60)}" ser inte ut som en e-postadress.` }, 400);
+        if (a !== String(fb.email).toLowerCase() && !bcc.includes(a)) bcc.push(a);
       }
-      if (cc.length > 5) return json({ error: "Du kan ange högst fem adresser i kopia." }, 400);
+      if (bcc.length > 5) return json({ error: "Du kan ange högst fem adresser i dold kopia." }, 400);
       const replyTo = String((lh.data as { email?: string | null } | null)?.email ?? "").trim().toLowerCase();
       if (!/^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/.test(replyTo)) {
         return json({ error: "Föreningens svarsadress är inte inlagd. Lägg in den högst upp på sidan Synpunkter och försök igen.", code: "no_reply_address" }, 400);
@@ -304,7 +304,7 @@ Deno.serve(async (req) => {
         signoff: `Vänliga hälsningar, styrelsen i ${propertyName}`,
         fromName: propertyName,
         replyTo,
-        cc,
+        bcc,
       }]);
       if (!ok[0]) return json({ error: "Mejlet kunde inte skickas just nu. Försök igen om en stund." }, 502);
       const handler = meRow?.full_name ?? null;

@@ -353,7 +353,7 @@ function FeedbackCard({ r, isAdmin, update, remove, profileName, propertyName, r
   const sendReply = async () => {
     setSending(true);
     try {
-      const { data, error } = await supabase.functions.invoke("submit-synpunkt", { body: { action: "reply", id: r.id, message: draft, cc } });
+      const { data, error } = await supabase.functions.invoke("submit-synpunkt", { body: { action: "reply", id: r.id, message: draft, bcc: cc } });
       try { localStorage.setItem(CC_KEY, cc.trim()); } catch { /* valfritt */ }
       if (error || !data?.success) {
         toast.error(error ? await functionError(error) : String(data?.error ?? "Svaret kunde inte skickas."));
@@ -428,11 +428,11 @@ function FeedbackCard({ r, isAdmin, update, remove, profileName, propertyName, r
             className="sy-input"
             value={cc}
             onChange={(e) => setCc(e.target.value)}
-            placeholder="Kopia till (t.ex. styrelsens mejl — flera med komma)"
-            aria-label="Kopia till"
+            placeholder="Dold kopia till (t.ex. styrelsens mejl — flera med komma)"
+            aria-label="Dold kopia till"
             inputMode="email"
           />
-          {cc.trim() && <div style={{ fontSize: 12.5, color: MUTED }}>Medlemmen ser vilka som får kopia.</div>}
+          {cc.trim() && <div style={{ fontSize: 12.5, color: MUTED }}>Medlemmen ser inte att kopian skickas.</div>}
           <textarea
             className="sy-input"
             style={{ height: 180, padding: 10, resize: "vertical", fontFamily: "inherit", fontSize: 14.5, lineHeight: 1.55 }}
