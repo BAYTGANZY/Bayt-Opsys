@@ -126,12 +126,28 @@ function SynpunkterPage() {
     queryKey: ["synpunkt-reply-address", activeProperty],
     enabled: canUse && !!activeProperty,
     queryFn: async () => {
-      const { data, error } = await supabase.from("property_letterhead").select("email").eq("property_id", activeProperty).maybeSingle();
-      if (error) return { email: "", missing: /does not exist|relation|schema cache/i.test(error.message) };
-      return { email: String((data as { email?: string | null } | null)?.email ?? ""), missing: false };
+      const { data, error } = await supabase.from("property_letterhead").select("*").eq("property_id", activeProperty).maybeSingle();
+      if (error) return { email: "", bcc: "", missing: /does not exist|relation|schema cache/i.test(error.message) };
+      const row = data as { email?: string | null; reply_bcc?: string | null } | null;
+      return { email: String(row?.email ?? ""), bcc: String(row?.reply_bcc ?? ""), hasBccColumn: !!row && "reply_bcc" in row, missing: false };
     },
   });
   const replyEmail = replyQ.data?.email ?? "";
+  const defaultBcc = replyQ.data?.bcc ?? "";
+  const [bccDraft, setBccDraft] = useState<string | null>(null);
+  const saveBcc = useMutation({
+    mutationFn: async (bcc: string) => {
+      const { data, error } = await supabase.from("property_letterhead").update({ reply_bcc: bcc || null, updated_at: new Date().toISOString() }).eq("property_id", activeProperty).select("property_id");
+      if (error) throw new Error(/reply_bcc|schema cache|42703/i.test(error.message) ? "Kolumnen saknas. Kör synpunkt-standard-bcc.sql i Supabase först." : error.message);
+      if (!data || data.length === 0) throw new Error("Spara svarsadressen först (den måste finnas innan dold kopia kan sparas).");
+    },
+    onSuccess: () => {
+      setBccDraft(null);
+      void qc.invalidateQueries({ queryKey: ["synpunkt-reply-address"] });
+      toast.success("Standardkopian är sparad");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const [addrDraft, setAddrDraft] = useState<string | null>(null);
   const saveAddr = useMutation({
     mutationFn: async (email: string) => {
@@ -302,6 +318,29 @@ function SynpunkterPage() {
             onClick={() => saveAddr.mutate((addrDraft ?? "").trim().toLowerCase())}
           >
             Spara adress
+          </button>
+        </div>
+        <div style={{ fontSize: 13.5, color: MUTED, lineHeight: 1.55, marginTop: 4 }}>
+          <strong style={{ color: INK }}>Alltid dold kopia till.</strong> Får en dold kopia av varje svar. Medlemmen ser inte adressen.
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            className="sy-input"
+            style={{ flex: "1 1 260px", maxWidth: 380 }}
+            type="email"
+            inputMode="email"
+            value={bccDraft ?? defaultBcc}
+            onChange={(e) => setBccDraft(e.target.value)}
+            placeholder="styrelse@forening.se"
+            aria-label="Alltid dold kopia till"
+          />
+          <button
+            type="button"
+            className="sy-btn sy-primary"
+            disabled={saveBcc.isPending || bccDraft === null || bccDraft.trim() === defaultBcc || (bccDraft.trim() !== "" && !/^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/.test(bccDraft.trim()))}
+            onClick={() => saveBcc.mutate((bccDraft ?? "").trim().toLowerCase())}
+          >
+            Spara
           </button>
         </div>
       </div>
