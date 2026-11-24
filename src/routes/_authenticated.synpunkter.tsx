@@ -343,6 +343,9 @@ function FeedbackCard({ r, isAdmin, update, remove, profileName, propertyName, r
   const [replying, setReplying] = useState(false);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  // Kopia-adresser kommer ihåg från förra svaret (per webbläsare), så styrelsens mejl bara skrivs in en gång.
+  const CC_KEY = "bayt-synpunkt-cc";
+  const [cc, setCc] = useState(() => { try { return localStorage.getItem(CC_KEY) ?? ""; } catch { return ""; } });
   const startReply = () => {
     setDraft((d) => d || `Hej ${r.name},\n\n\n\nVänliga hälsningar,\nStyrelsen i ${propertyName}`);
     setReplying(true);
@@ -350,7 +353,8 @@ function FeedbackCard({ r, isAdmin, update, remove, profileName, propertyName, r
   const sendReply = async () => {
     setSending(true);
     try {
-      const { data, error } = await supabase.functions.invoke("submit-synpunkt", { body: { action: "reply", id: r.id, message: draft } });
+      const { data, error } = await supabase.functions.invoke("submit-synpunkt", { body: { action: "reply", id: r.id, message: draft, cc } });
+      try { localStorage.setItem(CC_KEY, cc.trim()); } catch { /* valfritt */ }
       if (error || !data?.success) {
         toast.error(error ? await functionError(error) : String(data?.error ?? "Svaret kunde inte skickas."));
         return;
@@ -420,6 +424,15 @@ function FeedbackCard({ r, isAdmin, update, remove, profileName, propertyName, r
             Till <strong style={{ color: INK }}>{r.email}</strong> från {propertyName}.{" "}
             {replyEmail ? <>Medlemmens svar går till <strong style={{ color: INK }}>{replyEmail}</strong>.</> : <span style={{ color: "#B42318" }}>Lägg in föreningens svarsadress högst upp på sidan först.</span>}
           </div>
+          <input
+            className="sy-input"
+            value={cc}
+            onChange={(e) => setCc(e.target.value)}
+            placeholder="Kopia till (t.ex. styrelsens mejl — flera med komma)"
+            aria-label="Kopia till"
+            inputMode="email"
+          />
+          {cc.trim() && <div style={{ fontSize: 12.5, color: MUTED }}>Medlemmen ser vilka som får kopia.</div>}
           <textarea
             className="sy-input"
             style={{ height: 180, padding: 10, resize: "vertical", fontFamily: "inherit", fontSize: 14.5, lineHeight: 1.55 }}
