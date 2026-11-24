@@ -294,7 +294,10 @@ Deno.serve(async (req) => {
       }]);
       if (!ok[0]) return json({ error: "Mejlet kunde inte skickas just nu. Försök igen om en stund." }, 502);
       const handler = meRow?.full_name ?? null;
-      const upd = await db.from("member_feedback").update({ status: "besvarad", handled_at: new Date().toISOString(), handled_by_name: handler }).eq("id", fb.id as string).select("id");
+      const base = { status: "besvarad", handled_at: new Date().toISOString(), handled_by_name: handler };
+      // reply_text kommer från en handkörd migration — saknas kolumnen markeras ärendet ändå.
+      let upd = await db.from("member_feedback").update({ ...base, reply_text: text }).eq("id", fb.id as string).select("id");
+      if (upd.error) upd = await db.from("member_feedback").update(base).eq("id", fb.id as string).select("id");
       return json({ success: true, marked: !upd.error && (upd.data?.length ?? 0) > 0, reply_to: replyTo }, 200);
     }
 

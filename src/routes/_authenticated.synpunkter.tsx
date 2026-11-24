@@ -42,6 +42,7 @@ type Item = {
   staff_note: string | null;
   handled_by_name: string | null;
   handled_at: string | null;
+  reply_text?: string | null;
   created_at: string;
 };
 
@@ -436,6 +437,13 @@ function FeedbackCard({ r, isAdmin, update, remove, profileName, propertyName, r
       {r.status === "besvarad" && r.handled_at && (
         <div style={{ fontSize: 13, color: "#166534" }}>
           Besvarad {fmtDate(r.handled_at)}{r.handled_by_name ? ` av ${r.handled_by_name}` : ""}.
+        </div>
+      )}
+
+      {r.reply_text && (
+        <div style={{ background: "#F0F7EE", border: "1px solid #CFE6C8", borderRadius: 10, padding: "10px 12px", fontSize: 14, color: "#0D2B1E", whiteSpace: "pre-wrap" }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "#3D8A30", marginBottom: 4 }}>Vårt svar</div>
+          {r.reply_text}
         </div>
       )}
 
