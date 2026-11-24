@@ -118,6 +118,20 @@ function SynpunkterPage() {
       return (data ?? []) as Item[];
     },
   });
+  // Alla skickade svar för föreningen (tabellen kommer från en handkörd migration — saknas den visas bara äldre reply_text).
+  type ReplyRow = { id: string; feedback_id: string; body: string; sent_by_name: string | null; copied_to: string | null; created_at: string };
+  const repliesQ = useQuery({
+    queryKey: ["member-feedback-replies", activeProperty],
+    enabled: canUse && !!activeProperty,
+    refetchOnWindowFocus: true,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("member_feedback_replies").select("*").eq("property_id", activeProperty).order("created_at", { ascending: true });
+      if (error) return [] as ReplyRow[];
+      return (data ?? []) as ReplyRow[];
+    },
+  });
+  const repliesByItem = new Map<string, ReplyRow[]>();
+  for (const rp of repliesQ.data ?? []) repliesByItem.set(rp.feedback_id, [...(repliesByItem.get(rp.feedback_id) ?? []), rp]);
   const all = q.data ?? [];
   const missingTable = !!q.error && /does not exist|relation|schema cache/i.test((q.error as Error).message);
 
@@ -148,6 +162,7 @@ function SynpunkterPage() {
   });
 
   const refresh = () => {
+    void qc.invalidateQueries({ queryKey: ["member-feedback-replies"] });
     void qc.invalidateQueries({ queryKey: ["member-feedback"] });
     void qc.invalidateQueries({ queryKey: ["feedback-notifications"] });
   };
@@ -307,7 +322,7 @@ function SynpunkterPage() {
       </div>
       <div style={{ display: "grid", gap: 10 }}>
         {shown.map((r) => (
-          <FeedbackCard key={r.id} r={r} isAdmin={isAdmin} update={update} remove={remove} profileName={profile?.full_name ?? null} propertyName={propertyName} replyEmail={replyEmail} onSent={refresh} />
+          <FeedbackCard key={r.id} r={r} isAdmin={isAdmin} update={update} remove={remove} profileName={profile?.full_name ?? null} propertyName={propertyName} replyEmail={replyEmail} replies={repliesByItem.get(r.id) ?? []} onSent={refresh} />
         ))}
       </div>
 
@@ -326,6 +341,7 @@ type CardProps = {
   profileName: string | null;
   propertyName: string;
   replyEmail: string;
+  replies: { id: string; body: string; sent_by_name: string | null; copied_to: string | null; created_at: string }[];
   onSent: () => void;
 };
 
@@ -339,7 +355,7 @@ async function functionError(error: unknown): Promise<string> {
   return "Svaret kunde inte skickas. Försök igen om en stund.";
 }
 
-function FeedbackCard({ r, isAdmin, update, remove, profileName, propertyName, replyEmail, onSent }: CardProps) {
+function FeedbackCard({ r, isAdmin, update, remove, profileName, propertyName, replyEmail, replies, onSent }: CardProps) {
   const [replying, setReplying] = useState(false);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -453,12 +469,15 @@ function FeedbackCard({ r, isAdmin, update, remove, profileName, propertyName, r
         </div>
       )}
 
-      {r.reply_text && (
-        <div style={{ background: "#F0F7EE", border: "1px solid #CFE6C8", borderRadius: 10, padding: "10px 12px", fontSize: 14, color: "#0D2B1E", whiteSpace: "pre-wrap" }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#3D8A30", marginBottom: 4 }}>Vårt svar</div>
-          {r.reply_text}
+      {(replies.length > 0 ? replies : r.reply_text ? [{ id: "old", body: r.reply_text, sent_by_name: r.handled_by_name, copied_to: null, created_at: r.handled_at ?? "" }] : []).map((rp, i, arr) => (
+        <div key={rp.id} style={{ background: "#F0F7EE", border: "1px solid #CFE6C8", borderRadius: 10, padding: "10px 12px", fontSize: 14, color: "#0D2B1E", whiteSpace: "pre-wrap" }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "#3D8A30", marginBottom: 4 }}>
+            Vårt svar{arr.length > 1 ? ` ${i + 1} av ${arr.length}` : ""}{rp.created_at ? ` · ${fmtDateTime(rp.created_at)}` : ""}{rp.sent_by_name ? ` · ${rp.sent_by_name}` : ""}
+          </div>
+          {rp.body}
+          {rp.copied_to && <div style={{ fontSize: 12, color: MUTED, marginTop: 6 }}>Dold kopia: {rp.copied_to}</div>}
         </div>
-      )}
+      ))}
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         <input
