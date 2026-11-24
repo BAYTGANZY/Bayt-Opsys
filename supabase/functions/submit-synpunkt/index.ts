@@ -249,6 +249,55 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") return json({ error: "Ogiltig förfrågan." }, 400);
 
+    // ---- Styrelsen svarar medlemmen: plattformen skickar mejlet (kräver inloggad personal/styrelse i föreningen) ----
+    // Svaret går från plattformens brevlåda med föreningens namn som avsändare, och föreningens egen adress
+    // (property_letterhead.email) som Reply-To, så att medlemmens svar landar i föreningens brevlåda.
+    if (body.action === "reply") {
+      const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+      const { data: userData } = await db.auth.getUser(jwt);
+      const userId = userData?.user?.id;
+      if (!userId) return json({ error: "Du måste vara inloggad." }, 401);
+      const me = await db.from("profiles").select("role, full_name").eq("id", userId).maybeSingle();
+      const meRow = me.data as { role?: string; full_name?: string | null } | null;
+      const role = meRow?.role;
+      if (role !== "admin" && role !== "medarbetare" && role !== "styrelse") return json({ error: "Du har inte behörighet." }, 403);
+      const found = await db.from("member_feedback").select("*").eq("id", String(body.id ?? "")).maybeSingle();
+      const fb = found.data as Record<string, unknown> | null;
+      if (!fb) return json({ error: "Meddelandet hittades inte." }, 404);
+      if (role === "styrelse") {
+        const link = await db.from("styrelse_properties").select("property_id").eq("profile_id", userId).eq("property_id", fb.property_id as string);
+        if (!link.data || link.data.length === 0) return json({ error: "Du har inte behörighet för den här föreningen." }, 403);
+      }
+      // deno-lint-ignore no-control-regex
+      const text = String(body.message ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").replace(/\r\n/g, "\n").trim();
+      if (text.length < 2) return json({ error: "Skriv ditt svar." }, 400);
+      if (text.length > MAX_MESSAGE) return json({ error: `Svaret är för långt (högst ${MAX_MESSAGE} tecken).` }, 400);
+      const prop = await db.from("properties").select("name").eq("id", fb.property_id as string).maybeSingle();
+      const propertyName = String((prop.data as { name?: string } | null)?.name ?? "");
+      // Läsfelet sväljs (tabellen kommer från en handkörd migration): saknas adressen får personalen ett tydligt besked.
+      const lh = await db.from("property_letterhead").select("email").eq("property_id", fb.property_id as string).maybeSingle();
+      const replyTo = String((lh.data as { email?: string | null } | null)?.email ?? "").trim().toLowerCase();
+      if (!/^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/.test(replyTo)) {
+        return json({ error: "Föreningens svarsadress är inte inlagd. Lägg in den högst upp på sidan Synpunkter och försök igen.", code: "no_reply_address" }, 400);
+      }
+      const ok = await sendMails([{
+        to: String(fb.email),
+        subject: `Svar på ditt meddelande (${fb.reference})`,
+        intro: `Hej ${fb.name}! Här är svaret från styrelsen i ${propertyName} på ditt meddelande.`,
+        rows: [["Referens", String(fb.reference)]],
+        note: { label: "Svar från styrelsen", text },
+        outro: `Du kan svara direkt på det här mejlet, så når svaret ${propertyName}.`,
+        brand: propertyName,
+        signoff: `Vänliga hälsningar, styrelsen i ${propertyName}`,
+        fromName: propertyName,
+        replyTo,
+      }]);
+      if (!ok[0]) return json({ error: "Mejlet kunde inte skickas just nu. Försök igen om en stund." }, 502);
+      const handler = meRow?.full_name ?? null;
+      const upd = await db.from("member_feedback").update({ status: "besvarad", handled_at: new Date().toISOString(), handled_by_name: handler }).eq("id", fb.id as string).select("id");
+      return json({ success: true, marked: !upd.error && (upd.data?.length ?? 0) > 0, reply_to: replyTo }, 200);
+    }
+
     if (clean(body.website)) return json({ success: true }, 200); // honeypot
 
     const propertyId = String(body.property_id ?? "");
