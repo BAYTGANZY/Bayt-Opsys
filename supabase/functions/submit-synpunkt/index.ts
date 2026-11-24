@@ -315,6 +315,16 @@ Deno.serve(async (req) => {
       // reply_text kommer från en handkörd migration — saknas kolumnen markeras ärendet ändå.
       let upd = await db.from("member_feedback").update({ ...base, reply_text: text }).eq("id", fb.id as string).select("id");
       if (upd.error) upd = await db.from("member_feedback").update(base).eq("id", fb.id as string).select("id");
+      // Svarshistorik: varje skickat svar sparas som en egen rad. Saknas tabellen (handkörd migration) hoppas det över.
+      const logged = await db.from("member_feedback_replies").insert({
+        feedback_id: fb.id,
+        property_id: fb.property_id,
+        body: text,
+        sent_to: String(fb.email),
+        copied_to: bcc.length ? bcc.join(", ") : null,
+        sent_by_name: handler,
+      }).select("id");
+      if (logged.error) console.error("reply log failed:", logged.error.message);
       return json({ success: true, marked: !upd.error && (upd.data?.length ?? 0) > 0, reply_to: replyTo }, 200);
     }
 
