@@ -278,7 +278,7 @@ Deno.serve(async (req) => {
       const prop = await db.from("properties").select("name").eq("id", fb.property_id as string).maybeSingle();
       const propertyName = String((prop.data as { name?: string } | null)?.name ?? "");
       // Läsfelet sväljs (tabellen kommer från en handkörd migration): saknas adressen får personalen ett tydligt besked.
-      const lh = await db.from("property_letterhead").select("email").eq("property_id", fb.property_id as string).maybeSingle();
+      const lh = await db.from("property_letterhead").select("*").eq("property_id", fb.property_id as string).maybeSingle();
       // Dold kopia: högst fem giltiga adresser, utan dubbletter och utan mottagaren själv.
       const bccRaw: unknown[] = Array.isArray(body.bcc) ? body.bcc : String(body.bcc ?? "").split(/[,;\s]+/);
       const bcc: string[] = [];
@@ -288,6 +288,9 @@ Deno.serve(async (req) => {
         if (!/^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/.test(a) || a.length > 200) return json({ error: `Adressen "${a.slice(0, 60)}" ser inte ut som en e-postadress.` }, 400);
         if (a !== String(fb.email).toLowerCase() && !bcc.includes(a)) bcc.push(a);
       }
+      // Föreningens standardadress för dold kopia (kolumnen kommer från en handkörd migration — saknas den hoppas den över).
+      const defBcc = String((lh.data as { reply_bcc?: string | null } | null)?.reply_bcc ?? "").trim().toLowerCase();
+      if (/^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/.test(defBcc) && defBcc !== String(fb.email).toLowerCase() && !bcc.includes(defBcc)) bcc.unshift(defBcc);
       if (bcc.length > 5) return json({ error: "Du kan ange högst fem adresser i dold kopia." }, 400);
       const replyTo = String((lh.data as { email?: string | null } | null)?.email ?? "").trim().toLowerCase();
       if (!/^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$/.test(replyTo)) {
