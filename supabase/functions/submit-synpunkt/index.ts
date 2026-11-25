@@ -241,6 +241,8 @@ const TOPIC = "allmant";
 const CATEGORY_LABEL: Record<string, string> = { synpunkt: "Synpunkt", fraga: "Fråga", ide: "Idé", klagomal: "Klagomål" };
 
 const MAX_MESSAGE = 5000;
+// Styrelsens svar får vara längre än medlemmens meddelande.
+const MAX_REPLY = 20000;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -274,7 +276,7 @@ Deno.serve(async (req) => {
       // deno-lint-ignore no-control-regex
       const text = String(body.message ?? "").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").replace(/\r\n/g, "\n").trim();
       if (text.length < 2) return json({ error: "Skriv ditt svar." }, 400);
-      if (text.length > MAX_MESSAGE) return json({ error: `Svaret är för långt (högst ${MAX_MESSAGE} tecken).` }, 400);
+      if (text.length > MAX_REPLY) return json({ error: `Svaret är för långt (högst ${MAX_REPLY} tecken).` }, 400);
       const prop = await db.from("properties").select("name").eq("id", fb.property_id as string).maybeSingle();
       const propertyName = String((prop.data as { name?: string } | null)?.name ?? "");
       // Läsfelet sväljs (tabellen kommer från en handkörd migration): saknas adressen får personalen ett tydligt besked.
